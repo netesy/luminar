@@ -1,0 +1,93 @@
+{
+	"kind" : "toolchains",
+	"toolchains" : 
+	[
+		{
+			"compiler" : 
+			{
+				"id" : "GNU",
+				"implicit" : 
+				{
+					"includeDirectories" : 
+					[
+						"C:/Program Files/CodeBlocks/mingw32/include/c++/13.2.0",
+						"C:/Program Files/CodeBlocks/mingw32/include/c++/13.2.0/i686-w64-mingw32",
+						"C:/Program Files/CodeBlocks/mingw32/include/c++/13.2.0/backward",
+						"C:/Program Files/CodeBlocks/mingw32/lib/gcc/i686-w64-mingw32/13.2.0/include",
+						"C:/Program Files/CodeBlocks/mingw32/include",
+						"C:/Program Files/CodeBlocks/mingw32/lib/gcc/i686-w64-mingw32/13.2.0/include-fixed",
+						"C:/Program Files/CodeBlocks/mingw32/i686-w64-mingw32/include"
+					],
+					"linkDirectories" : 
+					[
+						"C:/Program Files/CodeBlocks/mingw32/lib/gcc/i686-w64-mingw32/13.2.0",
+						"C:/Program Files/CodeBlocks/mingw32/lib/gcc",
+						"C:/Program Files/CodeBlocks/mingw32/i686-w64-mingw32/lib",
+						"C:/Program Files/CodeBlocks/mingw32/lib"
+					],
+					"linkFrameworkDirectories" : [],
+					"linkLibraries" : 
+					[
+						"stdc++",
+						"mingw32",
+						"gcc_s",
+						"gcc",
+						"moldname",
+						"mingwex",
+						"kernel32",
+						"pthread",
+						"advapi32",
+						"shell32",
+						"user32",
+						"kernel32",
+						"mingw32",
+						"gcc_s",
+						"gcc",
+						"moldname",
+						"mingwex",
+						"kernel32"
+					]
+				},
+				"path" : "C:/Program Files/CodeBlocks/mingw32/bin/g++.exe",
+				"version" : "13.2.0"
+			},
+			"language" : "CXX",
+			"sourceFileExtensions" : 
+			[
+				"C",
+				"M",
+				"c++",
+				"cc",
+				"cpp",
+				"cxx",
+				"m",
+				"mm",
+				"mpp",
+				"CPP",
+				"ixx",
+				"cppm",
+				"ccm",
+				"cxxm",
+				"c++m"
+			]
+		},
+		{
+			"compiler" : 
+			{
+				"implicit" : {},
+				"path" : "C:/Program Files/CodeBlocks/mingw32/bin/windres.exe"
+			},
+			"language" : "RC",
+			"sourceFileExtensions" : 
+			[
+				"rc",
+				"RC"
+			]
+		}
+	],
+	"version" : 
+	{
+		"major" : 1,
+		"minor" : 0
+	}
+}

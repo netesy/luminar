@@ -137,7 +137,7 @@ struct Instruction
     // Debug function to display content of the struct
     void debug() const
     {
-        std::cout << "Opcode: " << static_cast<int>(opcode) << std::endl;
+        std::cout << "Opcode: " << opcodeToString(opcode) << std::endl;
         std::cout << "Line Number: " << lineNumber << std::endl;
         switch (opcode) {
         // Arithmetic operations
@@ -244,7 +244,7 @@ struct Instruction
         case Opcode::LOAD_STR:
         case Opcode::STORE_STR:
         case Opcode::CONCATENATE_STR:
-            std::cout << "Value (string): " << stringValue << std::endl;
+            std::cout << "Value (string): " << stringValue  << intValue << std::endl;
             break;
 
             // Unrecognized opcode

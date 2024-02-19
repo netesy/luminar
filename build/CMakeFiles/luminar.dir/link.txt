@@ -1,0 +1,3 @@
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\luminar.dir/objects.a
+C:\PROGRA~1\CodeBlocks\mingw32\bin\ar.exe qc CMakeFiles\luminar.dir/objects.a @CMakeFiles\luminar.dir\objects1.rsp
+C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe -g -Wl,--whole-archive CMakeFiles\luminar.dir/objects.a -Wl,--no-whole-archive -o luminar.exe -Wl,--out-implib,libluminar.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\luminar.dir\linkLibs.rsp

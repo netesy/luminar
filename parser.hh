@@ -45,10 +45,8 @@ public:
 
     uint32_t getVariableMemoryLocation(const std::string &name) const
     {
-        if (variables.count(name)) {
-            return variables.at(name);
-        }
-        throw std::runtime_error("Variable not found in symbol table.");
+         return variables.count(name) ? variables.at(name) : 0;
+        //throw std::runtime_error("Variable not found in symbol table.");
     }
 
 private:

@@ -1,0 +1,38 @@
+[
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\main.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\main.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/main.cpp",
+  "output": "CMakeFiles/luminar.dir/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\debugger.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\debugger.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/debugger.cpp",
+  "output": "CMakeFiles/luminar.dir/debugger.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\parser.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/parser.cpp",
+  "output": "CMakeFiles/luminar.dir/parser.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\repl.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\repl.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/repl.cpp",
+  "output": "CMakeFiles/luminar.dir/repl.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\scanner.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\scanner.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/scanner.cpp",
+  "output": "CMakeFiles/luminar.dir/scanner.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\syntax.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\syntax.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/syntax.cpp",
+  "output": "CMakeFiles/luminar.dir/syntax.cpp.obj"
+}
+]

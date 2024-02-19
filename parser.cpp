@@ -7,7 +7,7 @@
 
 Parser::Parser(Scanner &scanner)
     : scanner(scanner)
-    , nextMemoryLocation(0)
+    , nextMemoryLocation(1)
     , bytecode(Bytecode{})
 {
     // std::vector<Token> temp = scanner.scanTokens();
@@ -17,10 +17,10 @@ Parser::Parser(Scanner &scanner)
 Bytecode Parser::parse()
 {
     scanner.current = 0;
-    // Now parse the tokens using scanner methods directly
-    std::cout << "======= Scanner Debug =======\n"
-              << scanner.toString() << "======= End Debug =======\n"
-              << std::endl;
+    // // Now parse the tokens using scanner methods directly
+    // std::cout << "======= Scanner Debug =======\n"
+    //           << scanner.toString() << "======= End Debug =======\n"
+    //           << std::endl;
     //print("parse function");
     return block();
 }
@@ -57,7 +57,7 @@ void Parser::advance()
 {
     if (current < tokens.size()) {
         current++;
-        std::cout << "current index: " << current << std::endl;
+       // std::cout << "current index: " << current <<  " of token size: " << tokens.size() << std::endl;
     }
     // scanner.advance();
 }
@@ -210,7 +210,7 @@ void Parser::print(std::string message)
     Token current = peek();
     std::cout << "Lexeme: " << current.lexeme
               << " token: " << scanner.tokenTypeToString(current.type) << " Message: " << message
-              << std::endl;
+              << std::endl<< std::flush;;
 }
 
 Bytecode Parser::ifStatement()
@@ -466,6 +466,7 @@ Bytecode Parser::primary()
             psuedo = functionCall(peek().lexeme);
         } else {
             varInvoke(); // Handle variable usage
+            std::cout <<"Var call";
         }
         break;
     case TokenType::STRING:
@@ -503,36 +504,30 @@ Bytecode Parser::primary()
 
 void Parser::varDeclaration()
 {
-    //print("var decl function");
-    Token varToken = previous();
+    advance();
     Token identifierToken = peek(); // Expect identifier token after 'var'
-    print(identifierToken.lexeme);
-    advance(); // Consume identifier token
-
-    print(identifierToken.lexeme);
     if (identifierToken.type != TokenType::IDENTIFIER) {
-        print(identifierToken.lexeme);
         error("Expected identifier after 'var'.");
     }
 
     // Check if the variable has already been declared
-    if (symbolTable.getVariableMemoryLocation(identifierToken.lexeme) != 0) {
+    uint32_t varIndex = symbolTable.getVariableMemoryLocation(identifierToken.lexeme);
+   // print(std::to_string(varIndex));
+    if ( varIndex > 0) {
         error("Variable already declared.");
     }
-
     // Declare the variable in the symbol table with a unique memory location
     uint32_t memoryLocation = nextMemoryLocation++;
     symbolTable.declareVariable(identifierToken.lexeme, memoryLocation);
-    print(identifierToken.lexeme);
+    advance(); // Consume identifier token
     if (match(TokenType::EQUAL)) {
         // Variable assignment
         Bytecode value = expression();
         bytecode.insert(bytecode.end(), value.begin(), value.end());
-        print(identifierToken.lexeme);
         // Store the value in the variable's memory location
         bytecode.push_back(makeInstruction(Opcode::STORE_VALUE,
-                                           varToken.line,
-                                           static_cast<int32_t>(memoryLocation)));
+                                        identifierToken.line,
+                                        static_cast<int32_t>(memoryLocation)));
     }
     // Optionally handle semicolon for statement termination
     advance();
@@ -540,36 +535,29 @@ void Parser::varDeclaration()
 
 void Parser::varInvoke()
 {
-    //print("var call function");
+    print("var call function");
     Token identifierToken = peek(); // Expect identifier token after variable name
-    advance();                      // Consume identifier token
 
     if (identifierToken.type != TokenType::IDENTIFIER) {
-        error("Expected identifier after variable name.");
+        error("Expected variable name to be an identifier.");
+        return;
+    }
+    print(identifierToken.lexeme);
+
+    // Efficiently look up variable using cached lookup or helper function
+    uint32_t memoryLocation = symbolTable.getVariableMemoryLocation(identifierToken.lexeme);
+
+    if (memoryLocation == 0) {
+        // Handle variable not found (provide clear error message)
+        error("Variable '" + identifierToken.lexeme + "' not found in symbol table.");
+        return; // Handle potential errors gracefully
     }
 
-    if (symbolTable.getVariableMemoryLocation(identifierToken.lexeme) != 0) {
-        // Retrieve the memory location of the variable from the symbol table
-        uint32_t memoryLocation = symbolTable.getVariableMemoryLocation(identifierToken.lexeme);
-        bytecode.push_back(makeInstruction(Opcode::LOAD_VALUE,
-                                           identifierToken.line,
-                                           std::to_string(memoryLocation)));
-    } else {
-        // If the identifier is not found in the symbol table, treat it as a string literal or numeric value
-        switch (identifierToken.type) {
-        case TokenType::STRING:
-            bytecode.push_back(
-                Instruction(Opcode::LOAD_VALUE, identifierToken.line, identifierToken.lexeme));
-            break;
-        case TokenType::NUMBER:
-            bytecode.push_back(Instruction(Opcode::LOAD_VALUE,
-                                           identifierToken.line,
-                                           std::stof(identifierToken.lexeme)));
-            break;
-        default:
-            error("Invalid primary expression.");
-        }
-    }
+    // Generate appropriate bytecode instruction based on memory location
+    bytecode.push_back(makeInstruction(Opcode::LOAD_VALUE, identifierToken.line, static_cast<int32_t>(memoryLocation)));
+
+    // Optionally handle semicolons (if applicable)
+    consume(TokenType::SEMICOLON, "Variable call should end in semi colon");
 }
 
 Bytecode Parser::functionDeclaration()

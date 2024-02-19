@@ -1,0 +1,7 @@
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/luminar.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/edit_cache.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/rebuild_cache.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/list_install_components.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/install.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/install/local.dir
+C:/Users/Fablur/Desktop/Projects/luminar/build/CMakeFiles/install/strip.dir

@@ -189,6 +189,7 @@ Token Scanner::getTokenFromChar(char c)
             // return Token{TokenType::ERROR, std::string(1, c)};
         }
     }
+    return Token{TokenType::UNDEFINED, std::string(1, c)};
 }
 
 bool Scanner::isAtEnd() const {
