@@ -1,5 +1,5 @@
-// sample.lm
-// Luminar Programming Language
+// sample.zm
+// Zenith Programming Language
 
 //It supports the general operations.
 
@@ -19,9 +19,7 @@ fn greeting(name: str, date: str? = None): str {
     var date_str:date = date;
     message += ", today's date is {date_str}.toDate()";
     }
-//    if let date_str = date {
-//        message += ", today's date is {date_str}.toDate()";
-//    }
+
     return message;
 }
 
@@ -29,13 +27,9 @@ fn greeting(name: str, date: str? = None): str {
 print(greeting(name="John")); // Hello John
 print(greeting(name="John", date="12/05/2024"));// Hello John, today's date is Monday 12th of May, 2024
 
-// Define custom syntax for loops
-for (var i = 0; i < 5; i++) {
-    print("Iteration: {i}");
-}
 
 // Use this syntax for iterating over a range
-for (var i in range(10)) {
+for (var i in 1..10) {
     print("Iteration: {i}");
 }
 
@@ -59,31 +53,22 @@ while (j < 5) {
 }
 
 // Demonstrate exception handling
-// Define custom error types
-enum CustomError {
-    Recoverable(str),
-    Unrecoverable(str),
+fn factorial(n: int) -> int? {
+  if (n < 0) {
+    return error("negative input") // Error handling using specific return type
+  } elif (n == 0 ){
+    return 1
+  } else {
+    return n * factorial(n - 1)
+  }
 }
 
-// Function that may throw a recoverable error
-fn process_data(data: [int]) throws int {
-    if data.empty() {
-        throw CustomError.Recoverable("Empty data encountered")
-    }
-    return data[0]
-}
-
-// Main function demonstrating error handling
-fn main() {
-    var data: [int] = [1, 2, 3]
-    attempt {
-        let result = process_data(data)
-        print("Result:", result)
-    } handle CustomError.Recoverable(message) {
-        print("Recoverable Error:", message)
-    } handle CustomError.Unrecoverable(message) {
-        print("Unrecoverable Error:", message)
-    }
+// Function to sum elements of a list with dependent type checking
+fn sum(list: List<nat>) -> nat { // `nat` represents natural numbers
+  match list {
+    Nil => 0
+    Cons(head, tail) => head + sum(tail) // Dependent type checking ensures `head` is a `nat`
+  }
 }
 
 
@@ -134,8 +119,9 @@ parallel {
     }
 }
 
+
 // Define a function for concurrent execution
-fn concurrent_task(id:int) {
+fn concurrent_task(id:int): None {
     print("Executing concurrent task {id}");
     // Simulate some computation or I/O operation
     sleep(randint(1, 3));  // Sleep for a random duration between 1 and 3 seconds
@@ -168,7 +154,6 @@ fn swap[T](a:T, b:T):void {
     b = temp;
 }
 
-//Todo: Not yet implemented
 // Define a function to demonstrate pattern matching
 fn matchExample(value):str {
     match(value) {
@@ -184,6 +169,19 @@ fn matchExample(value):str {
             print("Unknown type");
     }
 }
+
+    match(value) {
+        int:
+            print("The value is an integer");
+        str:
+            print("The value is a string");
+        list:
+            print("The value is a list");
+        dict:
+            print("The value is a dictionary");
+        _:
+            print("Unknown type");
+    }
 
 // Usage example
 matchExample(42);          // Output: The value is an integer

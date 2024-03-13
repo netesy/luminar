@@ -1,12 +1,14 @@
 //opcodes.hh
 #pragma once
+#include <any>
 #include <cstdint>
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <variant>
 #include <vector>
 
-enum class Opcode {
+enum Opcode {
     // Arithmetic operations
     ADD,
     SUBTRACT,
@@ -79,6 +81,7 @@ enum class Opcode {
     PATTERN_MATCH,
 
     // Additional operations for saving, retrieving values, and string manipulation
+    LOAD_CONST,     //load numerical const to and from memory
     LOAD_VALUE,     // Load value from memory
     STORE_VALUE,    // Store value to memory
     LOAD_STR,       // Load strings from memory
@@ -94,38 +97,16 @@ struct Instruction
     // Additional fields for operands, labels, etc.
     // Add any other metadata needed for debugging or bytecode generation
 
-    // Fields for saving values
-    int32_t intValue; // For integer values
-    float floatValue; // For floating-point values
-    bool boolValue;   // For boolean values
-    std::string stringValue; // For string values
-
-    // Constructor for instructions with integer value
-    Instruction(Opcode op, uint32_t line, int32_t value)
-        : opcode(op)
-        , lineNumber(line)
-        , intValue(value)
-    {}
-
-    // Constructor for instructions with floating-point value
-    Instruction(Opcode op, uint32_t line, float value)
-        : opcode(op)
-        , lineNumber(line)
-        , floatValue(value)
-    {}
-
-    // Constructor for instructions with boolean value
-    Instruction(Opcode op, uint32_t line, bool value)
-        : opcode(op)
-        , lineNumber(line)
-        , boolValue(value)
-    {}
+    // Use std::variant to hold any type of value
+    std::variant<int32_t, float, bool, std::string> value;
 
     // Constructor for instructions with string value
-    Instruction(Opcode op, uint32_t line, const std::string &value)
+    Instruction(Opcode op,
+                uint32_t line,
+                const std::variant<int32_t, float, bool, std::string> &value)
         : opcode(op)
         , lineNumber(line)
-        , stringValue(value)
+        , value(value)
     {}
 
     // Constructor for instructions without value
@@ -139,119 +120,20 @@ struct Instruction
     {
         std::cout << "Opcode: " << opcodeToString(opcode) << std::endl;
         std::cout << "Line Number: " << lineNumber << std::endl;
-        switch (opcode) {
-        // Arithmetic operations
-        case Opcode::ADD:
-        case Opcode::SUBTRACT:
-        case Opcode::MULTIPLY:
-        case Opcode::DIVIDE:
-        case Opcode::MODULUS:
-            std::cout << "Value (int): " << intValue << std::endl;
-            break;
-
-            // Comparison operations
-        case Opcode::EQUAL:
-        case Opcode::NOT_EQUAL:
-        case Opcode::LESS_THAN:
-        case Opcode::LESS_THAN_OR_EQUAL:
-        case Opcode::GREATER_THAN:
-        case Opcode::GREATER_THAN_OR_EQUAL:
-            std::cout << "Value (bool): " << std::boolalpha << boolValue << std::endl;
-            break;
-
-            // Logical operations
-        case Opcode::AND:
-        case Opcode::OR:
-        case Opcode::NOT:
-            std::cout << "Value (bool): " << std::boolalpha << boolValue << std::endl;
-            break;
-
-            // Control flow operations
-        case Opcode::JUMP:
-        case Opcode::JUMP_IF_TRUE:
-        case Opcode::JUMP_IF_FALSE:
-            std::cout << "Value (int): " << intValue << std::endl;
-            break;
-
-            // Variable operations
-        case Opcode::DECLARE_VARIABLE:
-        case Opcode::LOAD_VARIABLE:
-        case Opcode::STORE_VARIABLE:
-            std::cout << "Value (string): " << stringValue << std::endl;
-            break;
-
-            // Other operations
-        case Opcode::NOP:
-        case Opcode::HALT:
-        case Opcode::PRINT:
-            std::cout << "No value" << std::endl;
-            break;
-
-            // Function definition and invocation
-        case Opcode::DEFINE_FUNCTION:
-        case Opcode::INVOKE_FUNCTION:
-        case Opcode::RETURN_VALUE:
-            std::cout << "Value (string): " << stringValue << std::endl;
-            break;
-
-            // Loop operations
-        case Opcode::FOR_LOOP:
-        case Opcode::WHILE_LOOP:
-            std::cout << "Value (int): " << intValue << std::endl;
-            break;
-
-            // Error handling operations
-        case Opcode::ATTEMPT:
-        case Opcode::HANDLE:
-            std::cout << "No value" << std::endl;
-            break;
-
-            // Class operations
-        case Opcode::DEFINE_CLASS:
-        case Opcode::CREATE_OBJECT:
-        case Opcode::METHOD_CALL:
-            std::cout << "Value (string): " << stringValue << std::endl;
-            break;
-
-            // File I/O operations
-        case Opcode::OPEN_FILE:
-        case Opcode::WRITE_FILE:
-        case Opcode::CLOSE_FILE:
-            std::cout << "Value (string): " << stringValue << std::endl;
-            break;
-
-            // Concurrency operations
-        case Opcode::PARALLEL:
-        case Opcode::CONCURRENT:
-        case Opcode::ASYNC:
-            std::cout << "No value" << std::endl;
-            break;
-
-            // Generics operations
-        case Opcode::GENERIC_FUNCTION:
-        case Opcode::GENERIC_TYPE:
-            std::cout << "Value (string): " << stringValue << std::endl;
-            break;
-
-            // Pattern matching operations
-        case Opcode::PATTERN_MATCH:
-            std::cout << "No value" << std::endl;
-            break;
-
-            // Additional operations for saving, retrieving values, and string manipulation
-        case Opcode::LOAD_VALUE:
-        case Opcode::STORE_VALUE:
-        case Opcode::LOAD_STR:
-        case Opcode::STORE_STR:
-        case Opcode::CONCATENATE_STR:
-            std::cout << "Value (string): " << stringValue  << intValue << std::endl;
-            break;
-
-            // Unrecognized opcode
-        default:
-            std::cout << "Unrecognized opcode" << std::endl;
-            break;
-        }
+        std::visit(
+            [&](auto const &val) {
+                std::cout << "Value: ";
+                if constexpr (std::is_integral_v<decltype(val)>) {
+                    std::cout << "int: " << val << std::endl;
+                } else if (std::is_floating_point_v<decltype(val)>) {
+                    std::cout << "float: " << val << std::endl;
+                } else if (std::is_same_v<decltype(val), bool>) {
+                    std::cout << "bool: " << std::boolalpha << val << std::endl;
+                } else {
+                    std::cout << "string: " << val << std::endl;
+                }
+            },
+            value);
     }
 
     std::string opcodeToString(Opcode op) const
@@ -382,6 +264,8 @@ struct Instruction
             return "STORE_STR";
         case Opcode::CONCATENATE_STR:
             return "CONCATENATE_STR";
+        case Opcode::LOAD_CONST:
+            return "LOAD_CONST";
 
             // Unrecognized opcode
         default:

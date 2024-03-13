@@ -1,6 +1,7 @@
 #include "repl.hh"
 #include "parser.hh"
 #include "scanner.hh"
+#include "vm.hh" // Include the VM header
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -17,9 +18,18 @@ void REPL::start()
             Scanner scanner(input);
             Parser parser(scanner);
             parser.parse();
-            std::cout << "======= Parser Debug =======\n"
+            std::cout << "======= parse Debug =======\n"
                       << parser.toString() << "======= End Debug =======\n"
                       << std::endl;
+            //print("parse function");
+            std::vector<Instruction> bytecode = parser.getBytecode();
+
+            // Create a Virtual Machine (VM) instance
+            RegisterVM vm;
+
+            // Evaluate the bytecode using the VM
+            vm.Run(bytecode);
+
         } catch (const std::exception &e) {
             // std::cout << e << std::endl;
             // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));

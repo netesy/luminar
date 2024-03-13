@@ -6,8 +6,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <fstream>
 
-enum class InterpretationStage { SCANNING, PARSING, SYNTAX, SEMANTIC, INTERPRETING };
+enum class InterpretationStage { SCANNING, PARSING, SYNTAX, SEMANTIC, INTERPRETING, COMPILING };
 
 class Debugger {
 public:
@@ -45,6 +46,27 @@ public:
         std::cerr << "Suggestion: " << getSuggestion(errorMessage)
                   << "\n ----------------END----------------\n"
                   << std::endl;
+
+            std::ofstream logfile("log.txt", std::ios_base::app); // Open log file for appending
+        if (!logfile.is_open()) {
+            std::cerr << "Failed to open log file." << std::endl;
+            return;
+        }
+
+        logfile << "\n ----------------DEBUG----------------\n"
+                << "Error at line " << lineNumber << ", position " << position << " ("
+                << stageToString(stage) << "): " << errorMessage << std::endl;
+        if (!token.empty()) {
+            logfile << "Token: " << token << std::endl;
+        }
+        if (!expectedValue.empty()) {
+            logfile << "Expected value: " << expectedValue << std::endl;
+        }
+        logfile << "Suggestion: " << getSuggestion(errorMessage)
+                << "\n ----------------END----------------\n"
+                << std::endl;
+
+        logfile.close(); // Close the log file
     }
 
 private:
@@ -75,6 +97,8 @@ private:
             return "Semantic Parsing";
         case InterpretationStage::INTERPRETING:
             return "Interpreting";
+        case InterpretationStage::COMPILING:
+            return "Compiling";
         default:
             return "Unknown stage";
         }

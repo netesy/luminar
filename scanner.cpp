@@ -3,7 +3,8 @@
 #include "debugger.hh"
 #include <string>
 
-std::vector<Token> Scanner::scanTokens() {
+std::vector<Token> Scanner::scanTokens()
+{
     while (!isAtEnd()) {
         start = current;
         scanToken();
@@ -13,7 +14,8 @@ std::vector<Token> Scanner::scanTokens() {
     return tokens;
 }
 
-void Scanner::scanToken() {
+void Scanner::scanToken()
+{
     char c = advance();
     switch (c) {
     case '(':
@@ -112,87 +114,88 @@ Token Scanner::getTokenFromChar(char c)
 {
     switch (c) {
     case '(':
-        return Token{TokenType::LEFT_PAREN, std::string(1, c)};
+        return Token{TokenType::LEFT_PAREN, std::string(1, c), line};
     case ')':
-        return Token{TokenType::RIGHT_PAREN, std::string(1, c)};
+        return Token{TokenType::RIGHT_PAREN, std::string(1, c), line};
     case '{':
-        return Token{TokenType::LEFT_BRACE, std::string(1, c)};
+        return Token{TokenType::LEFT_BRACE, std::string(1, c), line};
     case '}':
-        return Token{TokenType::RIGHT_BRACE, std::string(1, c)};
+        return Token{TokenType::RIGHT_BRACE, std::string(1, c), line};
     case '[':
-        return Token{TokenType::LEFT_BRACKET, std::string(1, c)};
+        return Token{TokenType::LEFT_BRACKET, std::string(1, c), line};
     case ']':
-        return Token{TokenType::RIGHT_BRACKET, std::string(1, c)};
+        return Token{TokenType::RIGHT_BRACKET, std::string(1, c), line};
     case ',':
-        return Token{TokenType::COMMA, std::string(1, c)};
+        return Token{TokenType::COMMA, std::string(1, c), line};
     case '.':
-        return Token{TokenType::DOT, std::string(1, c)};
+        return Token{TokenType::DOT, std::string(1, c), line};
     case '-':
-        return match('>') ? Token{TokenType::ARROW, "->"}
-                          : Token{TokenType::MINUS, std::string(1, c)};
+        return match('>') ? Token{TokenType::ARROW, "->", line}
+                          : Token{TokenType::MINUS, std::string(1, c), line};
     case '+':
-        return Token{TokenType::PLUS, std::string(1, c)};
+        return Token{TokenType::PLUS, std::string(1, c), line};
     case '?':
-        return Token{TokenType::QUESTION, std::string(1, c)};
+        return Token{TokenType::QUESTION, std::string(1, c), line};
     case ':':
-        return Token{TokenType::COLON, std::string(1, c)};
+        return Token{TokenType::COLON, std::string(1, c), line};
     case ';':
-        return Token{TokenType::SEMICOLON, std::string(1, c)};
+        return Token{TokenType::SEMICOLON, std::string(1, c), line};
     case '*':
-        return Token{TokenType::STAR, std::string(1, c)};
+        return Token{TokenType::STAR, std::string(1, c), line};
     case '!':
-        return match('=') ? Token{TokenType::BANG_EQUAL, "!="}
-                          : Token{TokenType::BANG, std::string(1, c)};
+        return match('=') ? Token{TokenType::BANG_EQUAL, "!=", line}
+                          : Token{TokenType::BANG, std::string(1, c), line};
     case '=':
-        return match('=') ? Token{TokenType::EQUAL_EQUAL, "=="}
-                          : Token{TokenType::EQUAL, std::string(1, c)};
+        return match('=') ? Token{TokenType::EQUAL_EQUAL, "==", line}
+                          : Token{TokenType::EQUAL, std::string(1, c), line};
     case '<':
-        return match('=') ? Token{TokenType::LESS_EQUAL, "<="}
-                          : Token{TokenType::LESS, std::string(1, c)};
+        return match('=') ? Token{TokenType::LESS_EQUAL, "<=", line}
+                          : Token{TokenType::LESS, std::string(1, c), line};
     case '>':
-        return match('=') ? Token{TokenType::GREATER_EQUAL, ">="}
-                          : Token{TokenType::GREATER, std::string(1, c)};
+        return match('=') ? Token{TokenType::GREATER_EQUAL, ">=", line}
+                          : Token{TokenType::GREATER, std::string(1, c), line};
     case '_':
-        return Token{TokenType::DEFAULT, std::string(1, c)};
+        return Token{TokenType::DEFAULT, std::string(1, c), line};
     case '/':
         if (match('/')) {
             // Handle comments if needed
             // return getTokenFromComment(};
         } else {
-            return Token{TokenType::SLASH, std::string(1, c)};
+            return Token{TokenType::SLASH, std::string(1, c), line};
         }
     case '%':
-        return Token{TokenType::MODULUS, std::string(1, c)};
+        return Token{TokenType::MODULUS, std::string(1, c), line};
     case ' ':
     case '\r':
     case '\t':
         // Ignore whitespace.
-        // return Token{TokenType::WHITESPACE, std::string(1, c)}; // If whitespace is significant, adjust accordingly.
+        // return Token{TokenType::WHITESPACE, std::string(1, c), line}; // If whitespace is significant, adjust accordingly.
         break;
     case '\n':
         line++;
-        // return Token{TokenType::NEWLINE, std::string(1, c)}; // Assuming line is a member variable.
+        // return Token{TokenType::NEWLINE, std::string(1, c), line}; // Assuming line is a member variable.
         break;
     case '"':
     case '\'':
         // Handle strings
-        // return getTokenFromStringLiteral(};
+        // return getTokenFromStringLiteral();
     default:
         if (isDigit(c)) {
             // Handle numbers
-            // return getTokenFromNumber(};
+            // return getTokenFromNumber();
         } else if (isAlpha(c)) {
             // Handle identifiers
-            // return getTokenFromIdentifier(};
+            // return getTokenFromIdentifier();
         } else {
             // Handle error
-            // return Token{TokenType::ERROR, std::string(1, c)};
+            // return Token{TokenType::UNDEFINED, std::string(1, c), line};
         }
     }
-    return Token{TokenType::UNDEFINED, std::string(1, c)};
+    return Token{TokenType::UNDEFINED, std::string(1, c), line};
 }
 
-bool Scanner::isAtEnd() const {
+bool Scanner::isAtEnd() const
+{
     return current >= source.size();
 }
 
@@ -201,19 +204,28 @@ char Scanner::advance()
     return source[current++];
 }
 
-void Scanner::addToken(TokenType type) {
+void Scanner::addToken(TokenType type)
+{
     addToken(type, "");
 }
 
-void Scanner::addToken(TokenType type, const std::string& text) {
+void Scanner::addToken(TokenType type, const std::string &text)
+{
     std::string lexeme = source.substr(start, current - start);
-    tokens.push_back({type, lexeme, line});
+    if (text != "") {
+        tokens.push_back({type, text, line});
+    } else {
+        tokens.push_back({type, lexeme, line});
+    }
     currentToken = tokens.back(); // Update currentToken
 }
 
-bool Scanner::match(char expected) {
-    if (isAtEnd()) return false;
-    if (source[current] != expected) return false;
+bool Scanner::match(char expected)
+{
+    if (isAtEnd())
+        return false;
+    if (source[current] != expected)
+        return false;
 
     current++;
     return true;
@@ -232,7 +244,7 @@ const Token Scanner::getNextToken()
         return tokens[index];
     } else {
         // Handle end of tokens
-        return Token{TokenType::EOF_TOKEN, ""};
+        return Token{TokenType::EOF_TOKEN, "", line};
     }
 }
 
@@ -244,58 +256,64 @@ const Token Scanner::getPrevToken()
         return tokens[index];
     } else {
         // Handle no previous token
-        return Token{TokenType::EOF_TOKEN, ""};
+        return Token{TokenType::EOF_TOKEN, "", line};
     }
 }
 
 char Scanner::peek() const
 {
-    if (isAtEnd()) return '\0';
+    if (isAtEnd())
+        return '\0';
     return source[current];
 }
 
-char Scanner::peekNext() const {
-    if (current + 1 >= source.size()) return '\0';
+char Scanner::peekNext() const
+{
+    if (current + 1 >= source.size())
+        return '\0';
     return source[current + 1];
 }
 
-char Scanner::peekPrevious() const {
-        if (current > start) {
-            return source[current - 1];
-        }
-        return '\0'; // Return null character if no previous character exists
+char Scanner::peekPrevious() const
+{
+    if (current > start) {
+        return source[current - 1];
+    }
+    return '\0'; // Return null character if no previous character exists
 }
 
-bool Scanner::isDigit(char c) const {
+bool Scanner::isDigit(char c) const
+{
     return c >= '0' && c <= '9';
 }
 
-bool Scanner::isAlpha(char c) const {
-    return (c >= 'a' && c <= 'z') ||
-           (c >= 'A' && c <= 'Z') ||
-           c == '_';
+bool Scanner::isAlpha(char c) const
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-bool Scanner::isAlphaNumeric(char c) const {
+bool Scanner::isAlphaNumeric(char c) const
+{
     return isAlpha(c) || isDigit(c);
 }
 
-void Scanner::string() {
+void Scanner::string()
+{
     char quoteType = source[start]; // Store the opening quote type
     advance();                      // Consume the opening quote
 
     while (peek() != quoteType && !isAtEnd()) {
-            if (peek() == '\n') {
-                line++;
-                error("Unterminated string.");
-                return;
-            }
-            advance();
+        if (peek() == '\n') {
+            line++;
+            error("Unterminated string.");
+            return;
+        }
+        advance();
     }
 
     if (isAtEnd()) {
-            error("Unterminated string.");
-            return;
+        error("Unterminated string.");
+        return;
     }
 
     // The closing ".
@@ -306,21 +324,25 @@ void Scanner::string() {
     addToken(TokenType::STRING, value);
 }
 
-void Scanner::number() {
-    while (isDigit(peek())) advance();
+void Scanner::number()
+{
+    while (isDigit(peek()))
+        advance();
 
     // Look for a fractional part.
     if (peek() == '.' && isDigit(peekNext())) {
         // Consume the ".".
         advance();
 
-        while (isDigit(peek())) advance();
+        while (isDigit(peek()))
+            advance();
     }
-
-    addToken(TokenType::NUMBER);
+    std::string value = source.substr(start, current + 1 - start - 1);
+    addToken(TokenType::NUMBER, value);
 }
 
-void Scanner::identifier() {
+void Scanner::identifier()
+{
     TokenType type = TokenType::IDENTIFIER;
     // Check if the identifier is preceded by certain keywords or ':'
     if (source[start - 1] == ':') {
@@ -340,45 +362,81 @@ void Scanner::identifier() {
         advance();
 
     addToken(checkKeyword(start, current - start, source.substr(start, current - start), type));
-
 }
 
-TokenType Scanner::checkKeyword(size_t start, size_t length, const std::string& rest, TokenType type) const {
+TokenType Scanner::checkKeyword(size_t start,
+                                size_t length,
+                                const std::string &rest,
+                                TokenType type) const
+{
     // Check if the identifier matches a reserved keyword.
-    if (rest == "and") return TokenType::AND;
+    std::cout << start;
+    std::cout << length;
+    if (rest == "and")
+        return TokenType::AND;
     if (rest == "default")
         return TokenType::DEFAULT;
-    if (rest == "class") return TokenType::CLASS;
-    if (rest == "else") return TokenType::ELSE;
-    if (rest == "false") return TokenType::FALSE;
-    if (rest == "for") return TokenType::FOR;
-    if (rest == "fn") return TokenType::FN;
-    if (rest == "if") return TokenType::IF;
-    if (rest == "nil") return TokenType::NIL;
-    if (rest == "or") return TokenType::OR;
-    if (rest == "print") return TokenType::PRINT;
-    if (rest == "return") return TokenType::RETURN;
-    if (rest == "super") return TokenType::SUPER;
-    if (rest == "this") return TokenType::THIS;
-    if (rest == "true") return TokenType::TRUE;
-    if (rest == "var") return TokenType::VAR;
-    if (rest == "while") return TokenType::WHILE;
-    if (rest == "attempt") return TokenType::ATTEMPT;
-    if (rest == "handle") return TokenType::HANDLE;
-    if (rest == "parallel") return TokenType::PARALLEL;
-    if (rest == "concurrent") return TokenType::CONCURRENT;
-    if (rest == "async") return TokenType::ASYNC;
-    if (rest == "await") return TokenType::AWAIT;
-    if (rest == "import") return TokenType::IMPORT;
+    if (rest == "class")
+        return TokenType::CLASS;
+    if (rest == "else")
+        return TokenType::ELSE;
+    if (rest == "false")
+        return TokenType::FALSE;
+    if (rest == "for")
+        return TokenType::FOR;
+    if (rest == "fn")
+        return TokenType::FN;
+    if (rest == "if")
+        return TokenType::IF;
+    if (rest == "nil")
+        return TokenType::NIL;
+    if (rest == "or")
+        return TokenType::OR;
+    if (rest == "print")
+        return TokenType::PRINT;
+    if (rest == "return")
+        return TokenType::RETURN;
+    if (rest == "super")
+        return TokenType::SUPER;
+    if (rest == "this")
+        return TokenType::THIS;
+    if (rest == "true")
+        return TokenType::TRUE;
+    if (rest == "var")
+        return TokenType::VAR;
+    if (rest == "while")
+        return TokenType::WHILE;
+    if (rest == "attempt")
+        return TokenType::ATTEMPT;
+    if (rest == "handle")
+        return TokenType::HANDLE;
+    if (rest == "parallel")
+        return TokenType::PARALLEL;
+    if (rest == "concurrent")
+        return TokenType::CONCURRENT;
+    if (rest == "async")
+        return TokenType::ASYNC;
+    if (rest == "await")
+        return TokenType::AWAIT;
+    if (rest == "import")
+        return TokenType::IMPORT;
     // Check if the identifier matches a type keyword
-    if (rest == "int") return TokenType::INT_TYPE;
-    if (rest == "float") return TokenType::FLOAT_TYPE;
-    if (rest == "str") return TokenType::STR_TYPE;
-    if (rest == "bool") return TokenType::BOOL_TYPE;
-    if (rest == "list") return TokenType::LIST_TYPE;
-    if (rest == "array") return TokenType::ARRAY_TYPE;
-    if (rest == "dict") return TokenType::DICT_TYPE;
-    if (rest == "enum") return TokenType::ENUM_TYPE;
+    if (rest == "int")
+        return TokenType::INT_TYPE;
+    if (rest == "float")
+        return TokenType::FLOAT_TYPE;
+    if (rest == "str")
+        return TokenType::STR_TYPE;
+    if (rest == "bool")
+        return TokenType::BOOL_TYPE;
+    if (rest == "list")
+        return TokenType::LIST_TYPE;
+    if (rest == "array")
+        return TokenType::ARRAY_TYPE;
+    if (rest == "dict")
+        return TokenType::DICT_TYPE;
+    if (rest == "enum")
+        return TokenType::ENUM_TYPE;
 
     return type;
 }
@@ -527,6 +585,8 @@ std::string Scanner::tokenTypeToString(TokenType type) const
     case TokenType::DEFAULT:
         return "DEFAULT";
     case TokenType::UNDEFINED:
+        break;
+    case TokenType::ENUM:
         break;
     }
     return "UNKNOWN";

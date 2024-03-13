@@ -1,0 +1,25 @@
+#include "opcodes.hh"
+
+class RegisterVM
+{
+public:
+    void Run(const std::vector<Instruction> &program);
+
+private:
+    unsigned int pc = 0;        // program counter
+    std::vector<int> registers; // Registers for storing data
+    //std::vector<int> constants; // User-defined constants (optional)
+    std::vector<std::variant<int, float, bool, std::string>> constants;
+    std::vector<Instruction> program;
+    //int registers[14] = {0};
+    //std::vector<int> constants;
+
+    void PerformBinaryOperation(int reg1, int reg2);
+    void PerformLogicalOperation(int reg1, int reg2);
+    void PerformComparisonOperation(int reg1, int reg2);
+    void HandleLoadConst(int constantIndex);
+    void HandleStoreValue(int constantIndex);
+    // ... Implement functions for other instruction types (LOAD_VARIABLE, etc.)
+    void HandleHalt();
+    // ... Implement functions for control flow instructions (JUMP, JUMP_IF_TRUE, etc.)
+};

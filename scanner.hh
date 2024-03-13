@@ -95,7 +95,14 @@ struct Token {
 
 class Scanner {
 public:
-    explicit Scanner(const std::string& source) : source(source), start(0), current(0), line(1) {}
+    explicit Scanner(const std::string &source)
+        : current(0)
+        , start(0)
+        , line(1)
+        , source(source)
+    {
+        //        tokens = scanTokens();
+    }
 
     std::vector<Token> scanTokens();
     void scanToken();
