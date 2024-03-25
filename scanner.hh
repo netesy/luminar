@@ -141,7 +141,7 @@ private:
     void number();
     void identifier();
     void error(const std::string& message);
-    TokenType checkKeyword(size_t start,
+    TokenType checkKeyword(size_t begin,
                            size_t length,
                            const std::string &rest,
                            TokenType type) const;

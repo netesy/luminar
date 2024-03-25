@@ -1,5 +1,4 @@
 #include "repl.hh"
-#include "parser.hh"
 #include "scanner.hh"
 #include "vm.hh" // Include the VM header
 #include <fstream>
@@ -11,27 +10,25 @@ void REPL::start()
 {
     std::cout << "Luminar REPL :" << std::endl;
     while (true) {
+        // Read input
+        std::string input = readInput();
+        // Tokenize input
+        Scanner scanner(input);
         try {
-            // Read input
-            std::string input = readInput();
-            // Parse input
-            Scanner scanner(input);
+            //there is a problem with the parser
+            std::cout << "parsing" << std::endl;
             Parser parser(scanner);
-            parser.parse();
-            std::cout << "======= parse Debug =======\n"
-                      << parser.toString() << "======= End Debug =======\n"
-                      << std::endl;
-            //print("parse function");
-            std::vector<Instruction> bytecode = parser.getBytecode();
-
-            // Create a Virtual Machine (VM) instance
-            RegisterVM vm;
-
-            // Evaluate the bytecode using the VM
-            vm.Run(bytecode);
-
+            //            std::cout << "debugging" << std::endl;
+            //            std::cout << "======= parse Debug =======\n"
+            //                      << parser.toString() << "======= End Debug =======\n"
+            //                      << std::endl;
+            //            std::cout << "Vm Init" << std::endl;
+            //            RegisterVM vm(parser);
+            //            // Evaluate the bytecode using the VM
+            //            std::cout << "evaluating" << std::endl;
+            //            vm.run();
         } catch (const std::exception &e) {
-            // std::cout << e << std::endl;
+            std::cerr << " Repl Error: " << e.what() << std::endl;
             // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
         }
     }
@@ -41,6 +38,7 @@ void REPL::startDevMode()
 {
     //start the language with debugging enabled.
     std::cout << "Not yet Implemented" << std::endl;
+    std::cout << "Luminar Dev REPL :" << std::endl;
     start();
 }
 

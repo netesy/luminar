@@ -123,14 +123,18 @@ struct Instruction
         std::visit(
             [&](auto const &val) {
                 std::cout << "Value: ";
-                if constexpr (std::is_integral_v<decltype(val)>) {
-                    std::cout << "int: " << val << std::endl;
-                } else if (std::is_floating_point_v<decltype(val)>) {
-                    std::cout << "float: " << val << std::endl;
-                } else if (std::is_same_v<decltype(val), bool>) {
-                    std::cout << "bool: " << std::boolalpha << val << std::endl;
+                if (std::is_same_v<decltype(val), std::string>) {
+                    std::cout << val << std::endl;
                 } else {
-                    std::cout << "string: " << val << std::endl;
+                    if constexpr (std::is_integral_v<decltype(val)>) {
+                        std::cout << "int: " << val << std::endl;
+                    } else if (std::is_floating_point_v<decltype(val)>) {
+                        std::cout << "float: " << val << std::endl;
+                    } else if (std::is_same_v<decltype(val), bool>) {
+                        std::cout << "bool: " << std::boolalpha << val << std::endl;
+                    } else {
+                        std::cout << val << std::endl;
+                    }
                 }
             },
             value);

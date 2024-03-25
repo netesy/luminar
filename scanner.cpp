@@ -364,14 +364,20 @@ void Scanner::identifier()
     addToken(checkKeyword(start, current - start, source.substr(start, current - start), type));
 }
 
-TokenType Scanner::checkKeyword(size_t start,
+TokenType Scanner::checkKeyword(size_t begin,
                                 size_t length,
                                 const std::string &rest,
                                 TokenType type) const
 {
-    // Check if the identifier matches a reserved keyword.
-    std::cout << start;
-    std::cout << length;
+    //    std::string keyword = source.substr(this->start + begin, length);
+    //    std::string target(rest);
+    //    if (length == target.length() && keyword == target) {
+    //        return type;
+    //    }
+    //    return TokenType::IDENTIFIER;
+    //    // Check if the identifier matches a reserved keyword.
+    //    //    std::cout << start;
+    //    //    std::cout << length;
     if (rest == "and")
         return TokenType::AND;
     if (rest == "default")

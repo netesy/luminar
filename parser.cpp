@@ -12,18 +12,22 @@ Parser::Parser(Scanner &scanner)
 {
     // std::vector<Token> temp = scanner.scanTokens();
     tokens = scanner.scanTokens();
+    //    parse();
+    while (!isAtEnd()) {
+        parse();
+    }
 }
 
 Bytecode Parser::parse()
 {
     scanner.current = 0;
     //Now parse the tokens using scanner methods directly
-    //    std::cout << "======= Scanner Debug =======\n"
-    //              << scanner.toString() << "======= End Debug =======\n"
-    //              << std::endl;
-    //    print("parse function");
+    std::cout << "======= Scanner Debug =======\n"
+              << scanner.toString() << "======= End Debug =======\n"
+              << std::endl;
+    //   //print("parse function");
+    //toString();
     return block();
-    // return bytecode;
 }
 
 std::string Parser::toString() const
@@ -50,12 +54,10 @@ std::string Parser::toString() const
 
 void Parser::advance()
 {
-    if (current < tokens.size())
-    {
+    if (current < tokens.size()) {
+        //  std::cout << current << std::endl;
         current++;
-        // std::cout << "current index: " << current <<  " of token size: " << tokens.size() << std::endl;
     }
-    // scanner.advance();
 }
 
 Token Parser::peek()
@@ -73,6 +75,11 @@ Token Parser::peekNext()
     {
         return Token{TokenType::EOF_TOKEN, "", scanner.getLine()};
     }
+}
+
+bool Parser::isAtEnd()
+{
+    return tokens[current].type == TokenType::EOF_TOKEN;
 }
 
 Token Parser::previous()
@@ -100,14 +107,18 @@ void Parser::consume(TokenType type, const std::string &message)
 
 void Parser::error(const std::string &message)
 {
-    Debugger::error(message, peek().line, 0, InterpretationStage::PARSING, scanner.tokenTypeToString(peek().type));
+    Debugger::error(message,
+                    peek().line,
+                    current,
+                    InterpretationStage::PARSING,
+                    scanner.tokenTypeToString(peek().type));
 }
 
 Instruction Parser::makeInstruction(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
     bytecode.push_back(instruction);
-    instruction.debug();
+    //instruction.debug(); //!Error if this line is uncommented the EOF_TOKEN keeps being parsed indefinitely.
     return instruction;
 }
 
@@ -117,25 +128,26 @@ Instruction Parser::makeInstruction(Opcode opcode,
 {
     Instruction instruction(opcode, lineNumber, value);
     bytecode.push_back(instruction);
-    instruction.debug();
+    //instruction.debug();
     return instruction;
 }
 
 Bytecode Parser::block()
 {
-    // print("block function");
+    //print("block function");
     Bytecode psuedo = statement();
     while (!match(TokenType::RIGHT_BRACE) && !scanner.isAtEnd())
     {
         statement();
         // psuedo.push_back(statement());
     }
+    //print("end block function");
     return psuedo;
 }
 
 Bytecode Parser::statement()
 {
-    // print("statement function");
+    //print("statement function");
     if (match(TokenType::IF))
     {
         return ifStatement();
@@ -156,24 +168,26 @@ Bytecode Parser::statement()
 
 Bytecode Parser::printStatement()
 {
+    //print("print function");
     Bytecode psuedo;
-    //    consume(TokenType::PRINT, "Expected 'print' keyword.");
     consume(TokenType::LEFT_PAREN, "Expect '(' after 'print'.");
-    psuedo.push_back(
-        makeInstruction(Opcode::PRINT, peek().line)); // Assuming PRINT opcode for printing
+    Bytecode expressionResult;
     // Handle different types of expressions after print
     if (peek().type != TokenType::RIGHT_PAREN) {
-        psuedo.insert(psuedo.end(), expression().begin(), expression().end());
+        expressionResult = expression();
+        psuedo.insert(psuedo.end(), expressionResult.begin(), expressionResult.end());
     }
-    // Assuming PRINT opcode for printing
+    // Assuming PRINT opcode for printing the value of the expression
+    psuedo.push_back(makeInstruction(Opcode::PRINT, peek().line));
     consume(TokenType::RIGHT_PAREN, "Expect ')' after print statement.");
     consume(TokenType::SEMICOLON, "Expected ';' after print statement.");
+    //print("end print function");
     return psuedo;
 }
 
 Bytecode Parser::importStatement()
 {
-    // print("import function");
+    ////print("import function");
     consume(TokenType::IMPORT, "Expect 'import' keyword.");
     Token current = peek();
     Token moduleName;
@@ -225,12 +239,12 @@ void Parser::print(std::string message)
 
 Bytecode Parser::ifStatement()
 {
-    // print("if function");
+    ////print("if function");
     Bytecode psuedo;
     consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
     Bytecode condition = expression();
     consume(TokenType::RIGHT_PAREN, "Expect ')' after if condition.");
-    Bytecode thenBranch = statement();
+    Bytecode thenBranch = block();
     psuedo.insert(psuedo.end(), condition.begin(), condition.end());
     psuedo.push_back(makeInstruction(Opcode::JUMP_IF_FALSE, thenBranch.front().lineNumber));
     psuedo.insert(psuedo.end(), thenBranch.begin(), thenBranch.end());
@@ -239,12 +253,12 @@ Bytecode Parser::ifStatement()
 
 Bytecode Parser::whileStatement()
 {
-    // print("while function");
+    ////print("while function");
     Bytecode psuedo;
     consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.");
     Bytecode condition = expression();
     consume(TokenType::RIGHT_PAREN, "Expect ')' after while condition.");
-    Bytecode body = statement();
+    Bytecode body = block(); // Using block() for the while loop's body
     psuedo.insert(psuedo.end(), condition.begin(), condition.end());
     psuedo.push_back(makeInstruction(Opcode::JUMP_IF_FALSE, body.front().lineNumber + 1));
     psuedo.insert(psuedo.end(), body.begin(), body.end());
@@ -254,7 +268,7 @@ Bytecode Parser::whileStatement()
 
 Bytecode Parser::expressionStatement()
 {
-    // print("expression statement function");
+    ////print("expression statement function");
     Bytecode psuedo;
     psuedo = expression();
     // consume(TokenType::SEMICOLON, "Expect ';' after expression.");
@@ -263,13 +277,41 @@ Bytecode Parser::expressionStatement()
 
 Bytecode Parser::expression()
 {
-    // print("expression function");
+    //print("expression function");
     return assignment();
+}
+
+Bytecode Parser::assignment()
+{
+    //print("assignment function");
+    Bytecode psuedo = conditional();
+
+    if (match(TokenType::VAR)) {
+        varDeclaration();
+        // Optionally handle semicolon for statement termination
+    } else if (match(TokenType::IDENTIFIER)) {
+        varInvoke();
+        if (match(TokenType::EQUAL)) {
+            Token equals = previous();
+            Bytecode right = assignment();
+
+            if (psuedo.size() == 1 && psuedo.back().opcode == Opcode::LOAD_VALUE) {
+                // Assignment to a variable
+                psuedo.push_back(makeInstruction(Opcode::STORE_VALUE, equals.line));
+                psuedo.insert(psuedo.end(), right.begin(), right.end());
+            } else {
+                // Invalid assignment target
+                throw std::runtime_error("Invalid assignment target.");
+            }
+        }
+    }
+    //print("end assignment function");
+    return psuedo;
 }
 
 Bytecode Parser::conditional()
 {
-    // print("if conditional function");
+    //print("conditional function");
     Bytecode psuedo = logicalOr();
 
     if (match(TokenType::QUESTION))
@@ -285,13 +327,13 @@ Bytecode Parser::conditional()
 
         return psuedo;
     }
-
+    //print("end conditional function");
     return psuedo;
 }
 
 Bytecode Parser::logicalOr()
 {
-    // print("or function");
+    //print("or function");
     Bytecode psuedo = logicalAnd();
 
     while (match(TokenType::OR))
@@ -301,13 +343,13 @@ Bytecode Parser::logicalOr()
         psuedo.insert(psuedo.end(), right.begin(), right.end());
         psuedo.push_back(makeInstruction(Opcode::OR, op.line));
     }
-
+    //print("end or function");
     return psuedo;
 }
 
 Bytecode Parser::logicalAnd()
 {
-    // print("and function");
+    //print("and function");
     Bytecode psuedo = equality();
 
     while (match(TokenType::AND))
@@ -317,14 +359,14 @@ Bytecode Parser::logicalAnd()
         psuedo.insert(psuedo.end(), right.begin(), right.end());
         psuedo.push_back(makeInstruction(Opcode::AND, op.line));
     }
-
+    //print("end and function");
     return psuedo;
 }
 
-//! Fix this, I am getting wrong values
+//!Todo: Fix this, I am getting wrong values
 Bytecode Parser::equality()
 {
-    // print("equality function");
+    //print("equality function");
     Bytecode psuedo = comparison();
 
     while (match(TokenType::EQUAL_EQUAL) || match(TokenType::BANG_EQUAL))
@@ -332,18 +374,25 @@ Bytecode Parser::equality()
         Token op = previous();
         Bytecode right = comparison();
         psuedo.insert(psuedo.end(), right.begin(), right.end());
-        psuedo.push_back(
-            makeInstruction(op.type == TokenType::EQUAL_EQUAL ? Opcode::EQUAL : Opcode::NOT_EQUAL,
-                            op.line));
+        //        psuedo.push_back(
+        //            makeInstruction(op.type == TokenType::EQUAL_EQUAL ? Opcode::EQUAL : Opcode::NOT_EQUAL,
+        //                            op.line));
+        // Generate appropriate instruction based on the operator
+        if (op.type == TokenType::EQUAL_EQUAL) {
+            psuedo.push_back(makeInstruction(Opcode::EQUAL, op.line));
+        } else {
+            psuedo.push_back(makeInstruction(Opcode::NOT_EQUAL, op.line));
+        }
     }
-
+    //print("end equality function");
     return psuedo;
 }
 
 Bytecode Parser::comparison()
 {
-    if (peek().type == TokenType::EOF_TOKEN) {
-        return Bytecode{}; // Empty bytecode for EOF
+    //print("camparison function");
+    if (isAtEnd()) {
+        return primary(); // Empty bytecode for EOF
     }
     Bytecode psuedo = addition();
 
@@ -370,14 +419,15 @@ Bytecode Parser::comparison()
             break;
         }
     }
-
+    //print("end comparison function");
     return psuedo;
 }
 
 Bytecode Parser::addition()
 {
-    if (peek().type == TokenType::EOF_TOKEN) {
-        return Bytecode{}; // Empty bytecode for EOF
+    //print("addition function");
+    if (isAtEnd()) {
+        return primary(); // Empty bytecode for EOF
     }
     Bytecode psuedo = multiplication();
 
@@ -385,102 +435,71 @@ Bytecode Parser::addition()
         Token op = previous();
         Bytecode right = multiplication();
         psuedo.insert(psuedo.end(), right.begin(), right.end());
-        psuedo.push_back(
-            makeInstruction(op.type == TokenType::PLUS ? Opcode::ADD : Opcode::SUBTRACT, op.line));
+        psuedo.push_back(makeInstruction(op.type == TokenType::PLUS ? Opcode::ADD : Opcode::SUBTRACT,
+                                         op.line,
+                                         op.lexeme));
     }
-
+    //print("end addition function");
     return psuedo;
 }
 
 Bytecode Parser::multiplication()
 {
-    if (peek().type == TokenType::EOF_TOKEN) {
-        return Bytecode{}; // Empty bytecode for EOF
+    //print("multiplication function");
+    if (isAtEnd()) {
+        return primary(); // Empty bytecode for EOF
     }
-    //    print("mul function");
+    //   //print("mul function");
     Bytecode psuedo = unary();
 
     while (match(TokenType::STAR) || match(TokenType::SLASH) || match(TokenType::MODULUS)) {
-        //        print("multiplication function");
+        //       //print("multiplication function");
         Token op = previous();
         Bytecode right = unary();
         psuedo.insert(psuedo.end(), right.begin(), right.end());
         switch (op.type)
         {
         case TokenType::STAR:
-            psuedo.push_back(makeInstruction(Opcode::MULTIPLY, op.line));
+            psuedo.push_back(makeInstruction(Opcode::MULTIPLY, op.line, op.lexeme));
             break;
         case TokenType::SLASH:
-            psuedo.push_back(makeInstruction(Opcode::DIVIDE, op.line));
+            psuedo.push_back(makeInstruction(Opcode::DIVIDE, op.line, op.lexeme));
             break;
         case TokenType::MODULUS:
-            psuedo.push_back(makeInstruction(Opcode::MODULUS, op.line));
+            psuedo.push_back(makeInstruction(Opcode::MODULUS, op.line, op.lexeme));
             break;
         default:
             break;
         }
     }
+    //print("end multiplication function");
     return psuedo;
 }
 
 Bytecode Parser::unary()
 {
-    // print("unary function");
+    ////print("unary function");
     if (match(TokenType::BANG) || match(TokenType::MINUS))
     {
         Token op = previous();
         Bytecode right = unary();
         right.push_back(makeInstruction(Opcode::NOT,
                                         op.line)); // Assuming NOT opcode represents logical negation
+        bytecode.push_back(right.front());
         return right;
     }
 
     return primary();
 }
 
-Bytecode Parser::assignment()
-{
-    // print("assignment function");
-    Bytecode psuedo = conditional();
-
-    if (match(TokenType::VAR))
-    {
-        varDeclaration();
-        // Optionally handle semicolon for statement termination
-    }
-    else if (match(TokenType::IDENTIFIER))
-    {
-        varInvoke();
-        if (match(TokenType::EQUAL))
-        {
-            Token equals = previous();
-            Bytecode right = assignment();
-
-            if (psuedo.size() == 1 && psuedo.back().opcode == Opcode::LOAD_VALUE)
-            {
-                // Assignment to a variable
-                psuedo.push_back(makeInstruction(Opcode::STORE_VALUE, equals.line));
-                psuedo.insert(psuedo.end(), right.begin(), right.end());
-            }
-            else
-            {
-                // Invalid assignment target
-                throw std::runtime_error("Invalid assignment target.");
-            }
-        }
-    }
-
-    return psuedo;
-}
-
 Bytecode Parser::primary()
 {
-    // print("primary function");
+    //print("primary function");
     Bytecode psuedo;
-    Token current = peek();
-
-    switch (current.type)
-    {
+    Token currentToken = peek();
+    switch (currentToken.type) {
+    case TokenType::EOF_TOKEN:
+        return eof();
     case TokenType::LEFT_PAREN:
         advance();             // Consume '('
         psuedo = expression(); // Parse the expression inside parentheses
@@ -489,34 +508,36 @@ Bytecode Parser::primary()
     case TokenType::RIGHT_PAREN:
         consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
         break;
+    case TokenType::LEFT_BRACE:
+        block();
+        advance();
+        break;
     case TokenType::VAR:
         varDeclaration();
         advance();
         break;
     case TokenType::IDENTIFIER:
-        if (peekNext().type == TokenType::LEFT_PAREN)
-        {
+        if (peekNext().type == TokenType::LEFT_PAREN) {
             // psuedo = functionCall(peek().lexeme);
             std::cout << "Fn call" << std::endl;
-        }
-        else
-        {
+        } else {
             std::cout << "Var call" << std::endl;
             varInvoke(); // Handle variable usage
         }
         break;
     case TokenType::STRING:
         psuedo = string();
+        advance();
         break;
     case TokenType::NUMBER:
         psuedo = number();
         break;
     case TokenType::TRUE:
-        psuedo.push_back(Instruction(Opcode::STORE_VALUE, current.line, true));
+        psuedo.push_back(makeInstruction(Opcode::LOAD_CONST, peek().line, true));
         advance();
         break;
     case TokenType::FALSE:
-        psuedo.push_back(Instruction(Opcode::STORE_VALUE, current.line, false));
+        psuedo.push_back(makeInstruction(Opcode::LOAD_CONST, peek().line, false));
         advance();
         break;
     case TokenType::PLUS:
@@ -548,42 +569,72 @@ Bytecode Parser::primary()
         printStatement();
         advance();
         break;
-    case TokenType::EOF_TOKEN:
-        // Reached the end of the file, stop parsing
-        return Bytecode{};
-    // add forloops, attempt, parallel, concurency,
+        //        error("end of file for primary function");
+        //       //print("out of bounds for primary function");
+        // add forloops, attempt, parallel, concurency,
     default:
         // Error handling for unexpected tokens
         // statement();
         error("Unexpected token while in primary.");
     }
-    bytecode = psuedo;
+    //print("end primary function");
     return psuedo;
 }
 
 Bytecode Parser::string()
 {
+    //print("string function");
     Bytecode psuedo;
     Token current = peek();
     std::string stringValue = current.lexeme;
-    psuedo.push_back(makeInstruction(Opcode::STORE_STR, current.line, stringValue));
-    advance();
+    psuedo.push_back(makeInstruction(Opcode::STORE_STR, peek().line, stringValue));
+    //print("end string function");
     return psuedo;
 }
 
 Bytecode Parser::number()
 {
+    //print("number function");
     Bytecode psuedo;
     Token current = peek();
     advance();
     // Convert the numeric literal to a float
     float numberValue = std::stof(current.lexeme);
-    psuedo.push_back(makeInstruction(Opcode::LOAD_CONST, current.line, numberValue));
+    psuedo.push_back(makeInstruction(Opcode::LOAD_CONST, peek().line, numberValue));
+    //print("end number function");
     return psuedo;
 }
 
+Bytecode Parser::eof()
+{
+    //print("end of file function");
+    // Reached the end of the file, stop parsing
+    Bytecode psuedo;
+    psuedo.push_back(makeInstruction(Opcode::HALT, peek().line));
+    //print("exit end of file function");
+    //check why we get process crash when we return the
+    return psuedo;
+}
+
+//Bytecode Parser::block()
+//{
+//    Bytecode psuedo;
+//    advance();             // Consume '{'
+//    psuedo = expression(); // Parse the expression inside parentheses
+//    consume(TokenType::RIGHT_BRACE, "Expected ')' after expression.");
+//    return psuedo;
+//}
+
 void Parser::varDeclaration()
 {
+    // Parse variable declaration syntax
+    // Example:
+    // var myVar: int = 10;
+    //    advance(scanner);         // Consume 'var' token
+    //    parseIdentifier(scanner); // Parse variable name
+    //    advance(scanner);         // Consume ':' token
+    //    parseType(scanner);       // Parse variable type
+    //    std::string variableName = scanner.getToken().lexeme;
     advance();
     Token identifierToken = peek(); // Expect identifier token after 'var'
     if (identifierToken.type != TokenType::IDENTIFIER)
@@ -598,19 +649,26 @@ void Parser::varDeclaration()
     {
         error("Variable already declared.");
     }
+    std::cout << "current location" << nextMemoryLocation << std::endl;
     // Declare the variable in the symbol table with a unique memory location
     uint32_t memoryLocation = nextMemoryLocation++;
+    std::cout << "Next location" << nextMemoryLocation << std::endl;
     symbolTable.declareVariable(identifierToken.lexeme, memoryLocation);
     advance(); // Consume identifier token
+    if (peekNext().type == TokenType::COLON) {
+        advance(); //consume the : token
+        advance(); //consume the type token
+    }
     if (match(TokenType::EQUAL))
     {
         // Variable assignment
         Bytecode value = expression();
         bytecode.insert(bytecode.end(), value.begin(), value.end());
         // Store the value in the variable's memory location
-        bytecode.push_back(makeInstruction(Opcode::STORE_VARIABLE,
-                                           identifierToken.line,
-                                           static_cast<int32_t>(memoryLocation)));
+        Instruction instruct = makeInstruction(Opcode::STORE_VARIABLE,
+                                               identifierToken.line,
+                                               static_cast<int32_t>(memoryLocation));
+        bytecode.push_back(instruct);
     }
     // Optionally handle semicolon for statement termination
     advance();
@@ -618,7 +676,7 @@ void Parser::varDeclaration()
 
 void Parser::varInvoke()
 {
-    print("var call function");
+    //print("var call function");
     Token identifierToken = peek(); // Expect identifier token after variable name
 
     if (identifierToken.type != TokenType::IDENTIFIER)
@@ -639,7 +697,10 @@ void Parser::varInvoke()
     }
 
     // Generate appropriate bytecode instruction based on memory location
-    bytecode.push_back(makeInstruction(Opcode::LOAD_VALUE, identifierToken.line, static_cast<int32_t>(memoryLocation)));
+    Instruction instruct = makeInstruction(Opcode::LOAD_VALUE,
+                                           identifierToken.line,
+                                           static_cast<int32_t>(memoryLocation));
+    bytecode.push_back(instruct);
 
     // Optionally handle semicolons (if applicable)
     consume(TokenType::SEMICOLON, "Variable call should end in semi colon");
@@ -647,6 +708,7 @@ void Parser::varInvoke()
 
 std::vector<Instruction> Parser::getBytecode() const
 {
+    std::cout << "Getting the bytecode: " << std::endl;
     // Get the generated bytecode
     return bytecode;
 }

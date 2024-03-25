@@ -5,7 +5,7 @@
 #include <string>
 #include <unordered_map>
 
-enum class ReturnType { VOID, INT, FLOAT, BOOL, STRING };
+enum class ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
 using Bytecode = std::vector<Instruction>;
 
@@ -31,12 +31,11 @@ class Parser
 {
 public:
     explicit Parser(Scanner &scanner);
-
-    Bytecode parse();
-    std::string toString() const;
-    size_t current = 0;
+    Bytecode parse();                  // parse the scanned tokens
+    std::string toString() const;      //debug the parser
+    size_t current = 0;                // get the current index position
     std::vector<Instruction> bytecode; // Declare bytecode as a local variable
-    std::vector<Instruction> getBytecode() const;
+    std::vector<Instruction> getBytecode() const; //get the bytecode generated from the parser
 
 private:
     Scanner &scanner;
@@ -48,6 +47,7 @@ private:
     Token peek();     // Changed to return non-const reference
     Token previous(); // Changed to return non-const reference
     Token peekNext();
+    bool isAtEnd();
 
     bool match(TokenType type);
     void consume(TokenType type, const std::string &message);
@@ -78,6 +78,7 @@ private:
     Bytecode primary();
     Bytecode string();
     Bytecode number();
+    Bytecode eof();
     void varDeclaration();
     void varInvoke();
     std::string importFile(const std::string &filePath);
