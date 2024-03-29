@@ -43,10 +43,16 @@ void Scanner::scanToken()
         addToken(TokenType::DOT);
         break;
     case '-':
-        addToken(match('>') ? TokenType::ARROW : TokenType::MINUS);
+        if (match('=')) {
+            addToken(TokenType::MINUS_EQUAL); // Handle minus-equal first
+        } else if (match('>')) {
+            addToken(TokenType::ARROW);
+        } else {
+            addToken(TokenType::MINUS); // Default minus
+        }
         break;
     case '+':
-        addToken(TokenType::PLUS);
+        addToken(match('=') ? TokenType::PLUS_EQUAL : TokenType::PLUS);
         break;
     case '?':
         addToken(TokenType::QUESTION);
@@ -110,6 +116,7 @@ void Scanner::scanToken()
         break;
     }
 }
+
 Token Scanner::getTokenFromChar(char c)
 {
     switch (c) {

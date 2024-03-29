@@ -1,7 +1,11 @@
 //parser.hh
 #include "opcodes.hh"
 #include "scanner.hh"
+#include "symbol.hh"
 #include <any>
+#include <functional>
+#include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -9,78 +13,136 @@ enum class ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
 using Bytecode = std::vector<Instruction>;
 
-class SymbolTable
-{
-public:
-    void declareVariable(const std::string &name, uint32_t memoryLocation)
-    {
-        variables[name] = memoryLocation;
-    }
+// Forward declarations
+class Parser;
 
-    uint32_t getVariableMemoryLocation(const std::string &name) const
-    {
-         return variables.count(name) ? variables.at(name) : 0;
-        //throw std::runtime_error("Variable not found in symbol table.");
-    }
+// Function pointer type for Pratt parsing functions
+using ParseFn = void (Parser::*)();
 
-private:
-    std::unordered_map<std::string, uint32_t> variables;
+enum Precedence {
+    PREC_NONE,       // The lowest precedence, used for non-operators
+    PREC_ASSIGNMENT, // Assignment operators: =, +=, -=, *=, /=
+    PREC_OR,         // Logical OR operator: or
+    PREC_AND,        // Logical AND operator: and
+    PREC_EQUALITY,   // Equality operators: ==, !=
+    PREC_COMPARISON, // Comparison operators: <, >, <=, >=
+    PREC_TERM,       // Addition and subtraction: +, -
+    PREC_FACTOR,     // Multiplication and division: *, /
+    PREC_UNARY,      // Unary operators: !, -
+    PREC_CALL,       // Function or method call: . ()
+    PREC_PRIMARY     // The highest precedence, used for primary expressions
 };
 
 class Parser
 {
 public:
-    explicit Parser(Scanner &scanner);
-    Bytecode parse();                  // parse the scanned tokens
-    std::string toString() const;      //debug the parser
-    size_t current = 0;                // get the current index position
-    std::vector<Instruction> bytecode; // Declare bytecode as a local variable
+    // Constructor
+    Parser(Scanner &scanner);
+
+    // Main parsing function
+    Bytecode parse();
+    std::string toString() const;                 //debug the parser
     std::vector<Instruction> getBytecode() const; //get the bytecode generated from the parser
 
 private:
-    Scanner &scanner;
     std::vector<Token> tokens;
-    uint32_t nextMemoryLocation;
+    size_t current = 0;                           // get the current index position
+    std::vector<Instruction> bytecode;            // Declare bytecode as a local variable
+
+    // Scanner instance
+    Scanner &scanner;
+
+    // Symbol table
     SymbolTable symbolTable;
 
-    void advance();
-    Token peek();     // Changed to return non-const reference
-    Token previous(); // Changed to return non-const reference
-    Token peekNext();
-    bool isAtEnd();
+    // Token variables
+    Token currentToken;
+    Token previousToken;
 
-    bool match(TokenType type);
+    // Pratt parsing functions (adapt from first parser or rewrite)
+    void parsePrintStatement();      // print(), or debug() statements
+    void parseIfStatement();         // if, elif , else statement
+    void parseWhileLoop();           // while loop
+    void parseForLoop();             //Python like forloop
+    void parseMatchStatement();      // python like match and case
+    void parseFunctionDeclaration(); // Adapt from first parser (if supported)
+    void parseClassDeclaration();    // Adapt from first parser (if supported)
+    void parseReturnStatement();     // Adapt from first parser
+
+    // Pratt parsing utility functions
+    ParseFn getParseFn(TokenType type);
+    void parsePrecedence(Precedence precedence);
+    Precedence getTokenPrecedence(TokenType type);
+
+    // Token manipulation functions
+    Token peek();
+    Token peekNext();
+    Token previous();
+    void advance();
+
     void consume(TokenType type, const std::string &message);
-    void error(const std::string &message);
+    bool match(TokenType type);
+    bool check(TokenType type);
+    bool isAtEnd();
+    bool isExpressionStart(TokenType type);
 
     Instruction makeInstruction(Opcode opcode, uint32_t lineNumber);
     Instruction makeInstruction(Opcode opcode,
                                 uint32_t lineNumber,
-                                std::variant<int32_t, float, bool, std::string> value);
+                                std::variant<int32_t, double, bool, std::string> value);
 
-    Bytecode block();
-    Bytecode statement();
-    Bytecode importStatement();
-    Bytecode ifStatement();
-    Bytecode whileStatement();
-    Bytecode printStatement();
-    Bytecode expressionStatement();
-    Bytecode expression();
-    Bytecode conditional();
-    Bytecode logicalOr();
-    Bytecode logicalAnd();
-    Bytecode equality();
-    Bytecode comparison();
-    Bytecode addition();
-    Bytecode multiplication();
-    Bytecode unary();
-    Bytecode assignment();
-    Bytecode primary();
-    Bytecode string();
-    Bytecode number();
-    Bytecode eof();
-    void varDeclaration();
-    void varInvoke();
-    std::string importFile(const std::string &filePath);
-    void print(std::string message);
+    // Parse expression functions
+    void parsePrimary();
+    void parseExpression();
+    void parseBinary();
+    void parseBoolean();
+    void parseUnary();
+    void parseLiteral();
+    void parseVariable();
+    void parseAssignment();
+    void parseCall();
+
+    // Parse statement functions
+    void parseStatement();
+    void parseBlock();
+    void parseParenthesis();
+
+    // Other helper functions (adapt from first parser or rewrite)
+    void error(const std::string &message);
 };
+
+//// Maybe consider using references for efficiency
+//class Variable
+//{
+//public:
+//  Type type;
+//  int index;
+
+//  Variable(Type type, int index)
+//      : type(type), index(index) {}
+//};
+
+//// Maybe consider using references for efficiency
+//class Function
+//{
+//public:
+//  Type returnType;
+//  std::vector<Variable> parameters;
+
+//  Function(Type returnType, const std::vector<Variable> &parameters)
+//      : returnType(returnType), parameters(parameters) {}
+//};
+
+//// Maybe consider using references for efficiency
+//class Class
+//{
+//public:
+//  std::string className;
+//  std::vector<Variable> fields;
+//  FunctionTable methods;
+
+//  Class(const std::string &className,
+//        const std::vector<Variable> &fields,
+//        const FunctionTable &methods)
+//      : className(className), fields(fields), methods(methods) {}
+//};

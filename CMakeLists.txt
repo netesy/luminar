@@ -10,7 +10,8 @@ add_executable(luminar main.cpp
     debugger.cpp debugger.hh main.cpp opcodes.hh parser.cpp parser.hh repl.cpp repl.hh scanner.cpp scanner.hh syntax.cpp syntax.hh types.hh
     sample.lm sample_new.lm
     ast.hh ast.cpp
-    vm.hh vm.cpp )
+    vm.hh vm.cpp
+    symbol.hh )
 
 include(GNUInstallDirs)
 install(TARGETS luminar

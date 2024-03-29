@@ -17,6 +17,8 @@ enum Opcode {
     MODULUS,
 
     // Comparison operations
+    ADD_ASSIGN,
+    SUB_ASSIGN,
     EQUAL,
     NOT_EQUAL,
     LESS_THAN,
@@ -98,12 +100,12 @@ struct Instruction
     // Add any other metadata needed for debugging or bytecode generation
 
     // Use std::variant to hold any type of value
-    std::variant<int32_t, float, bool, std::string> value;
+    std::variant<int32_t, double, bool, std::string> value;
 
     // Constructor for instructions with string value
     Instruction(Opcode op,
                 uint32_t line,
-                const std::variant<int32_t, float, bool, std::string> &value)
+                const std::variant<int32_t, double, bool, std::string> &value)
         : opcode(op)
         , lineNumber(line)
         , value(value)

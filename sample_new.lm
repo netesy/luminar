@@ -94,7 +94,7 @@
   }
 
   // Function to sum elements of a list with dependent type checking (nullable support):
-  fn sum(list: List<int?>) : int {
+  fn sum(list: list<int?>) : int {
     var mut total: int = 0;
     for (item in list) {
       match (item) {

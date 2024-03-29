@@ -200,7 +200,7 @@ void RegisterVM::HandleStoreValue(unsigned int constantIndex)
         // Determine the value to store from the registers or a specified source
         //        int valueToStore = ...; // Replace this placeholder with appropriate logic
         //        constants[constantIndex] = valueToStore;
-        constants.push_back(this->program[constantIndex].value);
+        //   constants.push_back(this->program[constantIndex].value);
         pc++;
     }
 }

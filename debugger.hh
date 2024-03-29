@@ -67,6 +67,7 @@ public:
                 << std::endl;
 
         logfile.close(); // Close the log file
+        exit(4);
     }
 
 private:

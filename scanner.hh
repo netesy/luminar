@@ -30,6 +30,8 @@ enum class TokenType {
     BANG,          // !
     BANG_EQUAL,    // !=
     EQUAL,         // =
+    PLUS_EQUAL,    // +=
+    MINUS_EQUAL,   // -=
     EQUAL_EQUAL,   // ==
     GREATER,       // >
     GREATER_EQUAL, // >=

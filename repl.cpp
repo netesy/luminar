@@ -15,13 +15,10 @@ void REPL::start()
         // Tokenize input
         Scanner scanner(input);
         try {
-            //there is a problem with the parser
-            std::cout << "parsing" << std::endl;
             Parser parser(scanner);
-            //            std::cout << "debugging" << std::endl;
-            //            std::cout << "======= parse Debug =======\n"
-            //                      << parser.toString() << "======= End Debug =======\n"
-            //                      << std::endl;
+            std::cout << "======= parse Debug =======\n"
+                      << parser.toString() << "======= End Debug =======\n"
+                      << std::endl;
             //            std::cout << "Vm Init" << std::endl;
             //            RegisterVM vm(parser);
             //            // Evaluate the bytecode using the VM
