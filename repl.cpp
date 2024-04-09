@@ -1,6 +1,4 @@
 #include "repl.hh"
-#include "scanner.hh"
-#include "vm.hh" // Include the VM header
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -14,16 +12,12 @@ void REPL::start()
         std::string input = readInput();
         // Tokenize input
         Scanner scanner(input);
+        Parser parser(scanner);
         try {
-            Parser parser(scanner);
-            std::cout << "======= parse Debug =======\n"
-                      << parser.toString() << "======= End Debug =======\n"
-                      << std::endl;
-            //            std::cout << "Vm Init" << std::endl;
-            //            RegisterVM vm(parser);
-            //            // Evaluate the bytecode using the VM
-            //            std::cout << "evaluating" << std::endl;
-            //            vm.run();
+            RegisterVM vm(parser);
+            // Evaluate the bytecode using the VM
+            std::cout << "evaluating" << std::endl;
+            vm.run();
         } catch (const std::exception &e) {
             std::cerr << " Repl Error: " << e.what() << std::endl;
             // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
@@ -57,4 +51,16 @@ std::string REPL::readFile(const std::string &filename)
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
     return content;
+}
+
+void REPL::debug(Scanner scanner, Parser parser)
+{
+    //Now parse the tokens using scanner methods directly
+    std::cout << "======= Scanner Debug =======\n"
+              << scanner.toString() << "======= End Debug =======\n"
+              << std::endl;
+
+    std::cout << "======= parse Debug =======\n"
+              << parser.toString() << "======= End Debug =======\n"
+              << std::endl;
 }

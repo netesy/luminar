@@ -8,7 +8,7 @@ public:
         : parser(parser)
     {
         std::cout << "Started Vm" << std::endl;
-        // program = parser.parse();
+        program = parser.getBytecode();
     }
 
     void run();

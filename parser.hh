@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-enum class ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
+enum ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
 using Bytecode = std::vector<Instruction>;
 
@@ -85,6 +85,7 @@ private:
     bool check(TokenType type);
     bool isAtEnd();
     bool isExpressionStart(TokenType type);
+    bool isBinaryOperator(TokenType type);
 
     Instruction makeInstruction(Opcode opcode, uint32_t lineNumber);
     Instruction makeInstruction(Opcode opcode,

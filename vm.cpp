@@ -11,10 +11,15 @@ void RegisterVM::run()
             case SUBTRACT:
             case MULTIPLY:
             case DIVIDE:
-            case MODULUS:
+            case MODULUS: {
                 std::cout << "Binary" << std::endl;
-                PerformBinaryOperation(registers[pc++], registers[pc++]);
+                int reg1 = registers[pc++];
+                int reg2 = registers[pc++];
+                std::cout << reg1 << std::endl;
+                std::cout << reg2 << std::endl;
+                PerformBinaryOperation(reg1, reg2);
                 break;
+            }
             case EQUAL:
             case NOT_EQUAL:
             case LESS_THAN:
@@ -52,19 +57,25 @@ void RegisterVM::run()
             case DEFINE_FUNCTION:
             case INVOKE_FUNCTION:
             case RETURN_VALUE:
+                break;
             case FOR_LOOP:
             case WHILE_LOOP:
+                break;
             case ATTEMPT:
             case HANDLE:
+                break;
             case DEFINE_CLASS:
             case CREATE_OBJECT:
             case METHOD_CALL:
+                break;
             case OPEN_FILE:
             case WRITE_FILE:
             case CLOSE_FILE:
+                break;
             case PARALLEL:
             case CONCURRENT:
             case ASYNC:
+                break;
             case GENERIC_FUNCTION:
             case GENERIC_TYPE:
             case PATTERN_MATCH:
@@ -74,13 +85,17 @@ void RegisterVM::run()
                 break;
             case STORE_VALUE:
                 //            registers[pc++] = this->constants[pc++];
-                registers[pc++] = std::get<int>(this->constants[pc++]);
+                //                registers[pc++] = std::get<int>(this->constants[pc++]);
                 break;
             case LOAD_STR:
             case STORE_STR:
-                registers[pc++] = std::get<int>(this->constants[pc++]);
+                //  registers[pc++] = std::get<int>(this->constants[pc++]);
                 break;
             case CONCATENATE_STR:
+                break;
+            case ADD_ASSIGN:
+            case SUB_ASSIGN:
+            case NEGATE:
                 break;
             }
         }
@@ -134,12 +149,15 @@ void RegisterVM::PerformLogicalOperation(int reg1, int reg2)
     switch (registers[pc++]) { // Get the logical opcode from the next instruction
     case AND:
         registers[reg1] &= registers[reg2]; // Bitwise AND
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case OR:
         registers[reg1] |= registers[reg2]; // Bitwise OR
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case NOT:
         registers[reg1] = ~registers[reg1]; // Bitwise NOT
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     default:
         // Handle invalid logical operation opcode
@@ -154,21 +172,27 @@ void RegisterVM::PerformComparisonOperation(int reg1, int reg2)
     switch (registers[pc++]) { // Get the comparison opcode from the next instruction
     case GREATER_THAN:
         registers[reg1] = (registers[reg1] > registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case LESS_THAN:
         registers[reg1] = (registers[reg1] < registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case GREATER_THAN_OR_EQUAL:
         registers[reg1] = (registers[reg1] >= registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case LESS_THAN_OR_EQUAL:
         registers[reg1] = (registers[reg1] <= registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case EQUAL:
         registers[reg1] = (registers[reg1] == registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     case NOT_EQUAL:
         registers[reg1] = (registers[reg1] != registers[reg2]) ? 1 : 0;
+        std::cout << "Result: " << registers[reg1] << std::endl;
         break;
     default:
         // Handle invalid comparison operation opcode

@@ -30,6 +30,7 @@ enum Opcode {
     AND,
     OR,
     NOT,
+    NEGATE,
 
     // Control flow operations
     JUMP,
@@ -178,6 +179,8 @@ struct Instruction
             return "OR";
         case Opcode::NOT:
             return "NOT";
+        case Opcode::NEGATE:
+            return "NEGATE";
 
             // Control flow operations
         case Opcode::JUMP:
