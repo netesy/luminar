@@ -13,11 +13,11 @@ void REPL::start()
         // Tokenize input
         Scanner scanner(input);
         Parser parser(scanner);
+        RegisterVM vm(parser);
         try {
-            RegisterVM vm(parser);
-            // Evaluate the bytecode using the VM
-            std::cout << "evaluating" << std::endl;
             vm.run();
+            vm.dumpRegisters();
+
         } catch (const std::exception &e) {
             std::cerr << " Repl Error: " << e.what() << std::endl;
             // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));

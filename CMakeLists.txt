@@ -11,7 +11,8 @@ add_executable(luminar main.cpp
     sample.lm sample_new.lm
     ast.hh ast.cpp
     vm.hh vm.cpp
-    symbol.hh )
+    symbol.hh
+    helper.hh )
 
 include(GNUInstallDirs)
 install(TARGETS luminar

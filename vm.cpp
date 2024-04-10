@@ -1,8 +1,9 @@
 #include "vm.hh"
+#include "helper.hh"
 
 void RegisterVM::run()
 {
-    std::cout << "Started Vm" << std::endl;
+    std::cout << "Running the Vm loop" << std::endl;
     try {
         while (pc < program.size()) {
             const Instruction &instruction = program[pc]; // Fetch instruction at current PC
@@ -11,33 +12,27 @@ void RegisterVM::run()
             case SUBTRACT:
             case MULTIPLY:
             case DIVIDE:
-            case MODULUS: {
-                std::cout << "Binary" << std::endl;
-                int reg1 = registers[pc++];
-                int reg2 = registers[pc++];
-                std::cout << reg1 << std::endl;
-                std::cout << reg2 << std::endl;
-                PerformBinaryOperation(reg1, reg2);
+            case MODULUS:
+                PerformBinaryOperation(pc++);
                 break;
-            }
             case EQUAL:
             case NOT_EQUAL:
             case LESS_THAN:
             case LESS_THAN_OR_EQUAL:
             case GREATER_THAN:
             case GREATER_THAN_OR_EQUAL:
-                std::cout << "Comparison" << std::endl;
-                PerformComparisonOperation(registers[pc++], registers[pc++]);
+                PerformComparisonOperation(--pc, --pc);
                 break;
             case AND:
             case OR:
             case NOT:
                 std::cout << "Logical" << std::endl;
-                PerformLogicalOperation(registers[pc++], registers[pc++]);
+                //                int reg1 = registers[--pc];
+                //                int reg2 = registers[--pc];
+                PerformLogicalOperation(--pc, --pc);
                 break;
             case LOAD_CONST:
-                std::cout << "Constant Numerical" << std::endl;
-                HandleLoadConst(pc++);
+                HandleLoadConst(pc);
                 break;
             case JUMP:
             case JUMP_IF_TRUE:
@@ -104,43 +99,58 @@ void RegisterVM::run()
     }
 }
 
-void RegisterVM::PerformBinaryOperation(int reg1, int reg2)
+void RegisterVM::PerformBinaryOperation(int op)
 {
     std::cout << "arithmetric handling" << std::endl;
-    switch (registers[pc++]) { // Get the binary opcode from the next instruction
-    case ADD:
-        registers[reg1] += registers[reg2];
-        std::cout << "Result: " << registers[reg1] << std::endl;
-        break;
-    case SUBTRACT:
-        registers[reg1] -= registers[reg2];
-        std::cout << "Result: " << registers[reg1] << std::endl;
-        break;
-    case MULTIPLY:
-        registers[reg1] *= registers[reg2];
-        std::cout << "Result: " << registers[reg1] << std::endl;
-        break;
-    case DIVIDE:
-        if (registers[reg2] == 0) {
-            // Handle division by zero (e.g., throw an exception or set a register to an error value)
-        } else {
-            registers[reg1] /= registers[reg2];
-            std::cout << "Result: " << registers[reg1] << std::endl;
+    int reg2 = --pc;
+    int reg1 = --pc;
+
+    std::cout << "PC: " << op << std::endl;
+
+    std::cout << "Reg 1: " << registers[reg1] << std::endl;
+    std::cout << "Reg 2: " << registers[reg2] << std::endl;
+
+    int opcode = registers[op];
+    std::cout << "opcode: " << opcode << std::endl;
+    try {
+        switch (opcode) { // Get the binary opcode from the next instruction
+        case ADD:
+            registers[reg1] += registers[reg2];
+            std::cout << "ADD Result: " << registers[reg1] << std::endl;
+            break;
+        case SUBTRACT:
+            registers[reg1] -= registers[reg2];
+            std::cout << "SUB Result: " << registers[reg1] << std::endl;
+            break;
+        case MULTIPLY:
+            registers[reg1] *= registers[reg2];
+            std::cout << "MUL Result: " << registers[reg1] << std::endl;
+            break;
+        case DIVIDE:
+            if (registers[reg2] == 0) {
+                // Handle division by zero (e.g., throw an exception or set a register to an error value)
+            } else {
+                registers[reg1] /= registers[reg2];
+                std::cout << "Divide Result: " << registers[reg1] << std::endl;
+            }
+            break;
+        case MODULUS:
+            if (registers[reg2] == 0) {
+                // Handle modulo by zero (e.g., throw an exception or set a register to an error value)
+            } else {
+                registers[reg1] %= registers[reg2];
+                std::cout << "Result: " << registers[reg1] << std::endl;
+            }
+            break;
+        default:
+            // Handle invalid binary operation opcode
+            // (e.g., throw an exception or log an error)
+            break;
         }
-        break;
-    case MODULUS:
-        if (registers[reg2] == 0) {
-            // Handle modulo by zero (e.g., throw an exception or set a register to an error value)
-        } else {
-            registers[reg1] %= registers[reg2];
-            std::cout << "Result: " << registers[reg1] << std::endl;
-        }
-        break;
-    default:
-        // Handle invalid binary operation opcode
-        // (e.g., throw an exception or log an error)
-        break;
+    } catch (const std::exception &ex) {
+        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
     }
+    pc += 4;
 }
 
 void RegisterVM::PerformLogicalOperation(int reg1, int reg2)
@@ -203,16 +213,21 @@ void RegisterVM::PerformComparisonOperation(int reg1, int reg2)
 
 void RegisterVM::HandleLoadConst(unsigned int constantIndex)
 {
-    std::cout << "Constants handling" << std::endl;
-
+    // Ensure constants vector has enough space for constantIndex
     if (constantIndex >= constants.size()) {
-        // Handle invalid constant index (e.g., throw an exception or log an error)
-        std::cerr << "Invalid Constant Index" << std::endl;
-    } else {
-        //registers[pc++] = constants[constantIndex];
-        registers[pc++] = std::get<int>(this->constants[pc++]);
-        std::cout << "Result: " << registers[pc++] << std::endl;
+        constants.resize(constantIndex + 1); // Resize the vector if necessary
     }
+
+    // Get the constant value from the current instruction using the pc
+    int constantValue = convertToInt(program[pc++].value);
+
+    // Store the constant value in constants vector at constantIndex
+    constants[constantIndex] = constantValue;
+
+    // Set the register to the constant value
+    registers.push_back(constantValue);
+
+    std::cout << "Const Result: " << constantValue << std::endl;
 }
 
 void RegisterVM::HandleStoreValue(unsigned int constantIndex)
@@ -245,7 +260,7 @@ void RegisterVM::print()
         std::cout << "PRINT: " << std::get<int>(this->constants[pc++]) << std::endl;
     } else if (this->constants[pc].index() == 1) {
         // The constant is a float
-        std::cout << "PRINT: " << std::get<float>(this->constants[pc++]) << std::endl;
+        std::cout << "PRINT: " << std::get<double>(this->constants[pc++]) << std::endl;
     } else if (this->constants[pc].index() == 2) {
         // The constant is a bool
         std::cout << "PRINT: " << std::get<bool>(this->constants[pc++]) << std::endl;
