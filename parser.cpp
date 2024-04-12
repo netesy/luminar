@@ -55,7 +55,7 @@ ParseFn Parser::getParseFn(TokenType type)
     switch (type) {
         // Unary operators
     case TokenType::MINUS:
-    case TokenType::BANG:
+        //    case TokenType::BANG:
         return &Parser::parseUnary;
 
         // Binary operators
@@ -71,7 +71,12 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::GREATER_EQUAL:
     case TokenType::EQUAL_EQUAL:
     case TokenType::BANG_EQUAL:
-        return &Parser::parseAssignment;
+        return &Parser::parseComparison;
+
+    case TokenType::AND:
+    case TokenType::OR:
+    case TokenType::BANG:
+        return &Parser::parseLogical;
 
         //Assignment
     case TokenType::PLUS_EQUAL:
@@ -95,6 +100,9 @@ ParseFn Parser::getParseFn(TokenType type)
         // Parentheses (grouping or function call)
     case TokenType::LEFT_PAREN:
         return &Parser::parseParenthesis;
+
+    case TokenType::PRINT:
+        return &Parser::parsePrintStatement;
 
     default:
         return nullptr;
@@ -297,55 +305,6 @@ Instruction Parser::makeInstruction(Opcode opcode,
 
 void Parser::parsePrimary()
 {
-    //    std::cout << "get primary fn" << std::endl;
-    // Check for EOF_TOKEN before parsing primary
-    //    if (isAtEnd()) {
-    //        return; // Stop parsing if EOF_TOKEN is reached
-    //    }
-
-    //    ParseFn prefixParseFn = getParseFn(peek().type);
-    //    //    std::cout << "Primary Token: " << peek().lexeme << std::endl;
-    //    // Check for prefix unary operators
-    //    if (prefixParseFn != nullptr && prefixParseFn == &Parser::parseUnary) {
-    //        advance();
-    //        (this->*prefixParseFn)();
-    //    } else {
-    //        (this->*prefixParseFn)();
-    //    }
-
-    //    // Parse following binary operations
-    //    while (true) {
-    //        // Check for binary operator precedence instead of literal type
-    //        TokenType nextOp = peek().type;
-    //        Precedence nextPrecedence = getTokenPrecedence(nextOp);
-    //        //|| nextPrecedence <= getParseFn(previous().type)
-    //        if (nextPrecedence == PREC_NONE) {
-    //            break;
-    //        }
-
-    //        //        std::cout << "infix" << std::endl;
-    //        ParseFn infixParseFn = getParseFn(nextOp);
-    //        if (infixParseFn == nullptr) {
-    //            std::cout << "error" << std::endl;
-    //            error("Unexpected token in expression");
-    //            break;
-    //        }
-    //        advance();
-    //        (this->*infixParseFn)();
-    //    }
-    //    if (isAtEnd()) {
-    //        return; // Stop parsing if EOF_TOKEN is reached
-    //    }
-
-    //    parseUnary();
-    //    // If it's not a unary operator, parse the literal or variable
-    //    ParseFn parseFn = getParseFn(peek().type);
-    //    if (parseFn != nullptr) {
-    //        (this->*parseFn)();
-    //    } else {
-    //        error("Unexpected token in expression");
-    //    }
-
     if (isAtEnd()) {
         return; // Stop parsing if EOF_TOKEN is reached
     }
@@ -489,91 +448,6 @@ void Parser::parseAssignment()
 void Parser::parseBinary()
 {
     std::cout << "get binary fn" << std::endl;
-
-    //    TokenType operatorType = previous().type;
-    //    Precedence operatorPrecedence = getTokenPrecedence(operatorType);
-    //    //    std::cout << "Token Binary while: " << previous().lexeme << std::endl;
-    //    // Generate bytecode for the binary operation
-    //    while (operatorPrecedence >= PREC_TERM) {
-    //        advance(); // Move past the operator
-
-    //        parsePrimary(); // Parse the right-hand side operand
-    //        switch (operatorType) {
-    //        case TokenType::PLUS:
-    //            makeInstruction(Opcode::ADD, peek().line);
-    //            break;
-    //        case TokenType::MINUS:
-    //            makeInstruction(Opcode::SUBTRACT, peek().line);
-    //            break;
-    //        case TokenType::STAR:
-    //            makeInstruction(Opcode::MULTIPLY, peek().line);
-    //            break;
-    //        case TokenType::SLASH:
-    //            makeInstruction(Opcode::DIVIDE, peek().line);
-    //            break;
-    //        case TokenType::MODULUS:
-    //            makeInstruction(Opcode::MODULUS, peek().line);
-    //            break;
-    //        default:
-    //            error("Unexpected binary operator");
-    //        }
-
-    //        if (isAtEnd())
-    //            return;
-
-    //        operatorType = peek().type;
-    //        operatorPrecedence = getTokenPrecedence(operatorType);
-    //    }
-    //    parseUnary();
-    //    ParseFn parseFn = getParseFn(operatorType);
-    //    (this->*parseFn)();
-    //    TokenType operatorType = previous().type; // Get the operator type
-    //    Precedence operatorPrecedence = getTokenPrecedence(
-    //        operatorType); // Get the precedence of the operator
-
-    //    // Parse the primary expression on the right-hand side of the operator
-    //    parsePrimary();
-
-    //    // Parse additional binary expressions with higher precedence
-    //    while (operatorPrecedence < getTokenPrecedence(peek().type)) {
-    //        // Get the type of the next operator
-    //        TokenType nextOperatorType = peek().type;
-
-    //        // If the next operator has higher precedence, parse it
-    //        if (nextOperatorType == TokenType::PLUS || nextOperatorType == TokenType::MINUS
-    //            || nextOperatorType == TokenType::STAR || nextOperatorType == TokenType::SLASH
-    //            || nextOperatorType == TokenType::MODULUS) {
-    //            advance(); // Move past the operator
-
-    //            // Parse the primary expression on the right-hand side of the operator
-    //            parsePrimary();
-
-    //            // Generate bytecode for the binary operation
-    //            switch (operatorType) {
-    //            case TokenType::PLUS:
-    //                makeInstruction(Opcode::ADD, peek().line);
-    //                break;
-    //            case TokenType::MINUS:
-    //                makeInstruction(Opcode::SUBTRACT, peek().line);
-    //                break;
-    //            case TokenType::STAR:
-    //                makeInstruction(Opcode::MULTIPLY, peek().line);
-    //                break;
-    //            case TokenType::SLASH:
-    //                makeInstruction(Opcode::DIVIDE, peek().line);
-    //                break;
-    //            case TokenType::MODULUS:
-    //                makeInstruction(Opcode::MODULUS, peek().line);
-    //                break;
-    //            default:
-    //                error("Unexpected binary operator");
-    //                break;
-    //            }
-    //        } else {
-    //            // If the next operator has lower precedence, stop parsing
-    //            break;
-    //        }
-    //    }
     TokenType operatorType = previous().type; // Get the operator type
 
     // Parse the primary expression on the right-hand side of the operator
@@ -612,6 +486,78 @@ void Parser::parseBinary()
                 break;
             default:
                 error("Expected binary operator (-, +, *, /, %)");
+                break;
+            }
+        } else {
+            // If the next operator has lower precedence, stop parsing
+            break;
+        }
+    }
+}
+
+void Parser::parseLogical()
+{
+    std::cout << "get logical fn" << std::endl;
+
+    TokenType operatorType = previous().type; // Get the operator type
+
+    // Generate bytecode for the binary operation
+    switch (operatorType) {
+    case TokenType::BANG:
+        makeInstruction(Opcode::NOT, peek().line);
+        break;
+    case TokenType::AND:
+        makeInstruction(Opcode::AND, peek().line);
+        break;
+    case TokenType::OR:
+        makeInstruction(Opcode::OR, peek().line);
+        break;
+    default:
+        error("Expected logical operator (!, &, |)");
+        break;
+    }
+}
+
+void Parser::parseComparison()
+{
+    std::cout << "get comparison fn" << std::endl;
+
+    TokenType operatorType = previous().type; // Get the operator type
+
+    // Parse the primary expression on the right-hand side of the operator
+    //parsePrimary();
+    while (getTokenPrecedence(operatorType) <= getTokenPrecedence(peek().type)) {
+        TokenType nextOperatorType = peek().type;
+        std::cout << "Token comparison while: " << peek().lexeme << std::endl;
+
+        // If the next operator has higher precedence, parse it
+        if (nextOperatorType == TokenType::GREATER || nextOperatorType == TokenType::GREATER_EQUAL
+            || nextOperatorType == TokenType::LESS || nextOperatorType == TokenType::LESS_EQUAL
+            || nextOperatorType == TokenType::EQUAL_EQUAL
+            || nextOperatorType == TokenType::BANG_EQUAL) {
+            advance();
+
+            switch (operatorType) {
+            case TokenType::GREATER:
+                makeInstruction(Opcode::GREATER_THAN, peek().line);
+                break;
+            case TokenType::GREATER_EQUAL:
+                makeInstruction(Opcode::GREATER_THAN_OR_EQUAL, peek().line);
+                break;
+            case TokenType::LESS:
+                makeInstruction(Opcode::LESS_THAN, peek().line);
+                break;
+            case TokenType::LESS_EQUAL:
+                makeInstruction(Opcode::LESS_THAN_OR_EQUAL, peek().line);
+                break;
+            case TokenType::EQUAL_EQUAL:
+                makeInstruction(Opcode::EQUAL, peek().line);
+                break;
+            case TokenType::BANG_EQUAL:
+                makeInstruction(Opcode::NOT_EQUAL, peek().line);
+                break;
+            default:
+                error("Expected comparison operator (>, >=, <, <=, ==, !=)");
                 break;
             }
         } else {

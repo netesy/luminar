@@ -1,5 +1,6 @@
 #include "vm.hh"
 #include "helper.hh"
+const int REGISTER_COUNT = 64; // Define the maximum number of registers
 
 void RegisterVM::run()
 {
@@ -13,23 +14,27 @@ void RegisterVM::run()
             case MULTIPLY:
             case DIVIDE:
             case MODULUS:
-                PerformBinaryOperation(pc++);
+                PerformBinaryOperation(pc);
+                pc++;
                 break;
             case EQUAL:
             case NOT_EQUAL:
             case LESS_THAN:
             case LESS_THAN_OR_EQUAL:
             case GREATER_THAN:
-            case GREATER_THAN_OR_EQUAL:
-                PerformComparisonOperation(--pc, --pc);
+            case GREATER_THAN_OR_EQUAL: {
+                PerformComparisonOperation(pc);
+                pc++;
                 break;
+            }
             case AND:
             case OR:
             case NOT:
                 std::cout << "Logical" << std::endl;
                 //                int reg1 = registers[--pc];
                 //                int reg2 = registers[--pc];
-                PerformLogicalOperation(--pc, --pc);
+                PerformLogicalOperation(pc);
+                pc++;
                 break;
             case LOAD_CONST:
                 HandleLoadConst(pc);
@@ -102,15 +107,16 @@ void RegisterVM::run()
 void RegisterVM::PerformBinaryOperation(int op)
 {
     std::cout << "arithmetric handling" << std::endl;
-    int reg2 = --pc;
-    int reg1 = --pc;
+    int opcode = program[op].opcode; // Retrieve opcode from instruction
+    // Get operand registers using available registers (mod 16)
+    int reg2 = (op - 1) % REGISTER_COUNT; // Get the second operand (reg2)
+    int reg1 = (op - 2) % REGISTER_COUNT; // Get the first operand (reg1)
 
-    std::cout << "PC: " << op << std::endl;
-
+    std::cout << "Current index: " << op << std::endl;
+    std::cout << "Current val: " << registers[op] << std::endl;
     std::cout << "Reg 1: " << registers[reg1] << std::endl;
     std::cout << "Reg 2: " << registers[reg2] << std::endl;
 
-    int opcode = registers[op];
     std::cout << "opcode: " << opcode << std::endl;
     try {
         switch (opcode) { // Get the binary opcode from the next instruction
@@ -139,7 +145,7 @@ void RegisterVM::PerformBinaryOperation(int op)
                 // Handle modulo by zero (e.g., throw an exception or set a register to an error value)
             } else {
                 registers[reg1] %= registers[reg2];
-                std::cout << "Result: " << registers[reg1] << std::endl;
+                std::cout << "Modulus Result: " << registers[reg1] << std::endl;
             }
             break;
         default:
@@ -147,27 +153,31 @@ void RegisterVM::PerformBinaryOperation(int op)
             // (e.g., throw an exception or log an error)
             break;
         }
+        //  registers[reg2] = 0; // or any other default value
+        registers.erase(std::next(registers.begin(), reg2));
     } catch (const std::exception &ex) {
         std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
     }
-    pc += 4;
 }
 
-void RegisterVM::PerformLogicalOperation(int reg1, int reg2)
+void RegisterVM::PerformLogicalOperation(int op)
 {
     std::cout << "Logical Operation" << std::endl;
-    switch (registers[pc++]) { // Get the logical opcode from the next instruction
+    int opcode = program[op].opcode; // Retrieve opcode from instruction
+    int reg2 = op - 1;               // Get the second operand (reg2)
+    int reg1 = op - 2;               // Get the first operand (reg1)
+    switch (registers[--pc]) { // Get the logical opcode from the previous instruction
     case AND:
         registers[reg1] &= registers[reg2]; // Bitwise AND
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        std::cout << "And Result: " << registers[reg1] << std::endl;
         break;
     case OR:
         registers[reg1] |= registers[reg2]; // Bitwise OR
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        std::cout << " Or Result: " << registers[reg1] << std::endl;
         break;
     case NOT:
         registers[reg1] = ~registers[reg1]; // Bitwise NOT
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        std::cout << " Not Result: " << registers[reg1] << std::endl;
         break;
     default:
         // Handle invalid logical operation opcode
@@ -176,10 +186,13 @@ void RegisterVM::PerformLogicalOperation(int reg1, int reg2)
     }
 }
 
-void RegisterVM::PerformComparisonOperation(int reg1, int reg2)
+void RegisterVM::PerformComparisonOperation(int op)
 {
     std::cout << "Comparison Operation" << std::endl;
-    switch (registers[pc++]) { // Get the comparison opcode from the next instruction
+    int opcode = program[op].opcode; // Retrieve opcode from instruction
+    int reg2 = op - 1;               // Get the second operand (reg2)
+    int reg1 = op - 2;               // Get the first operand (reg1)
+    switch (opcode) {                // Get the comparison opcode from the previous instruction
     case GREATER_THAN:
         registers[reg1] = (registers[reg1] > registers[reg2]) ? 1 : 0;
         std::cout << "Result: " << registers[reg1] << std::endl;
@@ -217,6 +230,7 @@ void RegisterVM::HandleLoadConst(unsigned int constantIndex)
     if (constantIndex >= constants.size()) {
         constants.resize(constantIndex + 1); // Resize the vector if necessary
     }
+    std::cout << "Const Index: " << constantIndex << std::endl;
 
     // Get the constant value from the current instruction using the pc
     int constantValue = convertToInt(program[pc++].value);
@@ -255,18 +269,18 @@ void RegisterVM::HandleHalt()
 void RegisterVM::print()
 {
     std::cout << "Print" << std::endl;
-    if (this->constants[pc].index() == 0) {
+    if (this->constants[--pc].index() == 0) {
         // The constant is an integer
-        std::cout << "PRINT: " << std::get<int>(this->constants[pc++]) << std::endl;
+        std::cout << "PRINT: " << std::get<int>(this->constants[--pc]) << std::endl;
     } else if (this->constants[pc].index() == 1) {
         // The constant is a float
-        std::cout << "PRINT: " << std::get<double>(this->constants[pc++]) << std::endl;
+        std::cout << "PRINT: " << std::get<double>(this->constants[--pc]) << std::endl;
     } else if (this->constants[pc].index() == 2) {
         // The constant is a bool
-        std::cout << "PRINT: " << std::get<bool>(this->constants[pc++]) << std::endl;
+        std::cout << "PRINT: " << std::get<bool>(this->constants[--pc]) << std::endl;
     } else if (this->constants[pc].index() == 3) {
         // The constant is a string
-        std::cout << "PRINT: " << std::get<std::string>(this->constants[pc++]) << std::endl;
+        std::cout << "PRINT: " << std::get<std::string>(this->constants[--pc]) << std::endl;
     } else {
         // Handle other types of constants (if necessary)
         // Modify this part according to your specific constant types

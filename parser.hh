@@ -96,6 +96,8 @@ private:
     void parsePrimary();
     void parseExpression();
     void parseBinary();
+    void parseLogical();
+    void parseComparison();
     void parseBoolean();
     void parseUnary();
     void parseLiteral();
