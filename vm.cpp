@@ -9,6 +9,10 @@ void RegisterVM::run()
         while (pc < program.size()) {
             const Instruction &instruction = program[pc]; // Fetch instruction at current PC
             switch (instruction.opcode) {
+            case NEGATE:
+                PerformUnaryOperation(pc);
+                pc++;
+                break;
             case ADD:
             case SUBTRACT:
             case MULTIPLY:
@@ -95,7 +99,6 @@ void RegisterVM::run()
                 break;
             case ADD_ASSIGN:
             case SUB_ASSIGN:
-            case NEGATE:
                 break;
             case BOOLEAN:
                 break;
@@ -108,7 +111,7 @@ void RegisterVM::run()
 
 void RegisterVM::PerformBinaryOperation(int op)
 {
-    std::cout << "Arithmetic handling" << std::endl;
+    //  std::cout << "Arithmetic handling" << std::endl;
     int opcode = program[op].opcode; // Retrieve opcode from instruction
 
     // Ensure the operand registers exist
@@ -164,6 +167,41 @@ void RegisterVM::PerformBinaryOperation(int op)
             // Handle invalid binary operation opcode
             // (e.g., throw an exception or log an error)
             std::cerr << "Error: Invalid binary operation opcode" << std::endl;
+            break;
+        }
+    } catch (const std::exception &ex) {
+        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
+    }
+}
+
+void RegisterVM::PerformUnaryOperation(int op)
+{
+    std::cout << "Unary operation handling" << std::endl;
+    int opcode = program[op].opcode; // Retrieve opcode from instruction
+
+    // Ensure the operand register exists
+    if (registers.empty()) {
+        // Handle invalid operand register (e.g., throw an exception or return an error code)
+        std::cerr << "Error: Invalid operand register for unary operation" << std::endl;
+        return;
+    }
+
+    int reg1 = registers.back(); // Get the operand (reg1)
+    registers.pop_back();
+
+    std::cout << "Reg 1: " << reg1 << std::endl;
+    std::cout << "Opcode: " << opcode << std::endl;
+
+    try {
+        switch (opcode) {
+        case NEGATE:
+            registers.push_back(-reg1);
+            std::cout << "NEGATE Result: " << registers.back() << std::endl;
+            break;
+        default:
+            // Handle invalid unary operation opcode
+            // (e.g., throw an exception or log an error)
+            std::cerr << "Error: Invalid unary operation opcode" << std::endl;
             break;
         }
     } catch (const std::exception &ex) {

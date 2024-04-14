@@ -37,6 +37,7 @@ private:
     std::vector<Instruction> program;
 
     void PerformBinaryOperation(int op);
+    void PerformUnaryOperation(int op);
     void PerformLogicalOperation(int op);
     void PerformComparisonOperation(int op);
     void HandleLoadConst(unsigned int constantValue);
