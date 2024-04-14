@@ -4,7 +4,6 @@ const int REGISTER_COUNT = 64; // Define the maximum number of registers
 
 void RegisterVM::run()
 {
-    std::cout << "Running the Vm loop" << std::endl;
     try {
         while (pc < program.size()) {
             const Instruction &instruction = program[pc]; // Fetch instruction at current PC
@@ -34,15 +33,14 @@ void RegisterVM::run()
             case AND:
             case OR:
             case NOT:
-                std::cout << "Logical" << std::endl;
-                //                int reg1 = registers[--pc];
-                //                int reg2 = registers[--pc];
                 PerformLogicalOperation(pc);
                 pc++;
                 break;
             case LOAD_CONST:
                 HandleLoadConst(pc);
                 break;
+            case PRINT:
+                print();
             case JUMP:
             case JUMP_IF_TRUE:
             case JUMP_IF_FALSE:
@@ -55,8 +53,7 @@ void RegisterVM::run()
             case HALT:
             case RETURN:
                 return; // Halt execution
-            case PRINT:
-                print();
+
                 break;
             case DEFINE_FUNCTION:
             case INVOKE_FUNCTION:
@@ -176,7 +173,7 @@ void RegisterVM::PerformBinaryOperation(int op)
 
 void RegisterVM::PerformUnaryOperation(int op)
 {
-    std::cout << "Unary operation handling" << std::endl;
+    //    std::cout << "Unary operation handling" << std::endl;
     int opcode = program[op].opcode; // Retrieve opcode from instruction
 
     // Ensure the operand register exists
@@ -211,64 +208,87 @@ void RegisterVM::PerformUnaryOperation(int op)
 
 void RegisterVM::PerformLogicalOperation(int op)
 {
-    std::cout << "Logical Operation" << std::endl;
-    int opcode = program[op].opcode; // Retrieve opcode from instruction
-    int reg2 = op - 1;               // Get the second operand (reg2)
-    int reg1 = op - 2;               // Get the first operand (reg1)
-    switch (registers[--pc]) { // Get the logical opcode from the previous instruction
+    //    std::cout << "Logical Operation" << std::endl;
+    // Retrieve opcode from instruction
+    int opcode = program[op].opcode;
+
+    // Ensure at least two operands exist
+    if (registers.size() < 2) {
+        std::cerr << "Error: Insufficient operand registers for logical operation" << std::endl;
+        return;
+    }
+
+    // Get the operands
+    int reg2 = registers.back();
+    registers.pop_back();
+    int reg1 = registers.back();
+    registers.pop_back();
+
+    switch (opcode) {
     case AND:
-        registers[reg1] &= registers[reg2]; // Bitwise AND
-        std::cout << "And Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 & reg2); // Bitwise AND
+        std::cout << "And Result: " << registers.back() << std::endl;
         break;
     case OR:
-        registers[reg1] |= registers[reg2]; // Bitwise OR
-        std::cout << " Or Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 | reg2); // Bitwise OR
+        std::cout << " Or Result: " << registers.back() << std::endl;
         break;
     case NOT:
-        registers[reg1] = ~registers[reg1]; // Bitwise NOT
-        std::cout << " Not Result: " << registers[reg1] << std::endl;
+        registers.push_back(~reg1); // Bitwise NOT on reg1
+        std::cout << " Not Result: " << registers.back() << std::endl;
         break;
     default:
         // Handle invalid logical operation opcode
-        // (e.g., throw an exception or log an error)
+        std::cerr << "Error: Invalid logical operation opcode" << std::endl;
         break;
     }
 }
 
 void RegisterVM::PerformComparisonOperation(int op)
 {
-    std::cout << "Comparison Operation" << std::endl;
-    int opcode = program[op].opcode; // Retrieve opcode from instruction
-    int reg2 = op - 1;               // Get the second operand (reg2)
-    int reg1 = op - 2;               // Get the first operand (reg1)
-    switch (opcode) {                // Get the comparison opcode from the previous instruction
+    // Retrieve opcode from instruction
+    int opcode = program[op].opcode;
+
+    // Ensure at least two operands exist
+    if (registers.size() < 2) {
+        std::cerr << "Error: Insufficient operand registers for comparison operation" << std::endl;
+        return;
+    }
+
+    // Get the operands
+    int reg2 = registers.back();
+    registers.pop_back();
+    int reg1 = registers.back();
+    registers.pop_back();
+
+    switch (opcode) {
     case GREATER_THAN:
-        registers[reg1] = (registers[reg1] > registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 > reg2);
+        std::cout << "> Result: " << registers.back() << std::endl;
         break;
     case LESS_THAN:
-        registers[reg1] = (registers[reg1] < registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 < reg2);
+        std::cout << "< Result: " << registers.back() << std::endl;
         break;
     case GREATER_THAN_OR_EQUAL:
-        registers[reg1] = (registers[reg1] >= registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 >= reg2);
+        std::cout << ">= Result: " << registers.back() << std::endl;
         break;
     case LESS_THAN_OR_EQUAL:
-        registers[reg1] = (registers[reg1] <= registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 <= reg2);
+        std::cout << "<= Result: " << registers.back() << std::endl;
         break;
     case EQUAL:
-        registers[reg1] = (registers[reg1] == registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 == reg2);
+        std::cout << "== Result: " << registers.back() << std::endl;
         break;
     case NOT_EQUAL:
-        registers[reg1] = (registers[reg1] != registers[reg2]) ? 1 : 0;
-        std::cout << "Result: " << registers[reg1] << std::endl;
+        registers.push_back(reg1 != reg2);
+        std::cout << "!= Result: " << registers.back() << std::endl;
         break;
     default:
         // Handle invalid comparison operation opcode
-        // (e.g., throw an exception or log an error)
+        std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
         break;
     }
 }
@@ -279,7 +299,6 @@ void RegisterVM::HandleLoadConst(unsigned int constantIndex)
     if (constantIndex >= constants.size()) {
         constants.resize(constantIndex + 1); // Resize the vector if necessary
     }
-    std::cout << "Const Index: " << constantIndex << std::endl;
 
     // Get the constant value from the current instruction using the pc
     int constantValue = convertToInt(program[pc++].value);
@@ -289,8 +308,6 @@ void RegisterVM::HandleLoadConst(unsigned int constantIndex)
 
     // Set the register to the constant value
     registers.push_back(constantValue);
-
-    std::cout << "Const Result: " << constantValue << std::endl;
 }
 
 void RegisterVM::HandleStoreValue(unsigned int constantIndex)

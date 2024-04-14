@@ -7,7 +7,6 @@ public:
     explicit RegisterVM(Parser &parser)
         : parser(parser)
     {
-        std::cout << "Started Vm" << std::endl;
         program = parser.getBytecode();
     }
 
