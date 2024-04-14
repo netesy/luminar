@@ -41,7 +41,9 @@ private:
     void PerformComparisonOperation(int op);
     void HandleLoadConst(unsigned int constantValue);
     void HandleStoreValue(unsigned int constantIndex);
-    // ... Implement functions for other instruction types (LOAD_VARIABLE, etc.)
+    void HandleDeclareVariable(unsigned int variableIndex);
+    void HandleLoadVariable(unsigned int variableIndex);
+    void HandleStoreVariable(unsigned int variableIndex);
     void HandleHalt();
     // ... Implement functions for control flow instructions (JUMP, JUMP_IF_TRUE, etc.)
     void print();

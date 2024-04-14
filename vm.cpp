@@ -46,9 +46,13 @@ void RegisterVM::run()
             case JUMP_IF_FALSE:
                 break;
             case DECLARE_VARIABLE:
-            case LOAD_VARIABLE:
-            case STORE_VARIABLE:
+                HandleDeclareVariable(pc);
                 break;
+            case LOAD_VARIABLE:
+                HandleLoadVariable(pc);
+                break;
+            case STORE_VARIABLE:
+                HandleStoreVariable(pc);
             case NOP:
             case HALT:
             case RETURN:
@@ -354,4 +358,49 @@ void RegisterVM::print()
         pc++;
     }
 }
-// ... Implement functions for other instruction types
+void RegisterVM::HandleDeclareVariable(unsigned int variableIndex)
+{
+    // Ensure variables map has enough space for variableIndex
+    if (variableIndex >= variables.size()) {
+        variables.resize(variableIndex + 1); // Resize the vector if necessary
+    }
+
+    // Get the variable value from the current instruction using the pc
+    int variableValue = convertToInt(program[pc++].value);
+
+    // Store the variable value in variables vector at variableIndex
+    variables[variableIndex] = variableValue;
+}
+
+void RegisterVM::HandleLoadVariable(unsigned int variableIndex)
+{
+    // Ensure variables map has enough space for variableIndex
+    if (variableIndex >= variables.size()) {
+        // Handle invalid variable index (e.g., throw an exception or log an error)
+        std::cerr << "Error: Invalid variable index" << std::endl;
+        return;
+    }
+
+    // Get the variable value from the variables vector at variableIndex
+    int variableValue = variables[variableIndex];
+
+    // Push the variable value to the registers
+    registers.push_back(variableValue);
+}
+
+void RegisterVM::HandleStoreVariable(unsigned int variableIndex)
+{
+    // Ensure variables map has enough space for variableIndex
+    if (variableIndex >= variables.size()) {
+        // Handle invalid variable index (e.g., throw an exception or log an error)
+        std::cerr << "Error: Invalid variable index" << std::endl;
+        return;
+    }
+
+    // Get the value from the registers
+    int value = registers.back();
+    registers.pop_back();
+
+    // Store the value in the variables vector at variableIndex
+    variables[variableIndex] = value;
+}
