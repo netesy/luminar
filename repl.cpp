@@ -13,15 +13,16 @@ void REPL::start()
         // Tokenize input
         Scanner scanner(input);
         Parser parser(scanner);
-        RegisterVM vm(parser);
-        try {
-            vm.run();
-            vm.dumpRegisters();
+        debug(scanner, parser);
+        //        RegisterVM vm(parser);
+        //        try {
+        //            vm.run();
+        //            vm.dumpRegisters();
 
-        } catch (const std::exception &e) {
-            std::cerr << " Repl Error: " << e.what() << std::endl;
-            // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-        }
+        //        } catch (const std::exception &e) {
+        //            std::cerr << " Repl Error: " << e.what() << std::endl;
+        //            // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
+        //        }
     }
 }
 

@@ -31,6 +31,7 @@ enum Opcode {
     OR,
     NOT,
     NEGATE,
+    BOOLEAN,
 
     // Control flow operations
     JUMP,
@@ -191,6 +192,8 @@ struct Instruction
             return "JUMP_IF_FALSE";
         case Opcode::RETURN:
             return "RETURN";
+        case Opcode::BOOLEAN:
+            return "BOOLEAN";
 
             // Variable operations
         case Opcode::DECLARE_VARIABLE:

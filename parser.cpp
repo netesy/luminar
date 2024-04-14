@@ -497,11 +497,11 @@ void Parser::parseBinary()
 
 void Parser::parseLogical()
 {
-    std::cout << "get logical fn" << std::endl;
+    TokenType operatorType = peek().type; // Get the operator type
 
-    TokenType operatorType = previous().type; // Get the operator type
+    //parsePrecedence(getTokenPrecedence(operatorType));
 
-    // Generate bytecode for the binary operation
+    // Generate bytecode for the logical operation
     switch (operatorType) {
     case TokenType::BANG:
         makeInstruction(Opcode::NOT, peek().line);
@@ -516,27 +516,30 @@ void Parser::parseLogical()
         error("Expected logical operator (!, &, |)");
         break;
     }
+    advance();
+    //parsePrecedence(getTokenPrecedence(operatorType));
 }
 
 void Parser::parseComparison()
 {
     std::cout << "get comparison fn" << std::endl;
+    TokenType operatorType = peek().type; // Get the operator type
 
-    TokenType operatorType = previous().type; // Get the operator type
-
-    // Parse the primary expression on the right-hand side of the operator
-    //parsePrimary();
+    // Parse additional comparison expressions with the same or higher precedence
     while (getTokenPrecedence(operatorType) <= getTokenPrecedence(peek().type)) {
         TokenType nextOperatorType = peek().type;
-        std::cout << "Token comparison while: " << peek().lexeme << std::endl;
 
-        // If the next operator has higher precedence, parse it
+        // If the next operator is a comparison operator, parse it
         if (nextOperatorType == TokenType::GREATER || nextOperatorType == TokenType::GREATER_EQUAL
             || nextOperatorType == TokenType::LESS || nextOperatorType == TokenType::LESS_EQUAL
             || nextOperatorType == TokenType::EQUAL_EQUAL
             || nextOperatorType == TokenType::BANG_EQUAL) {
-            advance();
+            advance(); // Move past the operator
 
+            // Parse the primary expression on the right-hand side of the operator
+            parsePrimary();
+
+            // Generate bytecode for the comparison operation
             switch (operatorType) {
             case TokenType::GREATER:
                 makeInstruction(Opcode::GREATER_THAN, peek().line);
@@ -564,6 +567,8 @@ void Parser::parseComparison()
             // If the next operator has lower precedence, stop parsing
             break;
         }
+        advance();
+        //    parsePrecedence(getTokenPrecedence(operatorType));
     }
 }
 
@@ -611,6 +616,7 @@ void Parser::parseBoolean()
 
 void Parser::parseLiteral()
 {
+    std::cout << "get literal fn" << std::endl;
     Token op = peek();
     if (match(TokenType::NUMBER)) {
         double value = std::stod(previous().lexeme);

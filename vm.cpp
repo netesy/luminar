@@ -97,6 +97,8 @@ void RegisterVM::run()
             case SUB_ASSIGN:
             case NEGATE:
                 break;
+            case BOOLEAN:
+                break;
             }
         }
     } catch (const std::exception &ex) {

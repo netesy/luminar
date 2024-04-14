@@ -14,5 +14,5 @@ public:
 private:
     static std::string readInput();
     static std::string readFile(const std::string& filename);
-    void debug(Scanner scanner, Parser parser);
+    static void debug(Scanner scanner, Parser parser);
 };
