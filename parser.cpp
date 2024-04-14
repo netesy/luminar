@@ -195,9 +195,12 @@ bool Parser::isExpressionStart(TokenType type)
         // Parentheses (grouping or function call)
     case TokenType::LEFT_PAREN:
         return true;
-        // Unary operators (for completeness)
+        // Binary Unary operators (for completeness)
     case TokenType::MINUS:
     case TokenType::BANG:
+    case TokenType::PLUS:
+    case TokenType::MODULUS:
+    case TokenType::SLASH:
         return true;
     default:
         return false;
@@ -237,12 +240,6 @@ void Parser::parsePrecedence(Precedence precedence)
         error("Unexpected token");
         return;
     }
-
-    //    while (precedence < getTokenPrecedence(peek().type)) {
-    //        advance();
-    //        ParseFn infixParseFn = getParseFn(previous().type);
-    //        (this->*infixParseFn)();
-    //    }
 
     bool shouldParseInfix = true;
     (this->*prefixParseFn)();
