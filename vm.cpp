@@ -108,55 +108,64 @@ void RegisterVM::run()
 
 void RegisterVM::PerformBinaryOperation(int op)
 {
-    std::cout << "arithmetric handling" << std::endl;
+    std::cout << "Arithmetic handling" << std::endl;
     int opcode = program[op].opcode; // Retrieve opcode from instruction
-    // Get operand registers using available registers (mod 16)
-    int reg2 = (op - 1) % REGISTER_COUNT; // Get the second operand (reg2)
-    int reg1 = (op - 2) % REGISTER_COUNT; // Get the first operand (reg1)
 
-    std::cout << "Current index: " << op << std::endl;
-    std::cout << "Current val: " << registers[op] << std::endl;
-    std::cout << "Reg 1: " << registers[reg1] << std::endl;
-    std::cout << "Reg 2: " << registers[reg2] << std::endl;
+    // Ensure the operand registers exist
+    if (registers.size() < 2) {
+        // Handle invalid operand registers (e.g., throw an exception or return an error code)
+        std::cerr << "Error: Invalid operand registers for binary operation" << std::endl;
+        return;
+    }
 
-    std::cout << "opcode: " << opcode << std::endl;
+    // Get the operand registers
+    int reg2 = registers.back(); // Get the second operand (reg2)
+    registers.pop_back();
+    int reg1 = registers.back(); // Get the first operand (reg1)
+    registers.pop_back();
+
+    std::cout << "Reg 1: " << reg1 << std::endl;
+    std::cout << "Reg 2: " << reg2 << std::endl;
+    std::cout << "Opcode: " << opcode << std::endl;
+
     try {
-        switch (opcode) { // Get the binary opcode from the next instruction
+        switch (opcode) { // Get the binary opcode from the instruction
         case ADD:
-            registers[reg1] += registers[reg2];
-            std::cout << "ADD Result: " << registers[reg1] << std::endl;
+            registers.push_back(reg1 + reg2);
+            std::cout << "ADD Result: " << registers.back() << std::endl;
             break;
         case SUBTRACT:
-            registers[reg1] -= registers[reg2];
-            std::cout << "SUB Result: " << registers[reg1] << std::endl;
+            registers.push_back(reg1 - reg2);
+            std::cout << "SUB Result: " << registers.back() << std::endl;
             break;
         case MULTIPLY:
-            registers[reg1] *= registers[reg2];
-            std::cout << "MUL Result: " << registers[reg1] << std::endl;
+            registers.push_back(reg1 * reg2);
+            std::cout << "MUL Result: " << registers.back() << std::endl;
             break;
         case DIVIDE:
-            if (registers[reg2] == 0) {
+            if (reg2 == 0) {
                 // Handle division by zero (e.g., throw an exception or set a register to an error value)
-            } else {
-                registers[reg1] /= registers[reg2];
-                std::cout << "Divide Result: " << registers[reg1] << std::endl;
+                std::cerr << "Error: Division by zero" << std::endl;
+                return;
             }
+            registers.push_back(reg1 / reg2);
+            std::cout << "Divide Result: " << registers.back() << std::endl;
             break;
         case MODULUS:
-            if (registers[reg2] == 0) {
+            if (reg2 == 0) {
                 // Handle modulo by zero (e.g., throw an exception or set a register to an error value)
-            } else {
-                registers[reg1] %= registers[reg2];
-                std::cout << "Modulus Result: " << registers[reg1] << std::endl;
+                std::cerr << "Error: Modulo by zero" << std::endl;
+                return;
             }
+            registers.push_back(reg1 % reg2);
+            std::cout << "Modulus Result: " << registers.back() << std::endl;
             break;
         default:
             // Handle invalid binary operation opcode
             // (e.g., throw an exception or log an error)
+            std::cerr << "Error: Invalid binary operation opcode" << std::endl;
             break;
         }
-        //  registers[reg2] = 0; // or any other default value
-        registers.erase(std::next(registers.begin(), reg2));
     } catch (const std::exception &ex) {
         std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
     }
