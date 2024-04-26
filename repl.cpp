@@ -15,14 +15,14 @@ void REPL::start()
         Parser parser(scanner);
         debug(scanner, parser);
         RegisterVM vm(parser);
-        try {
-            vm.run();
-            vm.dumpRegisters();
+               try {
+                   vm.run();
+                   vm.dumpRegisters();
 
-        } catch (const std::exception &e) {
-            std::cerr << " Repl Error: " << e.what() << std::endl;
-            // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-        }
+               } catch (const std::exception &e) {
+                   std::cerr << " Repl Error: " << e.what() << std::endl;
+                   // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
+               }
     }
 }
 

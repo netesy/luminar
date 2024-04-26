@@ -59,6 +59,13 @@ ParseFn Parser::getParseFn(TokenType type)
         return &Parser::parseUnary;
 
         // Binary operators
+    case TokenType::AND:
+    return &Parser::parseAnd;
+    case TokenType::OR:
+    return &Parser::parseOr;
+    case TokenType::BANG:
+        return &Parser::parseLogical;
+
     case TokenType::PLUS:
     case TokenType::STAR:
     case TokenType::SLASH:
@@ -72,11 +79,6 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::EQUAL_EQUAL:
     case TokenType::BANG_EQUAL:
         return &Parser::parseComparison;
-
-    case TokenType::AND:
-    case TokenType::OR:
-    case TokenType::BANG:
-        return &Parser::parseLogical;
 
         //Assignment
     case TokenType::PLUS_EQUAL:
@@ -94,11 +96,13 @@ ParseFn Parser::getParseFn(TokenType type)
         return &Parser::parseBoolean;
 
         // Identifier (variable or function call)
+    case TokenType::VAR:
     case TokenType::IDENTIFIER:
         return &Parser::parseVariable;
 
         // Parentheses (grouping or function call)
     case TokenType::LEFT_PAREN:
+    case TokenType::RIGHT_PAREN:
         return &Parser::parseParenthesis;
 
     case TokenType::PRINT:
@@ -249,6 +253,25 @@ void Parser::parsePrecedence(Precedence precedence)
             break;
         }
 
+        TokenType nextOp = peekNext().type;
+        Precedence nextPrecedence = getTokenPrecedence(nextOp);
+
+        //Handle the case where a logical operator is followed by a comparison operator
+        if (precedence == PREC_OR || precedence == PREC_AND) {
+            if (nextPrecedence == PREC_EQUALITY) {
+                // Parse the comparison expression first
+                advance();
+                ParseFn comparisonParseFn = getParseFn(peek().type);
+                (this->*comparisonParseFn)();
+
+                // Then apply the logical operator
+                ParseFn logicalParseFn = getParseFn(nextOp);
+                (this->*logicalParseFn)();
+
+                continue;
+            }
+        }
+
         advance();
         ParseFn infixParseFn = getParseFn(peek().type);
 
@@ -260,6 +283,8 @@ void Parser::parsePrecedence(Precedence precedence)
         (this->*infixParseFn)();
     }
 }
+
+
 
 Precedence Parser::getTokenPrecedence(TokenType type)
 {
@@ -362,7 +387,6 @@ void Parser::parsePrimary()
 
 void Parser::parseExpression()
 {
-
     parsePrimary();
 
     while (!isAtEnd() && isBinaryOperator(peek().type)) {
@@ -398,7 +422,7 @@ void Parser::parseExpression()
 
 void Parser::parseVariable()
 {
-    //    std::cout << "get variable fn" << std::endl;
+    std::cout << "get variable fn" << std::endl;
     if (match(TokenType::IDENTIFIER)) {
         std::string value = previous().lexeme;
         consume(TokenType::IDENTIFIER, "Expected variable name");
@@ -407,8 +431,10 @@ void Parser::parseVariable()
 
         // Generate bytecode for loading the variable's value
         bytecode.push_back(makeInstruction(Opcode::LOAD_VARIABLE,
-                                           peek().line,
-                                           std::any_cast<int32_t>(memoryLocation)));
+                            peek().line,
+                            std::any_cast<int32_t>(memoryLocation)));
+    } else if (match(TokenType::VAR)) {
+        //implement the var declaration
     } else {
         error("Unexpected token in variable expression");
     }
@@ -481,38 +507,59 @@ void Parser::parseBinary()
     }
 }
 
+void Parser::parseAnd()
+{
+    std::cout << "get and fn" << std::endl;
+    TokenType operatorType = peek().type; // Get the operator type
+    parseComparison();
+    std::cout << " current token: " << peek().lexeme << std::endl;
+        while (!isAtEnd() && operatorType == TokenType::AND) {
+            advance(); // Advance past the 'and' token
+            parseComparison();
+        }
+    if(operatorType == TokenType::AND){
+        std::cout << "show and fn" << std::endl;
+        makeInstruction(Opcode::AND, peek().line);
+    }
+
+}
+
+void Parser::parseOr()
+{
+    std::cout << "get or fn" << std::endl;
+    TokenType operatorType = peek().type; // Get the operator type
+    parseAnd();
+    while (!isAtEnd() && operatorType == TokenType::OR) {
+        advance(); // Advance past the 'or' token
+        parseAnd();
+    }
+    if(operatorType == TokenType::OR){
+        std::cout << "show or fn" << std::endl;
+        makeInstruction(Opcode::OR, peek().line);
+    }
+}
+
 void Parser::parseLogical()
 {
-    // std::cout << "get logical fn" << std::endl;
+    std::cout << "get logical fn" << std::endl;
     TokenType operatorType = peek().type; // Get the operator type
-    //    std::cout << "token: " << peek().lexeme << std::endl;
-
-    parsePrecedence(getTokenPrecedence(operatorType));
-
-    // Generate bytecode for the logical operation
-    switch (operatorType) {
-    case TokenType::BANG:
+    std::cout << "logical token: " << peek().lexeme << std::endl;
+    //parsePrecedence(getTokenPrecedence(operatorType));
+    std::cout << "2nd token: " << peek().lexeme << std::endl;
+    if (operatorType == TokenType::BANG) {
+        advance();
+        parsePrecedence(PREC_UNARY);
         makeInstruction(Opcode::NOT, peek().line);
-        break;
-    case TokenType::AND:
-        makeInstruction(Opcode::AND, peek().line);
-        break;
-    case TokenType::OR:
-        makeInstruction(Opcode::OR, peek().line);
-        break;
-    default:
-        error("Expected logical operator (!, &, |)");
-        break;
+    } else {
+        parseOr();
     }
 }
 
 void Parser::parseComparison()
 {
-    // std::cout << "get comparison fn" << std::endl;
+    std::cout << "get comparison fn" << std::endl;
     TokenType operatorType = peek().type; // Get the operator type
-
     // Parse additional comparison expressions with the same or higher precedence
-
     parsePrecedence(getTokenPrecedence(operatorType));
 
     // Generate bytecode for the comparison operation
@@ -536,35 +583,32 @@ void Parser::parseComparison()
         makeInstruction(Opcode::NOT_EQUAL, peek().line);
         break;
     default:
-        error("Expected comparison operator (>, >=, <, <=, ==, !=)");
+       // error("Expected comparison operator (>, >=, <, <=, ==, !=)");
         break;
     }
 }
 
 void Parser::parseUnary()
 {
-    if (match(TokenType::MINUS) || match(TokenType::BANG)) {
-        TokenType op = previous().type;
+    if (match(TokenType::MINUS)) {
+        // Check if the unary minus is followed by a number
+        if (check(TokenType::NUMBER)) {
+            // If it's followed by a number, parse it as a literal and negate its value
+            parseLiteral();
+            makeInstruction(Opcode::NEGATE, peek().line);
+        } else {
+            // If it's not followed by a number, parse the next expression recursively
+            parseUnary(); // Recursively parse unary operators
+
+            // Generate bytecode for the unary operator
+            makeInstruction(Opcode::NEGATE, peek().line);
+        }
+    } else if (match(TokenType::BANG)) {
+        // Handle logical NOT operator
         parseUnary(); // Recursively parse unary operators
 
-        // Check if the next token is a literal or another unary operator
-        if (!isAtEnd() && isExpressionStart(peek().type)) {
-            // Generate bytecode for the unary operator
-            switch (op) {
-            case TokenType::MINUS:
-                makeInstruction(Opcode::NEGATE, peek().line);
-                break;
-            case TokenType::BANG:
-                makeInstruction(Opcode::NOT, peek().line);
-                break;
-            default:
-                // Handle other unary operators if needed
-                break;
-            }
-        } else {
-            error("Unexpected token after unary operator");
-            return;
-        }
+        // Generate bytecode for the logical NOT operator
+        makeInstruction(Opcode::NOT, peek().line);
     } else {
         // If it's not a unary operator, continue with regular parsing
         parsePrimary();
@@ -640,11 +684,16 @@ void Parser::parseBlock()
 //parse grouping
 void Parser::parseParenthesis()
 {
-    //    std::cout << "parentheses" << std::endl;
+    std::cout << "parentheses" << std::endl;
     consume(TokenType::LEFT_PAREN, "Expected '(' at start of group.");
     while (!check(TokenType::RIGHT_PAREN) && !isAtEnd()) {
         parseExpression();
     }
+
+    if (isAtEnd()) {
+        return; // Stop parsing if EOF_TOKEN is reached
+    }
+
     consume(TokenType::RIGHT_PAREN, "Expected ')' at end of group.");
 }
 

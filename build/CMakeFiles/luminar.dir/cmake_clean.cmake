@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "CMakeFiles/luminar.dir/ast.cpp.obj"
+  "CMakeFiles/luminar.dir/ast.cpp.obj.d"
   "CMakeFiles/luminar.dir/debugger.cpp.obj"
   "CMakeFiles/luminar.dir/debugger.cpp.obj.d"
   "CMakeFiles/luminar.dir/main.cpp.obj"
@@ -11,6 +13,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/luminar.dir/scanner.cpp.obj.d"
   "CMakeFiles/luminar.dir/syntax.cpp.obj"
   "CMakeFiles/luminar.dir/syntax.cpp.obj.d"
+  "CMakeFiles/luminar.dir/vm.cpp.obj"
+  "CMakeFiles/luminar.dir/vm.cpp.obj.d"
   "libluminar.dll.a"
   "luminar.exe"
   "luminar.exe.manifest"

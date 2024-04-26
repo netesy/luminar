@@ -173,6 +173,30 @@ luminar/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/build
 .PHONY : luminar/fast
 
+ast.obj: ast.cpp.obj
+.PHONY : ast.obj
+
+# target to build an object file
+ast.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/ast.cpp.obj
+.PHONY : ast.cpp.obj
+
+ast.i: ast.cpp.i
+.PHONY : ast.i
+
+# target to preprocess a source file
+ast.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/ast.cpp.i
+.PHONY : ast.cpp.i
+
+ast.s: ast.cpp.s
+.PHONY : ast.s
+
+# target to generate assembly for a file
+ast.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/ast.cpp.s
+.PHONY : ast.cpp.s
+
 debugger.obj: debugger.cpp.obj
 .PHONY : debugger.obj
 
@@ -317,6 +341,30 @@ syntax.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/syntax.cpp.s
 .PHONY : syntax.cpp.s
 
+vm.obj: vm.cpp.obj
+.PHONY : vm.obj
+
+# target to build an object file
+vm.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/vm.cpp.obj
+.PHONY : vm.cpp.obj
+
+vm.i: vm.cpp.i
+.PHONY : vm.i
+
+# target to preprocess a source file
+vm.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/vm.cpp.i
+.PHONY : vm.cpp.i
+
+vm.s: vm.cpp.s
+.PHONY : vm.s
+
+# target to generate assembly for a file
+vm.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/vm.cpp.s
+.PHONY : vm.cpp.s
+
 # Help Target
 help:
 	@echo The following are some of the valid targets for this Makefile:
@@ -330,6 +378,9 @@ help:
 	@echo ... list_install_components
 	@echo ... rebuild_cache
 	@echo ... luminar
+	@echo ... ast.obj
+	@echo ... ast.i
+	@echo ... ast.s
 	@echo ... debugger.obj
 	@echo ... debugger.i
 	@echo ... debugger.s
@@ -348,6 +399,9 @@ help:
 	@echo ... syntax.obj
 	@echo ... syntax.i
 	@echo ... syntax.s
+	@echo ... vm.obj
+	@echo ... vm.i
+	@echo ... vm.s
 .PHONY : help
 
 

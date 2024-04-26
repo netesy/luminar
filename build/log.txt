@@ -1,0 +1,16 @@
+
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 11 (Parsing): Expected comparison operator (>, >=, <, <=, ==, !=)
+Token: EOF_TOKEN
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 6 (Parsing): Expected variable name
+Token: LEFT_PAREN
+Suggestion: Check your code for errors.
+ ----------------END----------------
+

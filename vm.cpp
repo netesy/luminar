@@ -36,6 +36,7 @@ void RegisterVM::run()
                 PerformLogicalOperation(pc);
                 pc++;
                 break;
+            case BOOLEAN:
             case LOAD_CONST:
                 HandleLoadConst(pc);
                 break;
@@ -100,8 +101,6 @@ void RegisterVM::run()
                 break;
             case ADD_ASSIGN:
             case SUB_ASSIGN:
-                break;
-            case BOOLEAN:
                 break;
             }
         }

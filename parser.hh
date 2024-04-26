@@ -20,17 +20,17 @@ class Parser;
 using ParseFn = void (Parser::*)();
 
 enum Precedence {
-    PREC_NONE,       // The lowest precedence, used for non-operators
-    PREC_ASSIGNMENT, // Assignment operators: =, +=, -=, *=, /=
-    PREC_OR,         // Logical OR operator: or
-    PREC_AND,        // Logical AND operator: and
-    PREC_EQUALITY,   // Equality operators: ==, !=
-    PREC_COMPARISON, // Comparison operators: <, >, <=, >=
-    PREC_TERM,       // Addition and subtraction: +, -
-    PREC_FACTOR,     // Multiplication and division: *, /
-    PREC_UNARY,      // Unary operators: !, -
-    PREC_CALL,       // Function or method call: . ()
-    PREC_PRIMARY     // The highest precedence, used for primary expressions
+    PREC_NONE,         // The lowest precedence, used for non-operators
+    PREC_ASSIGNMENT,   // Assignment operators: =, +=, -=, *=, /=
+    PREC_OR,           // Logical OR operator: or
+    PREC_AND,          // Logical AND operator: and
+    PREC_EQUALITY,     // Equality operators: ==, !=
+    PREC_COMPARISON,   // Comparison operators: <, >, <=, >=
+    PREC_TERM,         // Addition and subtraction: +, -
+    PREC_FACTOR,       // Multiplication and division: *, /
+    PREC_UNARY,        // Unary operators: !, -
+    PREC_CALL,         // Function or method call: . ()
+    PREC_PRIMARY       // The highest precedence, used for primary expressions
 };
 
 class Parser
@@ -97,6 +97,8 @@ private:
     void parseExpression();
     void parseBinary();
     void parseLogical();
+    void parseAnd();
+    void parseOr();
     void parseComparison();
     void parseBoolean();
     void parseUnary();

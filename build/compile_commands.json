@@ -34,5 +34,17 @@
   "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\syntax.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\syntax.cpp",
   "file": "C:/Users/Fablur/Desktop/Projects/luminar/syntax.cpp",
   "output": "CMakeFiles/luminar.dir/syntax.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\ast.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\ast.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/ast.cpp",
+  "output": "CMakeFiles/luminar.dir/ast.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\vm.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\vm.cpp",
+  "file": "C:/Users/Fablur/Desktop/Projects/luminar/vm.cpp",
+  "output": "CMakeFiles/luminar.dir/vm.cpp.obj"
 }
 ]

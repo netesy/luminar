@@ -19,14 +19,14 @@
   // Arithmetic operations:
   print(1 + 2 + (3 * 4) - (10 / 5));
 
-12 > 3 and 12 > 13 //false
-12 > 3 or 12 > 13 // true
+(12 > 3) and (12 > 13) //false
+(12 > 3) or (12 > 13) // true
 
-12 > 3 and 12 > 1 //true
-12 > 3 or 12 > 1 // true
+(12 > 3) and (12 > 1) //true
+(12 > 3) or (12 > 1) // true
 
-12 <= 3 and 12 >= 13 //false
-1 <= 3 or 12 >= 1 // true
+(12 <= 3) and (12 >= 13) //false
+(1 <= 3) or (12 >= 1) // true
 
   // Logical NOT:
   print(true);

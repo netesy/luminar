@@ -21,17 +21,13 @@ public:
             std::visit([&i](const auto &value) { std::cout << "C-" << i << ": " << value << "\n"; },
                        constants[i]);
         }
-        //        for (size_t i = 0; i < constants.size(); ++i) {
-        //            std::cout << "C-" << i << ": "
-        //                      << std::get<std::variant<int, double, bool, std::string>>(constants[i])
-        //                      << "\n";
-        //        }
     }
 
 private:
     Parser &parser;
     unsigned int pc = 0;        // program counter
     std::vector<int> registers; // Registers for storing data
+    std::vector<int> variables; // variables for storing data location
     std::vector<std::variant<int, double, bool, std::string>> constants;
     std::vector<Instruction> program;
 
