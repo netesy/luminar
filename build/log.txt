@@ -1,16 +1,207 @@
 
-
-
  ----------------DEBUG----------------
-Error at line 1, position 11 (Parsing): Expected comparison operator (>, >=, <, <=, ==, !=)
+Error at line 1, position 15 (Parsing): Expected binary operator (+, -, *, /, %)
 Token: EOF_TOKEN
+Time: Wed May  1 15:03:41 2024
+
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 6 (Parsing): Expected variable name
-Token: LEFT_PAREN
+Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: RIGHT_PAREN
+Time: Wed May  1 15:04:24 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: RIGHT_PAREN
+Time: Wed May  1 15:04:50 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: RIGHT_PAREN
+Time: Wed May  1 15:11:37 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: RIGHT_PAREN
+Time: Wed May  1 15:26:14 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 7 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 15:26:33 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 9 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 15:42:13 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 15:42:27 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 16:32:18 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 16:36:29 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 16:44:04 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 16:58:49 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 4 (Scanning): Invalid character.
+Token: ^
+Time: Wed May  1 17:06:41 2024
+
+Suggestion: Check for invalid characters in your code.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 5 (Parsing): Expected binary operator (+, -, *, /, %)
+Token: EOF_TOKEN
+Time: Wed May  1 17:19:47 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 0 (Parsing): Unexpected token in primary expressions
+Token: DOT
+Time: Thu May  2 12:55:24 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 7 (Parsing): Expected '(' at start of group.
+Token: NUMBER
+Time: Fri May 24 05:57:42 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 5 (Parsing): Unexpected token in literal expression
+Token: GREATER
+Time: Fri May 24 06:16:17 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 7 (Parsing): Expected '(' at start of group.
+Token: NUMBER
+Time: Sat May 25 19:12:48 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 0, position 2 (Parsing): Unexpected token
+Token: UNKNOWN
+Time: Sat May 25 19:31:20 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Unexpected token in literal expression
+Token: EOF_TOKEN
+Time: Sun May 26 05:31:32 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Unexpected token in literal expression
+Token: AND
+Time: Sun May 26 05:35:53 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 0 (Parsing): Unexpected token in primary expressions
+Token: DOT
+Time: Sun May 26 06:12:51 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Parsing): Unexpected binary operator
+Token: EOF_TOKEN
+Time: Sun May 26 06:27:39 2024
+
 Suggestion: Check your code for errors.
  ----------------END----------------
 
