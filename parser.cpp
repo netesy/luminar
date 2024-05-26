@@ -49,7 +49,7 @@ ParseFn Parser::getParseFn(TokenType type)
     switch (type)
     {
     case TokenType::MINUS:
-        return &Parser::parseUnary;
+        return isNewExpression ? &Parser::parseUnary : &Parser::parseBinary;
     case TokenType::AND:
         return &Parser::parseAnd;
     case TokenType::OR:
@@ -217,6 +217,7 @@ void Parser::parsePrecedence(Precedence precedence)
     }
 
     (this->*prefixParseFn)();
+    isNewExpression = false;
 
     while (precedence <= getTokenPrecedence(peek().type))
     {
@@ -335,7 +336,7 @@ void Parser::parseExpression()
 
 void Parser::parseParenthesis()
 {
-    advance(); // Consume '('
+   // advance(); // Consume '('
 
     parseExpression(); // Parse the expression inside parentheses
 
@@ -418,10 +419,20 @@ void Parser::parseBoolean()
     }
 }
 
+
 void Parser::parseVariable()
 {
-    Token token = previous();
-    emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
+    //consume(TokenType::VAR, "Expected 'var' before the variable name");
+    Token token = peek();
+    if (declaredVariables.find(token.lexeme) == declaredVariables.end())
+    {
+        emit(Opcode::DECLARE_VARIABLE, token.line, token.lexeme);
+        declaredVariables.insert(token.lexeme);
+    }
+    else
+    {
+        emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
+    }
 }
 
 void Parser::parseAssignment()
@@ -431,7 +442,15 @@ void Parser::parseAssignment()
 
     parsePrecedence(PREC_ASSIGNMENT);
 
-    emit(Opcode::STORE_VARIABLE, token.line, varName);
+    if (declaredVariables.find(varName) == declaredVariables.end())
+    {
+        emit(Opcode::DECLARE_VARIABLE, token.line, varName);
+        declaredVariables.insert(varName);
+    }
+    else
+    {
+        emit(Opcode::STORE_VARIABLE, token.line, varName);
+    }
 }
 
 void Parser::parseAnd()

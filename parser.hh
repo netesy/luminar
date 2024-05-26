@@ -1,6 +1,7 @@
 //parser.hh
 #include "opcodes.hh"
 #include "scanner.hh"
+#include "precedence.hh"
 #include "symbol.hh"
 #include <any>
 #include <functional>
@@ -8,6 +9,8 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+
 
 enum ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
@@ -18,20 +21,6 @@ class Parser;
 
 // Function pointer type for Pratt parsing functions
 using ParseFn = void (Parser::*)();
-
-enum Precedence {
-    PREC_NONE,         // The lowest precedence, used for non-operators
-    PREC_ASSIGNMENT,   // Assignment operators: =, +=, -=, *=, /=
-    PREC_OR,           // Logical OR operator: or
-    PREC_AND,          // Logical AND operator: and
-    PREC_EQUALITY,     // Equality operators: ==, !=
-    PREC_COMPARISON,   // Comparison operators: <, >, <=, >=
-    PREC_TERM,         // Addition and subtraction: +, -
-    PREC_FACTOR,       // Multiplication and division: *, /
-    PREC_UNARY,        // Unary operators: !, -
-    PREC_CALL,         // Function or method call: . ()
-    PREC_PRIMARY       // The highest precedence, used for primary expressions
-};
 
 class Parser
 {
@@ -48,12 +37,13 @@ private:
     std::vector<Token> tokens;
     size_t current = 0;                           // get the current index position
     std::vector<Instruction> bytecode;            // Declare bytecode as a local variable
-
+    bool isNewExpression = true;
     // Scanner instance
     Scanner &scanner;
 
     // Symbol table
     SymbolTable symbolTable;
+    std::unordered_set<std::string> declaredVariables;
 
     // Token variables
     Token currentToken;
