@@ -115,7 +115,7 @@ public:
     char peek() const;
     char peekNext() const;
     char peekPrevious() const;
-    std::string tokenTypeToString(TokenType type) const;
+    std::string tokenTypeToString(TokenType type, std::string value) const;
     int getLine() const { return line; }
     int getCurrent() const { return current; }
     std::string getLexeme() const { return source.substr(start, current - start); }

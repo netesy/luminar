@@ -458,13 +458,13 @@ std::string Scanner::toString() const
 {
     std::string result;
     for (const auto &token : tokens) {
-        result += "Token: " + token.lexeme + " | Type: " + tokenTypeToString(token.type)
+        result += "Token: " + token.lexeme + " | Type: " + tokenTypeToString(token.type, token.lexeme)
                   + " | Line: " + std::to_string(token.line) + "\n";
     }
     return result;
 }
 
-std::string Scanner::tokenTypeToString(TokenType type) const
+std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
 {
     switch (type) {
     case TokenType::LEFT_PAREN:
@@ -510,9 +510,11 @@ std::string Scanner::tokenTypeToString(TokenType type) const
     case TokenType::SLASH:
         return "SLASH";
     case TokenType::STRING:
-        return "STRING";
+        return "STRING: " + value;
     case TokenType::NUMBER:
-        return "NUMBER";
+        return "NUMBER: " + value;
+    case TokenType::IDENTIFIER:
+        return "INDENTIFIER: " + value;
     case TokenType::AND:
         return "AND";
     case TokenType::CLASS:
@@ -557,8 +559,6 @@ std::string Scanner::tokenTypeToString(TokenType type) const
         return "EOF_TOKEN";
     case TokenType::USER_TYPE:
         return "USER_TYPE";
-    case TokenType::IDENTIFIER:
-        return "INDENTIFIER";
     case TokenType::FUNCTION_TYPE:
         return "FN_TYPE";
     case TokenType::LIST_TYPE:

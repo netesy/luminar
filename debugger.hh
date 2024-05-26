@@ -127,9 +127,9 @@ private:
         switch (stage)
         {
         case InterpretationStage::SCANNING:
-            return "Scanning";
+            return "Lexical Error";
         case InterpretationStage::PARSING:
-            return "Parsing";
+            return "Syntax Error";
         case InterpretationStage::SYNTAX:
             return "Syntax Parsing";
         case InterpretationStage::SEMANTIC:
