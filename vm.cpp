@@ -20,7 +20,9 @@ void RegisterVM::dumpRegisters() {
 
     std::cout << "Variables:\n";
     for (size_t i = 0; i < variables.size(); ++i) {
-        std::cout << "V-" << i << ": " << variables[i] << "\n";
+        std::cout << "V-" << i << ": ";
+        std::visit([](const auto &value) { std::cout << value; }, variables[i]);
+        std::cout << "\n";
     }
 }
 
@@ -323,34 +325,45 @@ void RegisterVM::print() {
 }
 
 void RegisterVM::HandleDeclareVariable(unsigned int variableIndex) {
-    if (variableIndex >= variables.size()) {
-        variables.resize(variableIndex + 1);
-    }
-
-    int variableValue = std::get<int32_t>(program[pc++].value);
-    variables[variableIndex] = variableValue;
-}
-
-void RegisterVM::HandleLoadVariable(unsigned int variableIndex) {
-    if (variableIndex >= variables.size()) {
+   if (variableIndex >= program.size()) {
         std::cerr << "Error: Invalid variable index" << std::endl;
         return;
     }
 
-    int variableValue = variables[variableIndex];
-    registers.push_back(variableValue);
+    // Check if the variable has already been declared
+    if (variableIndex > variables.size()) {
+        variables.resize(variableIndex + 1); // Resize the vector if needed
+    } else {
+        std::cerr << "Warning: Variable at index " << variableIndex << " already declared. Updating its value." << std::endl;
+    }
+
+    // Initialize the variable with the value provided in the bytecode
+   variables[variableIndex-1] = program[variableIndex].value;
+}
+
+void RegisterVM::HandleLoadVariable(unsigned int variableIndex) {
+    if (pc >= program.size()) {
+        std::cerr << "Error: Invalid LOAD_VARIABLE instruction index" << std::endl;
+        return;
+    }
+
+   // const auto& instruction = program[pc];
+    if (variableIndex >= variables.size()) {
+        std::cerr << "Error: Invalid variable index during loading" << std::endl;
+        return;
+    }
+
+    registers.push_back(variables[variableIndex-1]);
 }
 
 void RegisterVM::HandleStoreVariable(unsigned int variableIndex) {
     if (variableIndex >= variables.size()) {
-        std::cerr << "Error: Invalid variable index" << std::endl;
+        std::cerr << "Error: Invalid variable index during storing" << std::endl;
         return;
     }
 
-    int value = std::get<int32_t>(registers.back());
+    variables[variableIndex-1] = registers.back();
     registers.pop_back();
-
-    variables[variableIndex] = value;
 }
 
 void RegisterVM::HandleHalt() {

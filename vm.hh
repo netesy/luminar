@@ -26,7 +26,7 @@ private:
     unsigned int pc = 0;            // program counter
     std::vector<Value> registers;   // Registers for storing data
     std::vector<Value> constants;   // Constants for storing data
-    std::vector<int32_t> variables; // Variables for storing data location
+    std::vector<Value> variables; // Variables for storing data location
     std::vector<Instruction> program;
 
     void PerformUnaryOperation(int op);

@@ -81,8 +81,9 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::FALSE:
         return &Parser::parseBoolean;
     case TokenType::VAR:
+        return &Parser::parseDecVariable;
     case TokenType::IDENTIFIER:
-        return &Parser::parseVariable;
+        return &Parser::parseLoadVariable;
     case TokenType::LEFT_PAREN:
         return &Parser::parseParenthesis;
     case TokenType::PRINT:
@@ -202,7 +203,7 @@ void Parser::error(const std::string &message)
                     peek().line,
                     current,
                     InterpretationStage::PARSING,
-                    scanner.tokenTypeToString(peek().type));
+                    scanner.tokenTypeToString(peek().type, peek().lexeme));
 }
 
 void Parser::parsePrecedence(Precedence precedence)
@@ -317,7 +318,7 @@ void Parser::parsePrimary()
     }
     else if (tokenType == TokenType::IDENTIFIER)
     {
-        parseVariable();
+        parseDecVariable();
     }
     else if (tokenType == TokenType::LEFT_PAREN)
     {
@@ -420,19 +421,35 @@ void Parser::parseBoolean()
 }
 
 
-void Parser::parseVariable()
-{
-    //consume(TokenType::VAR, "Expected 'var' before the variable name");
-    Token token = peek();
-    if (declaredVariables.find(token.lexeme) == declaredVariables.end())
-    {
-        emit(Opcode::DECLARE_VARIABLE, token.line, token.lexeme);
-        declaredVariables.insert(token.lexeme);
+void Parser::parseDecVariable() {
+    // Parse variable declaration with type
+    Token name = peek();
+    consume(TokenType::IDENTIFIER, "Expected 'var' before variable name");
+    if(check(TokenType::COLON)){
+    consume(TokenType::COLON, "Expected ':' after variable name");
+    Token typeToken = peek();
+    advance();
+    //consume(TokenType::IDENTIFIER, "Expected type after ':'"); // edit this to get every type of type
     }
-    else
+    consume(TokenType::EQUAL, "Expected '=' after type");
+    parseExpression();
+    if (declaredVariables.find(name.lexeme) == declaredVariables.end())
     {
-        emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
+        emit(Opcode::DECLARE_VARIABLE, name.line, name.lexeme);
+        declaredVariables.insert(name.lexeme);
+    }else{
+        parseLoadVariable();
     }
+}
+
+void Parser::parseLoadVariable() {
+    // Parse loading existing variable
+    Token token = previous();
+    if (declaredVariables.find(token.lexeme) == declaredVariables.end()) {
+        error("Variable '" + token.lexeme + "' not declared");
+        return;
+    }
+    emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
 }
 
 void Parser::parseAssignment()
@@ -542,7 +559,7 @@ void Parser::parseWhileLoop()
 void Parser::parseForLoop()
 {
     Token op = previous();
-    parseVariable();
+    parseDecVariable();
     consume(TokenType::EQUAL, "Expected '=' after loop variable");
 
     parseExpression();

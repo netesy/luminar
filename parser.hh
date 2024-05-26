@@ -93,7 +93,8 @@ private:
     void parseBoolean();
     void parseUnary();
     void parseLiteral();
-    void parseVariable();
+    void parseDecVariable();
+    void parseLoadVariable();
     void parseAssignment();
     void parseCall();
 
