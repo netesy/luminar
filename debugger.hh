@@ -7,10 +7,21 @@
 #include <stdexcept>
 #include <string>
 #include <fstream>
+#include <ctime>
+#include <chrono>
 
-enum class InterpretationStage { SCANNING, PARSING, SYNTAX, SEMANTIC, INTERPRETING, COMPILING };
+enum class InterpretationStage
+{
+    SCANNING,
+    PARSING,
+    SYNTAX,
+    SEMANTIC,
+    INTERPRETING,
+    COMPILING
+};
 
-class Debugger {
+class Debugger
+{
 public:
     static void debugInfo(const std::string &errorMessage,
                           int lineNumber,
@@ -21,9 +32,11 @@ public:
         std::cerr << "Debug Info (" << stageToString(stage) << "):" << std::endl;
         std::cerr << "Line number: " << lineNumber << ", Position: " << position << std::endl;
         std::cerr << "Error: " << errorMessage << std::endl;
-        if (!expectedValue.empty()) {
+        if (!expectedValue.empty())
+        {
             std::cerr << "Expected value: " << expectedValue << std::endl;
         }
+        std::cerr << "Time: " << getTime() << std::endl;
         std::cerr << "Suggestion: " << getSuggestion(errorMessage) << std::endl;
     }
 
@@ -37,18 +50,22 @@ public:
         std::cerr << "\n ----------------DEBUG----------------\n"
                   << "Error at line " << lineNumber << ", position " << position << " ("
                   << stageToString(stage) << "): " << errorMessage << std::endl;
-        if (!token.empty()) {
+        if (!token.empty())
+        {
             std::cerr << "Token: " << token << std::endl;
         }
-        if (!expectedValue.empty()) {
+        if (!expectedValue.empty())
+        {
             std::cerr << "Expected value: " << expectedValue << std::endl;
         }
+        std::cerr << "Time: " << getTime() << std::endl;
         std::cerr << "Suggestion: " << getSuggestion(errorMessage)
                   << "\n ----------------END----------------\n"
                   << std::endl;
 
-            std::ofstream logfile("log.txt", std::ios_base::app); // Open log file for appending
-        if (!logfile.is_open()) {
+        std::ofstream logfile("log.txt", std::ios_base::app); // Open log file for appending
+        if (!logfile.is_open())
+        {
             std::cerr << "Failed to open log file." << std::endl;
             return;
         }
@@ -56,12 +73,19 @@ public:
         logfile << "\n ----------------DEBUG----------------\n"
                 << "Error at line " << lineNumber << ", position " << position << " ("
                 << stageToString(stage) << "): " << errorMessage << std::endl;
-        if (!token.empty()) {
+
+        if (!token.empty())
+        {
             logfile << "Token: " << token << std::endl;
         }
-        if (!expectedValue.empty()) {
+        if (!expectedValue.empty())
+        {
             logfile << "Expected value: " << expectedValue << std::endl;
         }
+
+        logfile << "Time: " << getTime() << std::endl;
+
+
         logfile << "Suggestion: " << getSuggestion(errorMessage)
                 << "\n ----------------END----------------\n"
                 << std::endl;
@@ -71,23 +95,37 @@ public:
     }
 
 private:
+    static std::string getTime(){
+        auto current_time = std::chrono::system_clock::now();
+        std::time_t current_time_t = std::chrono::system_clock::to_time_t(current_time);
+        return std::ctime(&current_time_t);
+    }
+
     static std::string getSuggestion(const std::string &errorMessage)
     {
         // Provide suggestions based on the error message
-        if (errorMessage == "Invalid character.") {
+        if (errorMessage == "Invalid character.")
+        {
             return "Check for invalid characters in your code.";
-        } else if (errorMessage == "Variable/function not found") {
+        }
+        else if (errorMessage == "Variable/function not found")
+        {
             return "Check the spelling of the variable or function name, or make sure it has been "
                    "declared or defined before use.";
-        } else if (errorMessage == "Invalid factor") {
+        }
+        else if (errorMessage == "Invalid factor")
+        {
             return "Check the expression to ensure it follows the correct syntax.";
-        } else {
+        }
+        else
+        {
             return "Check your code for errors.";
         }
     }
     static std::string stageToString(InterpretationStage stage)
     {
-        switch (stage) {
+        switch (stage)
+        {
         case InterpretationStage::SCANNING:
             return "Scanning";
         case InterpretationStage::PARSING:

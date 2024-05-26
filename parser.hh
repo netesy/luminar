@@ -84,11 +84,10 @@ private:
     bool match(TokenType type);
     bool check(TokenType type);
     bool isAtEnd();
-    bool isExpressionStart(TokenType type);
-    bool isBinaryOperator(TokenType type);
+    bool isExpression(TokenType type);
 
-    Instruction makeInstruction(Opcode opcode, uint32_t lineNumber);
-    Instruction makeInstruction(Opcode opcode,
+    Instruction emit(Opcode opcode, uint32_t lineNumber);
+    Instruction emit(Opcode opcode,
                                 uint32_t lineNumber,
                                 std::variant<int32_t, double, bool, std::string> value);
 
@@ -99,6 +98,7 @@ private:
     void parseLogical();
     void parseAnd();
     void parseOr();
+    void parseEOF();
     void parseComparison();
     void parseBoolean();
     void parseUnary();

@@ -68,6 +68,7 @@ ParseFn Parser::getParseFn(TokenType type)
 
     case TokenType::PLUS:
     case TokenType::STAR:
+        return &Parser::parseBinary;
     case TokenType::SLASH:
     case TokenType::MODULUS:
         return &Parser::parseBinary;
@@ -89,8 +90,9 @@ ParseFn Parser::getParseFn(TokenType type)
         // Literal values
     case TokenType::NUMBER:
     case TokenType::STRING:
-    case TokenType::EOF_TOKEN:
         return &Parser::parseLiteral;
+    case TokenType::EOF_TOKEN:
+        return &Parser::parseEOF;
     case TokenType::TRUE:
     case TokenType::FALSE:
         return &Parser::parseBoolean;
@@ -102,7 +104,6 @@ ParseFn Parser::getParseFn(TokenType type)
 
         // Parentheses (grouping or function call)
     case TokenType::LEFT_PAREN:
-    case TokenType::RIGHT_PAREN:
         return &Parser::parseParenthesis;
 
     case TokenType::PRINT:
@@ -184,7 +185,7 @@ void Parser::consume(TokenType type, const std::string &message)
         error(message);
     }
 }
-bool Parser::isExpressionStart(TokenType type)
+bool Parser::isExpression(TokenType type)
 {
     switch (type) {
         // Literal values
@@ -205,22 +206,18 @@ bool Parser::isExpressionStart(TokenType type)
     case TokenType::PLUS:
     case TokenType::MODULUS:
     case TokenType::SLASH:
+    //Comparison Operators
+    case TokenType::EQUAL_EQUAL:
+    case TokenType::BANG_EQUAL:
+    case TokenType::LESS:
+    case TokenType::LESS_EQUAL:
+    case TokenType::GREATER:
+    case TokenType::GREATER_EQUAL:
         return true;
-    default:
-        return false;
-    }
-}
-
-bool Parser::isBinaryOperator(TokenType type)
-{
-    switch (type) {
-        // Binary values
-    case TokenType::PLUS:
-    case TokenType::MINUS:
-    case TokenType::SLASH:
-    case TokenType::STAR:
-    case TokenType::MODULUS:
-        return true;
+        // Logical operators (and, or)
+    // case TokenType::AND:
+    // case TokenType::OR:
+    //     return true;
     default:
         return false;
     }
@@ -245,31 +242,12 @@ void Parser::parsePrecedence(Precedence precedence)
         return;
     }
 
-    bool shouldParseInfix = true;
     (this->*prefixParseFn)();
 
-    while (precedence <= getTokenPrecedence(peekNext().type)) {
+
+    while (precedence >= getTokenPrecedence(peekNext().type)) {
         if (isAtEnd()) {
             break;
-        }
-
-        TokenType nextOp = peekNext().type;
-        Precedence nextPrecedence = getTokenPrecedence(nextOp);
-
-        //Handle the case where a logical operator is followed by a comparison operator
-        if (precedence == PREC_OR || precedence == PREC_AND) {
-            if (nextPrecedence == PREC_EQUALITY) {
-                // Parse the comparison expression first
-                advance();
-                ParseFn comparisonParseFn = getParseFn(peek().type);
-                (this->*comparisonParseFn)();
-
-                // Then apply the logical operator
-                ParseFn logicalParseFn = getParseFn(nextOp);
-                (this->*logicalParseFn)();
-
-                continue;
-            }
         }
 
         advance();
@@ -285,6 +263,65 @@ void Parser::parsePrecedence(Precedence precedence)
 }
 
 
+
+// void Parser::parsePrecedence(Precedence precedence)
+// {
+//     advance();
+//     ParseFn prefixParseFn = getParseFn(peek().type);
+
+//     if (prefixParseFn == nullptr) {
+//         error("Unexpected token");
+//         return;
+//     }
+
+//     bool shouldParseInfix = true;
+//     (this->*prefixParseFn)();
+
+//     while (precedence <= getTokenPrecedence(peekNext().type)) {
+//         if (isAtEnd()) {
+//             break;
+//         }
+
+//         TokenType nextOp = peekNext().type;
+//         Precedence nextPrecedence = getTokenPrecedence(nextOp);
+
+//         //Handle the case where a logical operator is followed by a comparison operator
+//         if (precedence == PREC_OR || precedence == PREC_AND) {
+//             if (nextPrecedence == PREC_EQUALITY) {
+//                 // Parse the comparison expression first
+//                 advance();
+//                 ParseFn comparisonParseFn = getParseFn(peek().type);
+//                 (this->*comparisonParseFn)();
+
+//                 // Then apply the logical operator
+//                 ParseFn logicalParseFn = getParseFn(nextOp);
+//                 (this->*logicalParseFn)();
+
+//                 continue;
+//             }
+//         }
+
+//         advance();
+//         ParseFn infixParseFn = getParseFn(peek().type);
+
+//         if (infixParseFn == nullptr) {
+//             error("Unexpected token");
+//             return;
+//         }
+
+//         (this->*infixParseFn)();
+//     }
+// }
+
+void Parser::parseEOF()
+{
+    Token op = peek();
+    if (match(TokenType::EOF_TOKEN)){
+        std::cout << "Unexpected end of token" << std::endl;
+        emit(Opcode::HALT, op.line);
+        return;
+    }
+}
 
 Precedence Parser::getTokenPrecedence(TokenType type)
 {
@@ -332,7 +369,7 @@ Precedence Parser::getTokenPrecedence(TokenType type)
     }
 }
 
-Instruction Parser::makeInstruction(Opcode opcode, uint32_t lineNumber)
+Instruction Parser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
     bytecode.push_back(instruction);
@@ -340,7 +377,7 @@ Instruction Parser::makeInstruction(Opcode opcode, uint32_t lineNumber)
     return instruction;
 }
 
-Instruction Parser::makeInstruction(Opcode opcode,
+Instruction Parser::emit(Opcode opcode,
                                     uint32_t lineNumber,
                                     std::variant<int32_t, double, bool, std::string> value)
 {
@@ -352,9 +389,7 @@ Instruction Parser::makeInstruction(Opcode opcode,
 
 void Parser::parsePrimary()
 {
-    if (isAtEnd()) {
-        return; // Stop parsing if EOF_TOKEN is reached
-    }
+    parseEOF();
 
     ParseFn prefixParseFn = getParseFn(peek().type);
     if (prefixParseFn != nullptr) {
@@ -389,29 +424,48 @@ void Parser::parseExpression()
 {
     parsePrimary();
 
-    while (!isAtEnd() && isBinaryOperator(peek().type)) {
+    while (!isAtEnd() && isExpression(peek().type)) {
         TokenType operatorType = peek().type;
-        advance(); // Move past the operator
+        advance(); // Move past the operator 
 
         // Parse the right-hand side operand
         parsePrimary();
 
         // Generate bytecode for the binary operation
-        switch (operatorType) {
+        switch (operatorType)
+        {
         case TokenType::PLUS:
-            makeInstruction(Opcode::ADD, peek().line);
+            emit(Opcode::ADD, peek().line);
             break;
         case TokenType::MINUS:
-            makeInstruction(Opcode::SUBTRACT, peek().line);
+            emit(Opcode::SUBTRACT, peek().line);
             break;
-        case TokenType::STAR:
-            makeInstruction(Opcode::MULTIPLY, peek().line);
+        case TokenType::STAR: // The '*' operator is not handled here
+            emit(Opcode::MULTIPLY, peek().line);
             break;
         case TokenType::SLASH:
-            makeInstruction(Opcode::DIVIDE, peek().line);
+            emit(Opcode::DIVIDE, peek().line);
             break;
         case TokenType::MODULUS:
-            makeInstruction(Opcode::MODULUS, peek().line);
+            emit(Opcode::MODULUS, peek().line);
+            break;
+        case TokenType::GREATER:
+            emit(Opcode::GREATER_THAN, peek().line);
+            break;
+        case TokenType::GREATER_EQUAL:
+            emit(Opcode::GREATER_THAN_OR_EQUAL, peek().line);
+            break;
+        case TokenType::LESS:
+            emit(Opcode::LESS_THAN, peek().line);
+            break;
+        case TokenType::LESS_EQUAL:
+            emit(Opcode::LESS_THAN_OR_EQUAL, peek().line);
+            break;
+        case TokenType::EQUAL_EQUAL:
+            emit(Opcode::EQUAL, peek().line);
+            break;
+        case TokenType::BANG_EQUAL:
+            emit(Opcode::NOT_EQUAL, peek().line);
             break;
         default:
             error("Unexpected binary operator");
@@ -430,7 +484,7 @@ void Parser::parseVariable()
         uint32_t memoryLocation = symbolTable.addVariable(value);
 
         // Generate bytecode for loading the variable's value
-        bytecode.push_back(makeInstruction(Opcode::LOAD_VARIABLE,
+        bytecode.push_back(emit(Opcode::LOAD_VARIABLE,
                             peek().line,
                             std::any_cast<int32_t>(memoryLocation)));
     } else if (match(TokenType::VAR)) {
@@ -463,13 +517,13 @@ void Parser::parseAssignment()
     // Generate bytecode for assignment based on the operator
     switch (toke) {
     case TokenType::EQUAL:
-        makeInstruction(Opcode::STORE_VARIABLE, peek().line);
+        emit(Opcode::STORE_VARIABLE, peek().line);
         break;
     case TokenType::PLUS_EQUAL:
-        makeInstruction(Opcode::ADD_ASSIGN, peek().line);
+        emit(Opcode::ADD_ASSIGN, peek().line);
         break;
     case TokenType::MINUS_EQUAL:
-        makeInstruction(Opcode::SUB_ASSIGN, peek().line);
+        emit(Opcode::SUB_ASSIGN, peek().line);
         break;
     default:
         // Should not happen, but handle unexpected operator for safety
@@ -479,6 +533,7 @@ void Parser::parseAssignment()
 
 void Parser::parseBinary()
 {
+    parseEOF();
     // std::cout << "get binary fn" << std::endl;
     TokenType operatorType = previous().type; // Get the operator type
 
@@ -487,19 +542,19 @@ void Parser::parseBinary()
     // Generate bytecode for the binary operation
     switch (operatorType) {
     case TokenType::PLUS:
-        makeInstruction(Opcode::ADD, peek().line);
+        emit(Opcode::ADD, peek().line);
         break;
     case TokenType::MINUS:
-        makeInstruction(Opcode::SUBTRACT, peek().line);
+        emit(Opcode::SUBTRACT, peek().line);
         break;
     case TokenType::STAR:
-        makeInstruction(Opcode::MULTIPLY, peek().line);
+        emit(Opcode::MULTIPLY, peek().line);
         break;
     case TokenType::SLASH:
-        makeInstruction(Opcode::DIVIDE, peek().line);
+        emit(Opcode::DIVIDE, peek().line);
         break;
     case TokenType::MODULUS:
-        makeInstruction(Opcode::MODULUS, peek().line);
+        emit(Opcode::MODULUS, peek().line);
         break;
     default:
         error("Expected binary operator (+, -, *, /, %)");
@@ -511,31 +566,35 @@ void Parser::parseAnd()
 {
     std::cout << "get and fn" << std::endl;
     TokenType operatorType = peek().type; // Get the operator type
-    parseComparison();
-    std::cout << " current token: " << peek().lexeme << std::endl;
-        while (!isAtEnd() && operatorType == TokenType::AND) {
-            advance(); // Advance past the 'and' token
-            parseComparison();
-        }
-    if(operatorType == TokenType::AND){
-        std::cout << "show and fn" << std::endl;
-        makeInstruction(Opcode::AND, peek().line);
-    }
+    parsePrecedence(PREC_AND); // Start parsing with the AND precedence
 
+    while (!isAtEnd() && operatorType == TokenType::AND) {
+        advance(); // Advance past the 'and' token
+        parsePrecedence(PREC_COMPARISON); // Parse the right-hand side operand
+
+    }
+        if(operatorType == TokenType::AND){
+        std::cout << "show and fn" << std::endl;
+        emit(Opcode::AND, peek().line);
+    }
 }
 
 void Parser::parseOr()
 {
     std::cout << "get or fn" << std::endl;
     TokenType operatorType = peek().type; // Get the operator type
-    parseAnd();
+    parsePrecedence(PREC_OR); // Start parsing with the OR precedence
+
     while (!isAtEnd() && operatorType == TokenType::OR) {
         advance(); // Advance past the 'or' token
-        parseAnd();
+
+        parsePrecedence(PREC_OR); // Parse the right-hand side operand
+
+        // emit(Opcode::OR, operatorToken.line);
     }
     if(operatorType == TokenType::OR){
         std::cout << "show or fn" << std::endl;
-        makeInstruction(Opcode::OR, peek().line);
+        emit(Opcode::OR, peek().line);
     }
 }
 
@@ -549,7 +608,7 @@ void Parser::parseLogical()
     if (operatorType == TokenType::BANG) {
         advance();
         parsePrecedence(PREC_UNARY);
-        makeInstruction(Opcode::NOT, peek().line);
+        emit(Opcode::NOT, peek().line);
     } else {
         parseOr();
     }
@@ -557,6 +616,7 @@ void Parser::parseLogical()
 
 void Parser::parseComparison()
 {
+    parseEOF();
     std::cout << "get comparison fn" << std::endl;
     TokenType operatorType = peek().type; // Get the operator type
     // Parse additional comparison expressions with the same or higher precedence
@@ -565,22 +625,22 @@ void Parser::parseComparison()
     // Generate bytecode for the comparison operation
     switch (operatorType) {
     case TokenType::GREATER:
-        makeInstruction(Opcode::GREATER_THAN, peek().line);
+        emit(Opcode::GREATER_THAN, peek().line);
         break;
     case TokenType::GREATER_EQUAL:
-        makeInstruction(Opcode::GREATER_THAN_OR_EQUAL, peek().line);
+        emit(Opcode::GREATER_THAN_OR_EQUAL, peek().line);
         break;
     case TokenType::LESS:
-        makeInstruction(Opcode::LESS_THAN, peek().line);
+        emit(Opcode::LESS_THAN, peek().line);
         break;
     case TokenType::LESS_EQUAL:
-        makeInstruction(Opcode::LESS_THAN_OR_EQUAL, peek().line);
+        emit(Opcode::LESS_THAN_OR_EQUAL, peek().line);
         break;
     case TokenType::EQUAL_EQUAL:
-        makeInstruction(Opcode::EQUAL, peek().line);
+        emit(Opcode::EQUAL, peek().line);
         break;
     case TokenType::BANG_EQUAL:
-        makeInstruction(Opcode::NOT_EQUAL, peek().line);
+        emit(Opcode::NOT_EQUAL, peek().line);
         break;
     default:
        // error("Expected comparison operator (>, >=, <, <=, ==, !=)");
@@ -595,20 +655,20 @@ void Parser::parseUnary()
         if (check(TokenType::NUMBER)) {
             // If it's followed by a number, parse it as a literal and negate its value
             parseLiteral();
-            makeInstruction(Opcode::NEGATE, peek().line);
+            emit(Opcode::NEGATE, peek().line);
         } else {
             // If it's not followed by a number, parse the next expression recursively
             parseUnary(); // Recursively parse unary operators
 
             // Generate bytecode for the unary operator
-            makeInstruction(Opcode::NEGATE, peek().line);
+            emit(Opcode::NEGATE, peek().line);
         }
     } else if (match(TokenType::BANG)) {
         // Handle logical NOT operator
         parseUnary(); // Recursively parse unary operators
 
         // Generate bytecode for the logical NOT operator
-        makeInstruction(Opcode::NOT, peek().line);
+        emit(Opcode::NOT, peek().line);
     } else {
         // If it's not a unary operator, continue with regular parsing
         parsePrimary();
@@ -619,9 +679,9 @@ void Parser::parseBoolean()
 {
     //    std::cout << "get boolean fn" << std::endl;
     if (match(TokenType::TRUE)) {
-        makeInstruction(Opcode::BOOLEAN, peek().line, true);
+        emit(Opcode::BOOLEAN, peek().line, true);
     } else if (match(TokenType::FALSE)) {
-        makeInstruction(Opcode::BOOLEAN, peek().line, false);
+        emit(Opcode::BOOLEAN, peek().line, false);
     } else {
         error("Expected boolean operator (true, false, 1, 0)");
     }
@@ -633,14 +693,10 @@ void Parser::parseLiteral()
     Token op = peek();
     if (match(TokenType::NUMBER)) {
         double value = std::stod(previous().lexeme);
-        makeInstruction(Opcode::LOAD_CONST, op.line, value);
+        emit(Opcode::LOAD_CONST, op.line, value);
     } else if (match(TokenType::STRING)) {
         std::string value = previous().lexeme;
-        makeInstruction(Opcode::LOAD_STR, op.line, value);
-    } else if (match(TokenType::EOF_TOKEN)) {
-        std::cout << "end of token" << std::endl;
-        return;
-        // makeInstruction(Opcode::HALT, op.line);
+        emit(Opcode::LOAD_STR, op.line, value);
     } else {
         error("Unexpected token in literal expression");
     }
@@ -650,7 +706,7 @@ void Parser::parseLiteral()
 void Parser::parseStatement()
 {
     //    std::cout << "get statement fn" << std::endl;
-    if (isExpressionStart(previous().type)) {
+    if (isExpression(previous().type)) {
         parseExpression();
     } else if (check(TokenType::LEFT_BRACE)) {
         parseBlock();
@@ -710,7 +766,7 @@ void Parser::parsePrintStatement()
 
     // Generate bytecode for printing the expression's value (implementation needed)
     // You'll need to consider the data type of the expression and VM's printing functionality.
-    makeInstruction(Opcode::PRINT, peek().line);
+    emit(Opcode::PRINT, peek().line);
 
     consume(TokenType::RIGHT_PAREN, "Expected ')' after expression in print statement.");
 }
@@ -727,7 +783,7 @@ void Parser::parseIfStatement()
 
     // Generate bytecode for conditional jump based on the condition (implementation needed)
     // You might need temporary labels for the then and else blocks.
-    makeInstruction(Opcode::JUMP_IF_FALSE, peek().line,
+    emit(Opcode::JUMP_IF_FALSE, peek().line,
                     0); // Placeholder for jump address
 
     parseStatement(); // Parse the then block
@@ -735,7 +791,7 @@ void Parser::parseIfStatement()
     if (match(TokenType::ELSE)) {
         Bytecode elseBlock;
         // Generate bytecode to jump over the then block (implementation needed)
-        makeInstruction(Opcode::JUMP, peek().line,
+        emit(Opcode::JUMP, peek().line,
                         0); // Placeholder for jump address
         parseStatement();   // Parse the else block
         elseBlock.push_back(bytecode.back());
@@ -746,6 +802,17 @@ void Parser::parseIfStatement()
     // Patch the jump instruction addresses (implementation needed)
     // You'll need to update the jump instructions based on the actual bytecode positions.
 }
+
+// void Parser::parseIfStatement() {
+//     consume(TokenType::IF, "Expected 'if' keyword.");
+//     parseExpression();
+//     consume(TokenType::THEN, "Expected 'then' keyword.");
+//     parseStatement(); // Parse the if body recursively
+//     if (check(TokenType::ELSE)) {
+//         consume(TokenType::ELSE, "Expected 'else' keyword.");
+//         parseStatement(); // Parse the else body recursively
+//     }
+// }
 
 // Parse while loops (basic structure)
 void Parser::parseWhileLoop()
@@ -759,14 +826,14 @@ void Parser::parseWhileLoop()
 
     // Generate bytecode for loop header (implementation needed)
     // You might need a label for the loop start and jump instruction.
-    bytecode.push_back(makeInstruction(Opcode::WHILE_LOOP, //Opcode::LABEL
+    bytecode.push_back(emit(Opcode::WHILE_LOOP, //Opcode::LABEL
                                        peek().line,
                                        0)); // Placeholder for loop start label
 
     parseStatement(); // Parse the loop body
 
     // Generate bytecode for jump back to the loop condition (implementation needed)
-    makeInstruction(Opcode::JUMP, peek().line,
+    emit(Opcode::JUMP, peek().line,
                     0); // Placeholder for jump address
 
     // Patch the jump instruction addresses (implementation needed)
@@ -793,7 +860,7 @@ void Parser::parseForLoop()
 // Parse match statements (not directly implemented here)
 void Parser::parseMatchStatement()
 {
-    error("Match statements not currently supported.");
+    //implement parsing of match statements
 }
 
 std::vector<Instruction> Parser::getBytecode() const

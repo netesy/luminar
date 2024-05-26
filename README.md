@@ -21,13 +21,15 @@ Luminar is currently under development. We'll provide installation instructions 
 * `bool`: Booleans
 * `list<T>`: Lists with elements of type `T` (generic type, planned)
 * `dict<K, V>`: Dictionaries with keys of type `K` and values of type `V` (generic types, planned)
+* `?`: optional
 
 **Supported Operators:**
 
-* Arithmetic operators: `+`, `-`, `*`, `/`
+* Arithmetic operators: `+`, `-`, `*`,`%`, `/`
 * Comparison operators: `==`, `!=`, `<`, `>`, `<=`, `>=`
 * Logical operators: `&&` (and), `||` (or), `!` (not)
 * String concatenation: `+`
+
 
 **Control Flow Statements:**
 
