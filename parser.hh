@@ -1,5 +1,5 @@
 //parser.hh
-#include "opcodes.hh"
+#include "instructions.hh"
 #include "scanner.hh"
 #include "precedence.hh"
 #include "symbol.hh"
@@ -100,6 +100,8 @@ private:
 
     // Parse statement functions
     void parseStatement();
+    void parseExpressionStatement();
+    void parseDeclaration();
     void parseBlock();
     void parseParenthesis();
 

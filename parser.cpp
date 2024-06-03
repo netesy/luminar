@@ -1,6 +1,6 @@
 #include "parser.hh"
 #include "debugger.hh"
-#include "opcodes.hh"
+#include "instructions.hh"
 #include "scanner.hh"
 #include <fstream>
 #include <thread>
@@ -335,6 +335,38 @@ void Parser::parseExpression()
     parsePrecedence(PREC_ASSIGNMENT);
 }
 
+void Parser::parseDeclaration() {
+    if (match(TokenType::VAR)) {
+        parseDecVariable();
+    } else {
+        parseStatement();
+    }
+}
+
+void Parser::parseStatement() {
+    if (match(TokenType::PRINT)) {
+        parsePrintStatement();
+    } else if (match(TokenType::LEFT_BRACE)) {
+        parseBlock();
+    } else if (match(TokenType::IF)) {
+        parseIfStatement();
+    } else if (match(TokenType::WHILE)) {
+        parseWhileLoop();
+    } else if (match(TokenType::FOR)) {
+        parseForLoop();
+    } else if (match(TokenType::MATCH)) {
+        parseMatchStatement();
+    } else {
+        parseExpressionStatement();
+    }
+}
+
+void Parser::parseExpressionStatement() {
+    parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after expression.");
+}
+
+
 void Parser::parseParenthesis()
 {
    // advance(); // Consume '('
@@ -420,24 +452,22 @@ void Parser::parseBoolean()
     }
 }
 
-
 void Parser::parseDecVariable() {
     // Parse variable declaration with type
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected 'var' before variable name");
-    if(check(TokenType::COLON)){
-    consume(TokenType::COLON, "Expected ':' after variable name");
-    Token typeToken = peek();
-    advance();
-    //consume(TokenType::IDENTIFIER, "Expected type after ':'"); // edit this to get every type of type
+    if (check(TokenType::COLON)) {
+        consume(TokenType::COLON, "Expected ':' after variable name");
+        Token typeToken = peek();
+        advance();
+        //consume(TokenType::IDENTIFIER, "Expected type after ':'"); // edit this to get every type of type
     }
     consume(TokenType::EQUAL, "Expected '=' after type");
     parseExpression();
-    if (declaredVariables.find(name.lexeme) == declaredVariables.end())
-    {
+    if (declaredVariables.find(name.lexeme) == declaredVariables.end()) {
         emit(Opcode::DECLARE_VARIABLE, name.line, name.lexeme);
         declaredVariables.insert(name.lexeme);
-    }else{
+    } else {
         parseLoadVariable();
     }
 }
@@ -452,20 +482,25 @@ void Parser::parseLoadVariable() {
     emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
 }
 
-void Parser::parseAssignment()
+void Parser::parseBlock()
 {
+    consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+         parseDeclaration(); //handles statements inside the block
+    }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after block.");
+}
+
+void Parser::parseAssignment() {
     Token token = previous();
     std::string varName = token.lexeme;
 
     parsePrecedence(PREC_ASSIGNMENT);
 
-    if (declaredVariables.find(varName) == declaredVariables.end())
-    {
+    if (declaredVariables.find(varName) == declaredVariables.end()) {
         emit(Opcode::DECLARE_VARIABLE, token.line, varName);
         declaredVariables.insert(varName);
-    }
-    else
-    {
+    } else {
         emit(Opcode::STORE_VARIABLE, token.line, varName);
     }
 }
@@ -536,37 +571,65 @@ void Parser::parsePrintStatement()
 void Parser::parseIfStatement()
 {
     Token op = previous();
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
     parseExpression();
-    consume(TokenType::ELSE, "Expected 'else' after if condition");
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+
+    size_t thenJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
 
     parseExpression();
-    emit(Opcode::JUMP_IF_FALSE, op.line);
 
-    parseExpression();
-    emit(Opcode::JUMP, op.line);
+    if (match(TokenType::ELSE))
+    {
+        size_t elseJump = emit(Opcode::JUMP, op.line, (int32_t)0);
+        int32_t jump = bytecode.size() - thenJump - 1;
+        bytecode[thenJump].value = jump;
+        parseExpression();
+        int32_t jump = bytecode.size() - elseJump - 1;
+        bytecode[elseJump].value = jump;
+    }
+    else
+    {
+        int32_t jump = bytecode.size() - thenJump - 1;
+        bytecode[thenJump].value = jump;
+    }
 }
 
-void Parser::parseWhileLoop()
-{
+void Parser::parseWhileLoop() {
     Token op = previous();
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
     parseExpression();
-    emit(Opcode::WHILE_LOOP, op.line);
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
 
-    parseExpression();
-    emit(Opcode::WHILE_LOOP, op.line);
+    size_t loopStart = bytecode.size();
+
+    size_t conditionJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
+    parseStatement();
+    emit(Opcode::JUMP, op.line, (int32_t)(loopStart - bytecode.size() - 1));
+
+    int32_t jumpOffset = bytecode.size() - conditionJump - 1;
+    bytecode[conditionJump].value = jumpOffset;
 }
+
 
 void Parser::parseForLoop()
 {
     Token op = previous();
-    parseDecVariable();
-    consume(TokenType::EQUAL, "Expected '=' after loop variable");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'");
 
     parseExpression();
-    emit(Opcode::FOR_LOOP, op.line);
+    consume(TokenType::SEMICOLON, "Expected ';' after loop initializer");
+    parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after loop condition");
+
+    size_t conditionOffset = bytecode.size();
 
     parseExpression();
-    emit(Opcode::FOR_LOOP, op.line);
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after loop increment");
+
+    size_t bodyJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
+    parseExpression();
+    emit(Opcode::JUMP, op.line, (int32_t)(conditionOffset - bytecode.size() - 1));
 }
 
 void Parser::parseMatchStatement()

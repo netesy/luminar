@@ -205,3 +205,156 @@ Time: Sun May 26 06:27:39 2024
 Suggestion: Check your code for errors.
  ----------------END----------------
 
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected 'var' before the variable name
+Token: INDENTIFIER
+Time: Sun May 26 14:55:04 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Variable 'var' not declared
+Token: INDENTIFIER
+Time: Sun May 26 15:15:36 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected ':' after variable name
+Token: INDENTIFIER
+Time: Sun May 26 15:20:33 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected ':' after variable name
+Token: INDENTIFIER
+Time: Sun May 26 15:20:45 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected ':' after variable name
+Token: INDENTIFIER
+Time: Sun May 26 15:28:48 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected '=' after type
+Token: INDENTIFIER
+Time: Sun May 26 15:30:17 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected '=' after type
+Token: INDENTIFIER
+Time: Sun May 26 15:31:06 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 17 (Scanning): Unterminated string.
+Token: ""Joel
+Time: Sun May 26 15:31:23 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Parsing): Expected 'var' before variable name
+Token: INDENTIFIER
+Time: Sun May 26 15:31:33 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Syntax Error): Expected 'var' before variable name
+Token: INDENTIFIER: name
+Time: Sun May 26 15:45:07 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Syntax Error): Expected '=' after type
+Token: INDENTIFIER: name
+Time: Sun May 26 15:47:57 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Syntax Error): Expected type after ':'
+Token: STR_TYPE
+Time: Sun May 26 15:50:21 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Syntax Error): Variable 'named' not declared
+Token: RIGHT_PAREN
+Time: Sun May 26 15:52:58 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 5 (Syntax Error): Variable 'name' not declared
+Token: EQUAL
+Time: Sun May 26 16:18:18 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 3 (Syntax Error): Variable 'name' not declared
+Token: RIGHT_PAREN
+Time: Sun May 26 16:41:14 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 5 (Syntax Error): Variable 'name' not declared
+Token: EQUAL
+Time: Sun May 26 16:51:15 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Syntax Error): Unexpected token
+Token: STRING: C:/Users/Fablur/Desktop/Projects/luminar/build/luminar.exe
+Time: Sun May 26 17:18:46 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+

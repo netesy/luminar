@@ -41,14 +41,14 @@ void RegisterVM::run() {
 void RegisterVM::execute(const Instruction& instruction) {
     switch (instruction.opcode) {
         case NEGATE:
-            PerformUnaryOperation(pc);
+            performUnaryOperation(pc);
             break;
         case ADD:
         case SUBTRACT:
         case MULTIPLY:
         case DIVIDE:
         case MODULUS:
-            PerformBinaryOperation(pc);
+            performBinaryOperation(pc);
             break;
         case EQUAL:
         case NOT_EQUAL:
@@ -56,37 +56,46 @@ void RegisterVM::execute(const Instruction& instruction) {
         case LESS_THAN_OR_EQUAL:
         case GREATER_THAN:
         case GREATER_THAN_OR_EQUAL:
-            PerformComparisonOperation(pc);
+            performComparisonOperation(pc);
             break;
         case AND:
         case OR:
         case NOT:
-            PerformLogicalOperation(pc);
+            performLogicalOperation(pc);
             break;
         case LOAD_CONST:
-            HandleLoadConst(pc);
+            handleLoadConst(instruction.value);
             break;
         case PRINT:
-            print();
+            handlePrint();
             break;
         case HALT:
-            HandleHalt();
+            handleHalt();
             return;
         case DECLARE_VARIABLE:
-            HandleDeclareVariable(pc);
+            handleDeclareVariable(instruction.value);
             break;
         case LOAD_VARIABLE:
-            HandleLoadVariable(pc);
+            handleLoadVariable(instruction.value);
             break;
         case STORE_VARIABLE:
-            HandleStoreVariable(pc);
+            handleStoreVariable(instruction.value);
+            break;
+        case WHILE_LOOP:
+            handleWhileLoop();
+            break;
+        case PARALLEL:
+            handleParallel(instruction.value);
+            break;
+        case CONCURRENT:
+            handleConcurrent(instruction.value);
             break;
         default:
             std::cerr << "Unknown opcode." << std::endl;
     }
 }
 
-void RegisterVM::PerformUnaryOperation(int op) {
+void RegisterVM::performUnaryOperation(int op) {
     int opcode = program[op].opcode;
     if (registers.empty()) {
         std::cerr << "Error: Invalid operand register for unary operation" << std::endl;
@@ -109,7 +118,7 @@ void RegisterVM::PerformUnaryOperation(int op) {
     }
 }
 
-void RegisterVM::PerformBinaryOperation(int op) {
+void RegisterVM::performBinaryOperation(int op) {
     int opcode = program[op].opcode;
     if (registers.size() < 2) {
         std::cerr << "Error: Invalid operand registers for binary operation" << std::endl;
@@ -181,7 +190,7 @@ void RegisterVM::PerformBinaryOperation(int op) {
     }
 }
 
-void RegisterVM::PerformLogicalOperation(int op) {
+void RegisterVM::performLogicalOperation(int op) {
     int opcode = program[op].opcode;
     if (registers.size() < 2) {
         std::cerr << "Error: Insufficient operand registers for logical operation" << std::endl;
@@ -212,7 +221,7 @@ void RegisterVM::PerformLogicalOperation(int op) {
     }
 }
 
-void RegisterVM::PerformComparisonOperation(int op) {
+void RegisterVM::performComparisonOperation(int op) {
     int opcode = program[op].opcode;
     if (registers.size() < 2) {
         std::cerr << "Error: Insufficient operand registers for comparison operation" << std::endl;
@@ -229,23 +238,23 @@ void RegisterVM::PerformComparisonOperation(int op) {
         int32_t reg2 = std::get<int32_t>(value2);
 
         switch (opcode) {
-            case GREATER_THAN:
-                registers.push_back(reg1 > reg2);
-                break;
-            case LESS_THAN:
-                registers.push_back(reg1 < reg2);
-                break;
-            case GREATER_THAN_OR_EQUAL:
-                registers.push_back(reg1 >= reg2);
-                break;
-            case LESS_THAN_OR_EQUAL:
-                registers.push_back(reg1 <= reg2);
-                break;
             case EQUAL:
                 registers.push_back(reg1 == reg2);
                 break;
             case NOT_EQUAL:
                 registers.push_back(reg1 != reg2);
+                break;
+            case LESS_THAN:
+                registers.push_back(reg1 < reg2);
+                break;
+            case LESS_THAN_OR_EQUAL:
+                registers.push_back(reg1 <= reg2);
+                break;
+            case GREATER_THAN:
+                registers.push_back(reg1 > reg2);
+                break;
+            case GREATER_THAN_OR_EQUAL:
+                registers.push_back(reg1 >= reg2);
                 break;
             default:
                 std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
@@ -255,23 +264,23 @@ void RegisterVM::PerformComparisonOperation(int op) {
         double reg2 = std::get<double>(value2);
 
         switch (opcode) {
-            case GREATER_THAN:
-                registers.push_back(reg1 > reg2);
-                break;
-            case LESS_THAN:
-                registers.push_back(reg1 < reg2);
-                break;
-            case GREATER_THAN_OR_EQUAL:
-                registers.push_back(reg1 >= reg2);
-                break;
-            case LESS_THAN_OR_EQUAL:
-                registers.push_back(reg1 <= reg2);
-                break;
             case EQUAL:
                 registers.push_back(reg1 == reg2);
                 break;
             case NOT_EQUAL:
                 registers.push_back(reg1 != reg2);
+                break;
+            case LESS_THAN:
+                registers.push_back(reg1 < reg2);
+                break;
+            case LESS_THAN_OR_EQUAL:
+                registers.push_back(reg1 <= reg2);
+                break;
+            case GREATER_THAN:
+                registers.push_back(reg1 > reg2);
+                break;
+            case GREATER_THAN_OR_EQUAL:
+                registers.push_back(reg1 >= reg2);
                 break;
             default:
                 std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
@@ -281,25 +290,26 @@ void RegisterVM::PerformComparisonOperation(int op) {
     }
 }
 
-void RegisterVM::HandleLoadConst(unsigned int constantIndex) {
-    if (constantIndex >= program.size()) {
+void RegisterVM::handleLoadConst(unsigned int constantIndex) {
+    if (constantIndex >= constants.size()) {
         std::cerr << "Error: Invalid constant index" << std::endl;
         return;
     }
 
-    // Ensure the constants vector is large enough
-    if (constantIndex >= constants.size()) {
-        constants.resize(constantIndex + 1);
-    }
-
-    // Assign the value from the bytecode to the constants vector
-    constants[constantIndex] = program[constantIndex].value;
-
-    // Push the constant value onto the registers stack
     registers.push_back(constants[constantIndex]);
 }
 
-void RegisterVM::print() {
+void RegisterVM::handleStoreVariable(unsigned int variableIndex) {
+    if (variableIndex >= variables.size()) {
+        std::cerr << "Error: Invalid variable index during storing" << std::endl;
+        return;
+    }
+
+    variables[variableIndex] = registers.back();
+    registers.pop_back();
+}
+
+void RegisterVM::handlePrint() {
     if (registers.empty()) {
         std::cerr << "Error: No value to print" << std::endl;
         return;
@@ -308,64 +318,109 @@ void RegisterVM::print() {
     auto value = registers.back();
     registers.pop_back();
 
-    std::visit([](auto&& arg) {
+    std::visit([](auto &&arg) {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int32_t>) {
-            std::cout << "PRINT: " << arg << std::endl;
-        } else if constexpr (std::is_same_v<T, double>) {
+        if constexpr (std::is_same_v<T, int32_t> || std::is_same_v<T, double> || std::is_same_v<T, std::string>) {
             std::cout << "PRINT: " << arg << std::endl;
         } else if constexpr (std::is_same_v<T, bool>) {
             std::cout << "PRINT: " << std::boolalpha << arg << std::endl;
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            std::cout << "PRINT: " << arg << std::endl;
         } else {
             std::cerr << "Unsupported type for PRINT operation" << std::endl;
         }
     }, value);
 }
 
-void RegisterVM::HandleDeclareVariable(unsigned int variableIndex) {
-   if (variableIndex >= program.size()) {
-        std::cerr << "Error: Invalid variable index" << std::endl;
-        return;
+void RegisterVM::handleDeclareVariable(unsigned int variableIndex) {
+    if (variableIndex >= variables.size()) {
+        variables.resize(variableIndex + 1);
     }
 
-    // Check if the variable has already been declared
-    if (variableIndex > variables.size()) {
-        variables.resize(variableIndex + 1); // Resize the vector if needed
-    } else {
-        std::cerr << "Warning: Variable at index " << variableIndex << " already declared. Updating its value." << std::endl;
-    }
-
-    // Initialize the variable with the value provided in the bytecode
-   variables[variableIndex-1] = program[variableIndex].value;
+    variables[variableIndex] = {}; // Initialize with default value
 }
 
-void RegisterVM::HandleLoadVariable(unsigned int variableIndex) {
-    if (pc >= program.size()) {
-        std::cerr << "Error: Invalid LOAD_VARIABLE instruction index" << std::endl;
-        return;
-    }
-
-   // const auto& instruction = program[pc];
+void RegisterVM::handleLoadVariable(unsigned int variableIndex) {
     if (variableIndex >= variables.size()) {
         std::cerr << "Error: Invalid variable index during loading" << std::endl;
         return;
     }
 
-    registers.push_back(variables[variableIndex-1]);
+    registers.push_back(variables[variableIndex]);
 }
 
-void RegisterVM::HandleStoreVariable(unsigned int variableIndex) {
-    if (variableIndex >= variables.size()) {
-        std::cerr << "Error: Invalid variable index during storing" << std::endl;
-        return;
+void RegisterVM::handleWhileLoop() {
+    int loopStart = pc - 1;
+
+    while (true) {
+        auto conditionInstruction = program[pc];
+        execute(conditionInstruction);
+
+        auto condition = registers.back();
+        registers.pop_back();
+
+        if (std::holds_alternative<bool>(condition) && std::get<bool>(condition)) {
+            pc++;
+            auto bodyInstruction = program[pc];
+            execute(bodyInstruction);
+        } else {
+            break;
+        }
+
+        pc = loopStart;
+    }
+}
+
+void RegisterVM::handleHalt() {
+    std::cout << "Halt operation" << std::endl;
+}
+
+void RegisterVM::handleInput() {
+    // Implement input handling
+}
+
+void RegisterVM::handleOutput() {
+    // Implement output handling
+}
+
+void RegisterVM::concurrent(std::vector<std::function<void()>> tasks) {
+    for (auto& task : tasks) {
+        threads.emplace_back(task);
     }
 
-    variables[variableIndex-1] = registers.back();
-    registers.pop_back();
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+
+    threads.clear();
 }
 
-void RegisterVM::HandleHalt() {
-    std::cout << "Halt operation" << std::endl;
+void RegisterVM::handleParallel(unsigned int taskCount) {
+    std::vector<std::function<void()>> tasks;
+    unsigned int instructionsPerTask = program.size() / taskCount;
+
+    for (unsigned int i = 0; i < taskCount; ++i) {
+        tasks.push_back([this, i, instructionsPerTask]() {
+            unsigned int start = i * instructionsPerTask;
+            unsigned int end = (i + 1) * instructionsPerTask;
+            for (unsigned int j = start; j < end; ++j) {
+                execute(program[j]);
+            }
+        });
+    }
+
+    concurrent(tasks);
+}
+
+void RegisterVM::handleConcurrent(unsigned int taskCount) {
+    std::vector<std::function<void()>> tasks;
+    for (unsigned int i = 0; i < taskCount; ++i) {
+        tasks.push_back([this, i]() {
+            std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
+            this->pc = i;  // Assign each task its part of the program
+            this->run();  // Run each part of the program concurrently
+        });
+    }
+
+    concurrent(tasks);
 }
