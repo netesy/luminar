@@ -7,12 +7,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 add_executable(luminar main.cpp
-    debugger.cpp debugger.hh main.cpp opcodes.hh parser.cpp parser.hh repl.cpp repl.hh scanner.cpp scanner.hh syntax.cpp syntax.hh types.hh
+    debugger.cpp debugger.hh
+    main.cpp 
+    opcodes.hh 
+    parser.cpp 
+    parser.hh 
+    repl.cpp repl.hh 
+    scanner.cpp scanner.hh
+    syntax.cpp syntax.hh
+    types.hh
     sample.lm sample_new.lm
     ast.hh ast.cpp
     vm.hh vm.cpp
     symbol.hh
-    helper.hh )
+    helper.hh instructions.hh 
+    backends/backend.hh 
+    backends/codegen.hh 
+    backends/codegen.cpp 
+    backends/import.hh 
+    backends/register.hh 
+    backends/register.cpp 
+    backends/stack.hh 
+    backends/stack.cpp  )
 
 include(GNUInstallDirs)
 install(TARGETS luminar

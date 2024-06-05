@@ -570,66 +570,66 @@ void Parser::parsePrintStatement()
 
 void Parser::parseIfStatement()
 {
-    Token op = previous();
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+    // Token op = previous();
+    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    // parseExpression();
+    // consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
 
-    size_t thenJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
+    // size_t thenJump = emit(Opcode::JUMP_IF_FALSE, op.line,  0);
 
-    parseExpression();
+    // parseExpression();
 
-    if (match(TokenType::ELSE))
-    {
-        size_t elseJump = emit(Opcode::JUMP, op.line, (int32_t)0);
-        int32_t jump = bytecode.size() - thenJump - 1;
-        bytecode[thenJump].value = jump;
-        parseExpression();
-        int32_t jump = bytecode.size() - elseJump - 1;
-        bytecode[elseJump].value = jump;
-    }
-    else
-    {
-        int32_t jump = bytecode.size() - thenJump - 1;
-        bytecode[thenJump].value = jump;
-    }
+    // if (match(TokenType::ELSE))
+    // {
+    //     size_t elseJump = emit(Opcode::JUMP, op.line, 0);
+    //     int32_t jump = bytecode.size() - thenJump - 1;
+    //     bytecode[thenJump].value = jump;
+    //     parseExpression();
+    //     int32_t jump = bytecode.size() - elseJump - 1;
+    //     bytecode[elseJump].value = jump;
+    // }
+    // else
+    // {
+    //     int32_t jump = bytecode.size() - thenJump - 1;
+    //     bytecode[thenJump].value = jump;
+    // }
 }
 
 void Parser::parseWhileLoop() {
-    Token op = previous();
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
+    // Token op = previous();
+    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
+    // parseExpression();
+    // consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
 
-    size_t loopStart = bytecode.size();
+    // size_t loopStart = bytecode.size();
 
-    size_t conditionJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
-    parseStatement();
-    emit(Opcode::JUMP, op.line, (int32_t)(loopStart - bytecode.size() - 1));
+    // size_t conditionJump = emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+    // parseStatement();
+    // emit(Opcode::JUMP, op.line, (int32_t)(loopStart - bytecode.size() - 1));
 
-    int32_t jumpOffset = bytecode.size() - conditionJump - 1;
-    bytecode[conditionJump].value = jumpOffset;
+    // int32_t jumpOffset = bytecode.size() - conditionJump - 1;
+    // bytecode[conditionJump].value = jumpOffset;
 }
 
 
 void Parser::parseForLoop()
 {
-    Token op = previous();
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'");
+    // Token op = previous();
+    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'");
 
-    parseExpression();
-    consume(TokenType::SEMICOLON, "Expected ';' after loop initializer");
-    parseExpression();
-    consume(TokenType::SEMICOLON, "Expected ';' after loop condition");
+    // parseExpression();
+    // consume(TokenType::SEMICOLON, "Expected ';' after loop initializer");
+    // parseExpression();
+    // consume(TokenType::SEMICOLON, "Expected ';' after loop condition");
 
-    size_t conditionOffset = bytecode.size();
+    // size_t conditionOffset = bytecode.size();
 
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after loop increment");
+    // parseExpression();
+    // consume(TokenType::RIGHT_PAREN, "Expected ')' after loop increment");
 
-    size_t bodyJump = emit(Opcode::JUMP_IF_FALSE, op.line, (int32_t)0);
-    parseExpression();
-    emit(Opcode::JUMP, op.line, (int32_t)(conditionOffset - bytecode.size() - 1));
+    // size_t bodyJump = emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+    // parseExpression();
+    // emit(Opcode::JUMP, op.line, (int32_t)(conditionOffset - bytecode.size() - 1));
 }
 
 void Parser::parseMatchStatement()

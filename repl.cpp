@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <variant>
+#include "backends/import.hh"
 
 void REPL::start()
 {
@@ -14,15 +15,18 @@ void REPL::start()
         Scanner scanner(input);
         Parser parser(scanner);
         debug(scanner, parser);
-        RegisterVM vm(parser);
-               try {
-                   vm.run();
-                   vm.dumpRegisters();
+        auto backend = std::make_unique<StackBackend>(parser.getBytecode());
+        VM vm(parser, std::move(backend));
 
-               } catch (const std::exception &e) {
-                   std::cerr << " Repl Error: " << e.what() << std::endl;
-                   // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-               }
+        // RegisterVM vm(parser);
+        try {
+            vm.run();
+            vm.dumpRegisters();
+
+            } catch (const std::exception &e) {
+                std::cerr << " Repl Error: " << e.what() << std::endl;
+                 // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
+        }
     }
 }
 

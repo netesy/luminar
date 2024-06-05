@@ -197,6 +197,78 @@ ast.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/ast.cpp.s
 .PHONY : ast.cpp.s
 
+backends/codegen.obj: backends/codegen.cpp.obj
+.PHONY : backends/codegen.obj
+
+# target to build an object file
+backends/codegen.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/codegen.cpp.obj
+.PHONY : backends/codegen.cpp.obj
+
+backends/codegen.i: backends/codegen.cpp.i
+.PHONY : backends/codegen.i
+
+# target to preprocess a source file
+backends/codegen.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/codegen.cpp.i
+.PHONY : backends/codegen.cpp.i
+
+backends/codegen.s: backends/codegen.cpp.s
+.PHONY : backends/codegen.s
+
+# target to generate assembly for a file
+backends/codegen.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/codegen.cpp.s
+.PHONY : backends/codegen.cpp.s
+
+backends/register.obj: backends/register.cpp.obj
+.PHONY : backends/register.obj
+
+# target to build an object file
+backends/register.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/register.cpp.obj
+.PHONY : backends/register.cpp.obj
+
+backends/register.i: backends/register.cpp.i
+.PHONY : backends/register.i
+
+# target to preprocess a source file
+backends/register.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/register.cpp.i
+.PHONY : backends/register.cpp.i
+
+backends/register.s: backends/register.cpp.s
+.PHONY : backends/register.s
+
+# target to generate assembly for a file
+backends/register.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/register.cpp.s
+.PHONY : backends/register.cpp.s
+
+backends/stack.obj: backends/stack.cpp.obj
+.PHONY : backends/stack.obj
+
+# target to build an object file
+backends/stack.cpp.obj:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/stack.cpp.obj
+.PHONY : backends/stack.cpp.obj
+
+backends/stack.i: backends/stack.cpp.i
+.PHONY : backends/stack.i
+
+# target to preprocess a source file
+backends/stack.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/stack.cpp.i
+.PHONY : backends/stack.cpp.i
+
+backends/stack.s: backends/stack.cpp.s
+.PHONY : backends/stack.s
+
+# target to generate assembly for a file
+backends/stack.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles\luminar.dir\build.make CMakeFiles/luminar.dir/backends/stack.cpp.s
+.PHONY : backends/stack.cpp.s
+
 debugger.obj: debugger.cpp.obj
 .PHONY : debugger.obj
 
@@ -381,6 +453,15 @@ help:
 	@echo ... ast.obj
 	@echo ... ast.i
 	@echo ... ast.s
+	@echo ... backends/codegen.obj
+	@echo ... backends/codegen.i
+	@echo ... backends/codegen.s
+	@echo ... backends/register.obj
+	@echo ... backends/register.i
+	@echo ... backends/register.s
+	@echo ... backends/stack.obj
+	@echo ... backends/stack.i
+	@echo ... backends/stack.s
 	@echo ... debugger.obj
 	@echo ... debugger.i
 	@echo ... debugger.s

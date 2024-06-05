@@ -9,6 +9,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "C:/Users/Fablur/Desktop/Projects/luminar/ast.cpp" "CMakeFiles/luminar.dir/ast.cpp.obj" "gcc" "CMakeFiles/luminar.dir/ast.cpp.obj.d"
+  "C:/Users/Fablur/Desktop/Projects/luminar/backends/codegen.cpp" "CMakeFiles/luminar.dir/backends/codegen.cpp.obj" "gcc" "CMakeFiles/luminar.dir/backends/codegen.cpp.obj.d"
+  "C:/Users/Fablur/Desktop/Projects/luminar/backends/register.cpp" "CMakeFiles/luminar.dir/backends/register.cpp.obj" "gcc" "CMakeFiles/luminar.dir/backends/register.cpp.obj.d"
+  "C:/Users/Fablur/Desktop/Projects/luminar/backends/stack.cpp" "CMakeFiles/luminar.dir/backends/stack.cpp.obj" "gcc" "CMakeFiles/luminar.dir/backends/stack.cpp.obj.d"
   "C:/Users/Fablur/Desktop/Projects/luminar/debugger.cpp" "CMakeFiles/luminar.dir/debugger.cpp.obj" "gcc" "CMakeFiles/luminar.dir/debugger.cpp.obj.d"
   "C:/Users/Fablur/Desktop/Projects/luminar/main.cpp" "CMakeFiles/luminar.dir/main.cpp.obj" "gcc" "CMakeFiles/luminar.dir/main.cpp.obj.d"
   "C:/Users/Fablur/Desktop/Projects/luminar/parser.cpp" "CMakeFiles/luminar.dir/parser.cpp.obj" "gcc" "CMakeFiles/luminar.dir/parser.cpp.obj.d"

@@ -1,56 +1,39 @@
 #ifndef VM_HH
 #define VM_HH
 
-#include "opcodes.hh"
 #include "parser.hh"
-#include <iostream>
-#include <variant>
-#include <vector>
-#include <thread>
-#include <functional>
-#include <mutex>
+#include "backends/backend.hh"
+#include <memory>
 
-using Value = std::variant<int32_t, double, bool, std::string>;
-
-class RegisterVM {
+class VM {
 public:
-    explicit RegisterVM(Parser &parser)
-        : parser(parser)
+    explicit VM(Parser &parser, std::unique_ptr<Backend> backend)
+        : parser(parser), backend(std::move(backend)) 
     {
         program = parser.getBytecode();
     }
 
-    void run();
-    void execute(const Instruction &instruction);
-    void dumpRegisters();
+    void run() {
+        try {
+            while (pc < program.size()) {
+                const Instruction& instruction = program[pc];
+                backend->execute(instruction);
+                pc++;
+            }
+        } catch (const std::exception& ex) {
+            std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
+        }
+    }
+
+    void dumpRegisters() {
+        backend->dumpRegisters();
+    }
 
 private:
     Parser &parser;
-    unsigned int pc = 0;            // program counter
-    std::vector<Value> registers;   // Registers for storing data
-    std::vector<Value> constants;   // Constants for storing data
-    std::vector<unsigned int, Value> variables; // Variables for storing data location
+    unsigned int pc = 0; // program counter
     std::vector<Instruction> program;
-    std::vector<std::thread> threads;
-    std::mutex mtx; // Mutex for synchronization
-  //  size_t pc = 0;
-
-    void performUnaryOperation(int op);
-    void performBinaryOperation(int op);
-    void performLogicalOperation(int op);
-    void performComparisonOperation(int op);
-    void handleLoadConst(unsigned int constantIndex);
-    //void handleStoreValue(unsigned int storeIndex);
-    void handleDeclareVariable(unsigned int variableIndex);
-    void handleLoadVariable(unsigned int variableIndex);
-    void handleStoreVariable(unsigned int variableIndex);
-    void handleParallel(unsigned int taskCount);
-    void handleConcurrent(unsigned int taskCount);
-    void concurrent(std::vector<std::function<void()>> tasks);
-    void handlePrint();
-    void handleHalt();
-    void handleInput();
-    void handleOutput();
+    std::unique_ptr<Backend> backend;
 };
 
 #endif // VM_HH

@@ -1,6 +1,12 @@
 file(REMOVE_RECURSE
   "CMakeFiles/luminar.dir/ast.cpp.obj"
   "CMakeFiles/luminar.dir/ast.cpp.obj.d"
+  "CMakeFiles/luminar.dir/backends/codegen.cpp.obj"
+  "CMakeFiles/luminar.dir/backends/codegen.cpp.obj.d"
+  "CMakeFiles/luminar.dir/backends/register.cpp.obj"
+  "CMakeFiles/luminar.dir/backends/register.cpp.obj.d"
+  "CMakeFiles/luminar.dir/backends/stack.cpp.obj"
+  "CMakeFiles/luminar.dir/backends/stack.cpp.obj.d"
   "CMakeFiles/luminar.dir/debugger.cpp.obj"
   "CMakeFiles/luminar.dir/debugger.cpp.obj.d"
   "CMakeFiles/luminar.dir/main.cpp.obj"

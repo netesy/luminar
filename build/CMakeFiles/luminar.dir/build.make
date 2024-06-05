@@ -180,6 +180,48 @@ CMakeFiles/luminar.dir/vm.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/luminar.dir/vm.cpp.s"
 	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S C:\Users\Fablur\Desktop\Projects\luminar\vm.cpp -o CMakeFiles\luminar.dir\vm.cpp.s
 
+CMakeFiles/luminar.dir/backends/codegen.cpp.obj: CMakeFiles/luminar.dir/flags.make
+CMakeFiles/luminar.dir/backends/codegen.cpp.obj: C:/Users/Fablur/Desktop/Projects/luminar/backends/codegen.cpp
+CMakeFiles/luminar.dir/backends/codegen.cpp.obj: CMakeFiles/luminar.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=C:\Users\Fablur\Desktop\Projects\luminar\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/luminar.dir/backends/codegen.cpp.obj"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/luminar.dir/backends/codegen.cpp.obj -MF CMakeFiles\luminar.dir\backends\codegen.cpp.obj.d -o CMakeFiles\luminar.dir\backends\codegen.cpp.obj -c C:\Users\Fablur\Desktop\Projects\luminar\backends\codegen.cpp
+
+CMakeFiles/luminar.dir/backends/codegen.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/luminar.dir/backends/codegen.cpp.i"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E C:\Users\Fablur\Desktop\Projects\luminar\backends\codegen.cpp > CMakeFiles\luminar.dir\backends\codegen.cpp.i
+
+CMakeFiles/luminar.dir/backends/codegen.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/luminar.dir/backends/codegen.cpp.s"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S C:\Users\Fablur\Desktop\Projects\luminar\backends\codegen.cpp -o CMakeFiles\luminar.dir\backends\codegen.cpp.s
+
+CMakeFiles/luminar.dir/backends/register.cpp.obj: CMakeFiles/luminar.dir/flags.make
+CMakeFiles/luminar.dir/backends/register.cpp.obj: C:/Users/Fablur/Desktop/Projects/luminar/backends/register.cpp
+CMakeFiles/luminar.dir/backends/register.cpp.obj: CMakeFiles/luminar.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=C:\Users\Fablur\Desktop\Projects\luminar\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/luminar.dir/backends/register.cpp.obj"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/luminar.dir/backends/register.cpp.obj -MF CMakeFiles\luminar.dir\backends\register.cpp.obj.d -o CMakeFiles\luminar.dir\backends\register.cpp.obj -c C:\Users\Fablur\Desktop\Projects\luminar\backends\register.cpp
+
+CMakeFiles/luminar.dir/backends/register.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/luminar.dir/backends/register.cpp.i"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E C:\Users\Fablur\Desktop\Projects\luminar\backends\register.cpp > CMakeFiles\luminar.dir\backends\register.cpp.i
+
+CMakeFiles/luminar.dir/backends/register.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/luminar.dir/backends/register.cpp.s"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S C:\Users\Fablur\Desktop\Projects\luminar\backends\register.cpp -o CMakeFiles\luminar.dir\backends\register.cpp.s
+
+CMakeFiles/luminar.dir/backends/stack.cpp.obj: CMakeFiles/luminar.dir/flags.make
+CMakeFiles/luminar.dir/backends/stack.cpp.obj: C:/Users/Fablur/Desktop/Projects/luminar/backends/stack.cpp
+CMakeFiles/luminar.dir/backends/stack.cpp.obj: CMakeFiles/luminar.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=C:\Users\Fablur\Desktop\Projects\luminar\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/luminar.dir/backends/stack.cpp.obj"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/luminar.dir/backends/stack.cpp.obj -MF CMakeFiles\luminar.dir\backends\stack.cpp.obj.d -o CMakeFiles\luminar.dir\backends\stack.cpp.obj -c C:\Users\Fablur\Desktop\Projects\luminar\backends\stack.cpp
+
+CMakeFiles/luminar.dir/backends/stack.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/luminar.dir/backends/stack.cpp.i"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E C:\Users\Fablur\Desktop\Projects\luminar\backends\stack.cpp > CMakeFiles\luminar.dir\backends\stack.cpp.i
+
+CMakeFiles/luminar.dir/backends/stack.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/luminar.dir/backends/stack.cpp.s"
+	C:\PROGRA~1\CodeBlocks\mingw32\bin\g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S C:\Users\Fablur\Desktop\Projects\luminar\backends\stack.cpp -o CMakeFiles\luminar.dir\backends\stack.cpp.s
+
 # Object files for target luminar
 luminar_OBJECTS = \
 "CMakeFiles/luminar.dir/main.cpp.obj" \
@@ -189,7 +231,10 @@ luminar_OBJECTS = \
 "CMakeFiles/luminar.dir/scanner.cpp.obj" \
 "CMakeFiles/luminar.dir/syntax.cpp.obj" \
 "CMakeFiles/luminar.dir/ast.cpp.obj" \
-"CMakeFiles/luminar.dir/vm.cpp.obj"
+"CMakeFiles/luminar.dir/vm.cpp.obj" \
+"CMakeFiles/luminar.dir/backends/codegen.cpp.obj" \
+"CMakeFiles/luminar.dir/backends/register.cpp.obj" \
+"CMakeFiles/luminar.dir/backends/stack.cpp.obj"
 
 # External object files for target luminar
 luminar_EXTERNAL_OBJECTS =
@@ -202,11 +247,14 @@ luminar.exe: CMakeFiles/luminar.dir/scanner.cpp.obj
 luminar.exe: CMakeFiles/luminar.dir/syntax.cpp.obj
 luminar.exe: CMakeFiles/luminar.dir/ast.cpp.obj
 luminar.exe: CMakeFiles/luminar.dir/vm.cpp.obj
+luminar.exe: CMakeFiles/luminar.dir/backends/codegen.cpp.obj
+luminar.exe: CMakeFiles/luminar.dir/backends/register.cpp.obj
+luminar.exe: CMakeFiles/luminar.dir/backends/stack.cpp.obj
 luminar.exe: CMakeFiles/luminar.dir/build.make
 luminar.exe: CMakeFiles/luminar.dir/linkLibs.rsp
 luminar.exe: CMakeFiles/luminar.dir/objects1.rsp
 luminar.exe: CMakeFiles/luminar.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=C:\Users\Fablur\Desktop\Projects\luminar\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX executable luminar.exe"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=C:\Users\Fablur\Desktop\Projects\luminar\build\CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX executable luminar.exe"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles\luminar.dir\link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
