@@ -3,8 +3,13 @@
 
 #include "backend.hh"
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
 #include <variant>
+#include <vector>
 
 class CodegenBackend : public Backend {
 public:

@@ -1,15 +1,10 @@
 #ifndef BACKEND_HH
 #define BACKEND_HH
 
-#include <variant>
-#include <vector>
-#include <string>
-#include <thread>
-#include <functional>
-#include <mutex>
 #include "../instructions.hh"
 
 using Value = std::variant<int32_t, double, bool, std::string>;
+//using Value = std::variant<int, double, bool, std::string, unsigned int>;
 
 class Backend {
 public:

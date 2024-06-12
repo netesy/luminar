@@ -23,6 +23,11 @@ void StackBackend::dumpRegisters() {
         std::visit([](const auto &value) { std::cout << value; }, variables[i]);
         std::cout << "\n";
     }
+
+    std::cout << "Functions:\n";
+    for (const auto& [name, _] : functions) {
+        std::cout << "Function: " << name << "\n";
+    }
 }
 
 void StackBackend::execute(const Instruction& instruction) {
@@ -51,7 +56,11 @@ void StackBackend::execute(const Instruction& instruction) {
             performLogicalOperation(instruction);
             break;
         case LOAD_CONST:
+        case LOAD_STR:
             handleLoadConst(instruction.value);
+            break;
+            //case LOAD_STR:
+            //handleLoadStr(std::get<std::string>(instruction.value));
             break;
         case PRINT:
             handlePrint();
@@ -60,22 +69,28 @@ void StackBackend::execute(const Instruction& instruction) {
             handleHalt();
             return;
         case DECLARE_VARIABLE:
-            handleDeclareVariable(instruction.value);
+            handleDeclareVariable(std::get<int32_t>(instruction.value));
             break;
         case LOAD_VARIABLE:
-            handleLoadVariable(instruction.value);
+            handleLoadVariable(std::get<int32_t>(instruction.value));
             break;
         case STORE_VARIABLE:
-            handleStoreVariable(instruction.value);
+            handleStoreVariable(std::get<int32_t>(instruction.value));
+            break;
+        case DEFINE_FUNCTION:
+            handleDeclareFunction(std::get<std::string>(instruction.value));
+            break;
+        case INVOKE_FUNCTION:
+            handleCallFunction(std::get<std::string>(instruction.value));
             break;
         case WHILE_LOOP:
             handleWhileLoop();
             break;
         case PARALLEL:
-            handleParallel(instruction.value);
+            handleParallel(std::get<int32_t>(instruction.value));
             break;
         case CONCURRENT:
-            handleConcurrent(instruction.value);
+            handleConcurrent(std::get<int32_t>(instruction.value));
             break;
         default:
             std::cerr << "Unknown opcode." << std::endl;
@@ -273,12 +288,29 @@ void StackBackend::performComparisonOperation(const Instruction& instruction) {
     }
 }
 
-void StackBackend::handleLoadConst(unsigned int constantIndex) {
-    if (constantIndex >= constants.size()) {
-        std::cerr << "Error: Invalid constant index" << std::endl;
-        return;
+void StackBackend::handleLoadConst(const Value &constantValue)
+{
+    //    if (constantIndex >= constants.size()) {
+    //        std::cerr << "Error: Invalid constant index" << std::endl;
+    //        return;
+    //    }
+    if (std::holds_alternative<int32_t>(constantValue)) {
+        constants.push_back(std::get<int32_t>(constantValue));
+        stack.push(std::get<int32_t>(constantValue));
+    } else if (std::holds_alternative<double>(constantValue)) {
+        constants.push_back(std::get<double>(constantValue));
+        stack.push(std::get<double>(constantValue));
+    } else if (std::holds_alternative<std::string>(constantValue)) {
+        constants.push_back(std::get<std::string>(constantValue));
+        stack.push(std::get<std::string>(constantValue));
+    } else {
+        std::cerr << "Error: Unsupported type for LOAD_CONST" << std::endl;
     }
-    stack.push(constants[constantIndex]);
+}
+
+void StackBackend::handleLoadStr(const std::string &constantValue)
+{
+    stack.push(constantValue);
 }
 
 void StackBackend::handleDeclareVariable(unsigned int variableIndex) {
@@ -295,16 +327,20 @@ void StackBackend::handleLoadVariable(unsigned int variableIndex) {
     stack.push(variables[variableIndex]);
 }
 
-void StackBackend::handleStoreVariable(unsigned int variableIndex) {
+void StackBackend::handleStoreVariable(unsigned int variableIndex)
+{
     if (variableIndex >= variables.size()) {
-        std::cerr << "Error: Invalid variable index" << std::endl;
-        return;
+        variables.resize(variableIndex + 1);
     }
     if (stack.empty()) {
         std::cerr << "Error: value stack underflow" << std::endl;
         return;
     }
-    variables[variableIndex] = stack.top();
+    auto value = stack.top();
+    variables[variableIndex] = value;
+    //    std::cout << "This variable of index: " << variableIndex
+    //              << " has a value of: " << std::get<std::string>(value) << std::endl;
+
     stack.pop();
 }
 
@@ -313,18 +349,49 @@ void StackBackend::handlePrint() {
         std::cerr << "Error: value stack underflow" << std::endl;
         return;
     }
-    std::visit([](const auto &value) { std::cout << value << std::endl; }, stack.top());
+    std::visit([](const auto &value) { std::cout << "The result: " << value << std::endl; },
+               stack.top());
     stack.pop();
 }
 
-void StackBackend::handleInput() {
-    // Implementation for input
+void StackBackend::handleHalt() {
+    std::cout << "Execution halted." << std::endl;
+    exit(0);
 }
 
-void StackBackend::handleOutput() {
-    // Implementation for output
+void StackBackend::handleDeclareFunction(const std::string& functionName) {
+    if (functions.find(functionName) != functions.end()) {
+        std::cerr << "Error: Function already declared" << std::endl;
+        return;
+    }
+    functions[functionName] = [this, functionName]() {
+        auto it = std::find_if(program.begin(), program.end(), [functionName](const Instruction& instr) {
+            return instr.opcode == Opcode::DEFINE_FUNCTION && std::get<std::string>(instr.value) == functionName;
+        });
+
+        if (it != program.end()) {
+            size_t index = std::distance(program.begin(), it);
+            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT; ++i) {
+                execute(program[i]);
+            }
+        } else {
+            std::cerr << "Error: Function not found" << std::endl;
+        }
+    };
 }
 
+void StackBackend::handleCallFunction(const std::string& functionName) {
+    if (functions.find(functionName) == functions.end()) {
+        std::cerr << "Error: Function not declared" << std::endl;
+        return;
+    }
+    functions[functionName]();
+}
+
+
+void StackBackend::handleWhileLoop() {
+    // Implementation for while loop
+}
 
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks) {
     // Start threads for each task
@@ -332,7 +399,7 @@ void StackBackend::concurrent(std::vector<std::function<void()>> tasks) {
         threads.emplace_back(task);
     }
 
-// Join all threads
+    // Join all threads
     for (auto& thread : threads) {
         if (thread.joinable()) {
             thread.join();
@@ -365,10 +432,11 @@ void StackBackend::handleConcurrent(unsigned int taskCount) {
         tasks.push_back([this, i]() {
             std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
             this->pc = i;  // Assign each task its part of the program
-          //  this->execute(program[taskCount]); // Run each part of the program concurrently
+            //  this->execute(program[taskCount]); // Run each part of the program concurrently
         });
     }
-// Calculate the number of instructions per task
+
+    // Calculate the number of instructions per task
     unsigned int instructionsPerTask = program.size() / taskCount;
 
     // Create tasks for each part of the program

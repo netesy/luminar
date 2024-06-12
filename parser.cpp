@@ -6,7 +6,8 @@
 #include <thread>
 
 Parser::Parser(Scanner &scanner)
-    : bytecode(Bytecode{}), scanner(scanner)
+    : bytecode(Bytecode{})
+    , scanner(scanner)
 {
     tokens = scanner.scanTokens();
     parse();
@@ -15,8 +16,7 @@ Parser::Parser(Scanner &scanner)
 Bytecode Parser::parse()
 {
     scanner.current = 0;
-    while (!isAtEnd())
-    {
+    while (!isAtEnd()) {
         parseExpression();
     }
     return bytecode;
@@ -25,8 +25,7 @@ Bytecode Parser::parse()
 std::string Parser::toString() const
 {
     std::string result;
-    for (const auto &instruction : bytecode)
-    {
+    for (const auto &instruction : bytecode) {
         result += "Instruction: " + instruction.opcodeToString(instruction.opcode)
                   + " | Line: " + std::to_string(instruction.lineNumber) + "\n";
         std::string valueStr;
@@ -46,8 +45,7 @@ std::string Parser::toString() const
 
 ParseFn Parser::getParseFn(TokenType type)
 {
-    switch (type)
-    {
+    switch (type) {
     case TokenType::MINUS:
         return isNewExpression ? &Parser::parseUnary : &Parser::parseBinary;
     case TokenType::AND:
@@ -82,6 +80,8 @@ ParseFn Parser::getParseFn(TokenType type)
         return &Parser::parseBoolean;
     case TokenType::VAR:
         return &Parser::parseDecVariable;
+    case TokenType::FN:
+        return &Parser::parseFunctionDeclaration;
     case TokenType::IDENTIFIER:
         return &Parser::parseLoadVariable;
     case TokenType::LEFT_PAREN:
@@ -103,8 +103,7 @@ ParseFn Parser::getParseFn(TokenType type)
 
 void Parser::advance()
 {
-    if (current < tokens.size())
-    {
+    if (current < tokens.size()) {
         current++;
     }
 }
@@ -116,12 +115,9 @@ Token Parser::peek()
 
 Token Parser::peekNext()
 {
-    if (current + 1 < tokens.size())
-    {
+    if (current + 1 < tokens.size()) {
         return tokens[current + 1];
-    }
-    else
-    {
+    } else {
         return Token{TokenType::EOF_TOKEN, "", scanner.getLine()};
     }
 }
@@ -140,8 +136,7 @@ bool Parser::check(TokenType type)
 {
     if (scanner.isAtEnd())
         return false;
-    if (peek().type == type)
-    {
+    if (peek().type == type) {
         return true;
     }
     return false;
@@ -151,8 +146,7 @@ bool Parser::match(TokenType type)
 {
     if (scanner.isAtEnd())
         return false;
-    if (peek().type == type)
-    {
+    if (peek().type == type) {
         advance();
         return true;
     }
@@ -161,16 +155,14 @@ bool Parser::match(TokenType type)
 
 void Parser::consume(TokenType type, const std::string &message)
 {
-    if (!match(type))
-    {
+    if (!match(type)) {
         error(message);
     }
 }
 
 bool Parser::isExpression(TokenType type)
 {
-    switch (type)
-    {
+    switch (type) {
     case TokenType::NUMBER:
     case TokenType::STRING:
     case TokenType::TRUE:
@@ -211,8 +203,7 @@ void Parser::parsePrecedence(Precedence precedence)
     advance();
     ParseFn prefixParseFn = getParseFn(previous().type);
 
-    if (prefixParseFn == nullptr)
-    {
+    if (prefixParseFn == nullptr) {
         error("Unexpected token");
         return;
     }
@@ -220,18 +211,15 @@ void Parser::parsePrecedence(Precedence precedence)
     (this->*prefixParseFn)();
     isNewExpression = false;
 
-    while (precedence <= getTokenPrecedence(peek().type))
-    {
-        if (isAtEnd())
-        {
+    while (precedence <= getTokenPrecedence(peek().type)) {
+        if (isAtEnd()) {
             break;
         }
 
         advance();
         ParseFn infixParseFn = getParseFn(previous().type);
 
-        if (infixParseFn == nullptr)
-        {
+        if (infixParseFn == nullptr) {
             error("Unexpected token");
             return;
         }
@@ -243,8 +231,7 @@ void Parser::parsePrecedence(Precedence precedence)
 void Parser::parseEOF()
 {
     Token op = peek();
-    if (match(TokenType::EOF_TOKEN))
-    {
+    if (match(TokenType::EOF_TOKEN)) {
         std::cout << "Unexpected end of token" << std::endl;
         emit(Opcode::HALT, op.line);
         return;
@@ -253,8 +240,7 @@ void Parser::parseEOF()
 
 Precedence Parser::getTokenPrecedence(TokenType type)
 {
-    switch (type)
-    {
+    switch (type) {
     case TokenType::OR:
         return PREC_OR;
     case TokenType::AND:
@@ -308,24 +294,15 @@ Instruction Parser::emit(Opcode opcode,
 void Parser::parsePrimary()
 {
     TokenType tokenType = peek().type;
-    if (tokenType == TokenType::NUMBER || tokenType == TokenType::STRING)
-    {
+    if (tokenType == TokenType::NUMBER || tokenType == TokenType::STRING) {
         parseLiteral();
-    }
-    else if (tokenType == TokenType::TRUE || tokenType == TokenType::FALSE)
-    {
+    } else if (tokenType == TokenType::TRUE || tokenType == TokenType::FALSE) {
         parseBoolean();
-    }
-    else if (tokenType == TokenType::IDENTIFIER)
-    {
+    } else if (tokenType == TokenType::IDENTIFIER) {
         parseDecVariable();
-    }
-    else if (tokenType == TokenType::LEFT_PAREN)
-    {
+    } else if (tokenType == TokenType::LEFT_PAREN) {
         parseParenthesis();
-    }
-    else
-    {
+    } else {
         error("Unexpected token in primary expression");
     }
 }
@@ -335,7 +312,8 @@ void Parser::parseExpression()
     parsePrecedence(PREC_ASSIGNMENT);
 }
 
-void Parser::parseDeclaration() {
+void Parser::parseDeclaration()
+{
     if (match(TokenType::VAR)) {
         parseDecVariable();
     } else {
@@ -343,7 +321,8 @@ void Parser::parseDeclaration() {
     }
 }
 
-void Parser::parseStatement() {
+void Parser::parseStatement()
+{
     if (match(TokenType::PRINT)) {
         parsePrintStatement();
     } else if (match(TokenType::LEFT_BRACE)) {
@@ -361,15 +340,15 @@ void Parser::parseStatement() {
     }
 }
 
-void Parser::parseExpressionStatement() {
+void Parser::parseExpressionStatement()
+{
     parseExpression();
     consume(TokenType::SEMICOLON, "Expected ';' after expression.");
 }
 
-
 void Parser::parseParenthesis()
 {
-   // advance(); // Consume '('
+    // advance(); // Consume '('
 
     parseExpression(); // Parse the expression inside parentheses
 
@@ -380,12 +359,9 @@ void Parser::parseUnary()
 {
     Token op = previous();
     parsePrecedence(PREC_UNARY);
-    if (op.type == TokenType::MINUS)
-    {
+    if (op.type == TokenType::MINUS) {
         emit(Opcode::NEGATE, op.line);
-    }
-    else if (op.type == TokenType::BANG)
-    {
+    } else if (op.type == TokenType::BANG) {
         emit(Opcode::NOT, op.line);
     }
 }
@@ -397,8 +373,7 @@ void Parser::parseBinary()
 
     parsePrecedence(static_cast<Precedence>(precedence + 1));
 
-    switch (op.type)
-    {
+    switch (op.type) {
     case TokenType::PLUS:
         emit(Opcode::ADD, op.line);
         break;
@@ -422,13 +397,12 @@ void Parser::parseBinary()
 void Parser::parseLiteral()
 {
     Token token = previous();
-    switch (token.type)
-    {
+    switch (token.type) {
     case TokenType::NUMBER:
         emit(Opcode::LOAD_CONST, token.line, std::stod(token.lexeme));
         break;
     case TokenType::STRING:
-        emit(Opcode::LOAD_CONST, token.line, token.lexeme);
+        emit(Opcode::LOAD_STR, token.line, token.lexeme);
         break;
     default:
         error("Unexpected literal type");
@@ -438,21 +412,17 @@ void Parser::parseLiteral()
 void Parser::parseBoolean()
 {
     Token token = previous();
-    if (token.type == TokenType::TRUE)
-    {
+    if (token.type == TokenType::TRUE) {
         emit(Opcode::LOAD_CONST, token.line, true);
-    }
-    else if (token.type == TokenType::FALSE)
-    {
+    } else if (token.type == TokenType::FALSE) {
         emit(Opcode::LOAD_CONST, token.line, false);
-    }
-    else
-    {
+    } else {
         error("Unexpected boolean value");
     }
 }
 
-void Parser::parseDecVariable() {
+void Parser::parseDecVariable()
+{
     // Parse variable declaration with type
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected 'var' before variable name");
@@ -464,44 +434,60 @@ void Parser::parseDecVariable() {
     }
     consume(TokenType::EQUAL, "Expected '=' after type");
     parseExpression();
-    if (declaredVariables.find(name.lexeme) == declaredVariables.end()) {
-        emit(Opcode::DECLARE_VARIABLE, name.line, name.lexeme);
-        declaredVariables.insert(name.lexeme);
+    if (variableMap.find(name.lexeme) == variableMap.end()) {
+        int index = variableCounter++;
+        variableMap[name.lexeme] = index;
+        emit(Opcode::DECLARE_VARIABLE, name.line, index);
+
     } else {
-        parseLoadVariable();
+        error("Variable already declared: " + name.lexeme);
     }
+    auto it = variableMap.find(name.lexeme);
+    int index = it->second;
+    emit(Opcode::STORE_VARIABLE, name.line, index);
 }
 
-void Parser::parseLoadVariable() {
+void Parser::parseLoadVariable()
+{
     // Parse loading existing variable
-    Token token = previous();
-    if (declaredVariables.find(token.lexeme) == declaredVariables.end()) {
-        error("Variable '" + token.lexeme + "' not declared");
-        return;
+    Token name = previous();
+    // if (declaredVariables.find(token.lexeme) == declaredVariables.end()) {
+    //     error("Variable '" + token.lexeme + "' not declared");
+    //     return;
+    // }
+    // emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
+    if (variableMap.find(name.lexeme) != variableMap.end()) {
+        int index = variableMap[name.lexeme];
+        emit(Opcode::LOAD_VARIABLE, name.line, index);
+    } else {
+        error("Undeclared variable: " + name.lexeme);
     }
-    emit(Opcode::LOAD_VARIABLE, token.line, token.lexeme);
 }
 
 void Parser::parseBlock()
 {
     consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-         parseDeclaration(); //handles statements inside the block
+        parseDeclaration(); //handles statements inside the block
     }
     consume(TokenType::RIGHT_BRACE, "Expected '}' after block.");
 }
 
-void Parser::parseAssignment() {
+void Parser::parseAssignment()
+{
     Token token = previous();
     std::string varName = token.lexeme;
 
     parsePrecedence(PREC_ASSIGNMENT);
 
-    if (declaredVariables.find(varName) == declaredVariables.end()) {
-        emit(Opcode::DECLARE_VARIABLE, token.line, varName);
-        declaredVariables.insert(varName);
+    auto it = variableMap.find(varName);
+    if (it == variableMap.end()) {
+        int index = variableCounter++;
+        variableMap[varName] = index;
+        emit(Opcode::DECLARE_VARIABLE, token.line, index);
     } else {
-        emit(Opcode::STORE_VARIABLE, token.line, varName);
+        int index = it->second;
+        emit(Opcode::STORE_VARIABLE, token.line, index);
     }
 }
 
@@ -523,8 +509,7 @@ void Parser::parseLogical()
 {
     Token op = previous();
     parsePrecedence(PREC_OR);
-    if (op.type == TokenType::BANG)
-    {
+    if (op.type == TokenType::BANG) {
         emit(Opcode::NOT, op.line);
     }
 }
@@ -536,8 +521,7 @@ void Parser::parseComparison()
 
     parsePrecedence(static_cast<Precedence>(precedence + 1));
 
-    switch (op.type)
-    {
+    switch (op.type) {
     case TokenType::EQUAL_EQUAL:
         emit(Opcode::EQUAL, op.line);
         break;
@@ -595,7 +579,8 @@ void Parser::parseIfStatement()
     // }
 }
 
-void Parser::parseWhileLoop() {
+void Parser::parseWhileLoop()
+{
     // Token op = previous();
     // consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
     // parseExpression();
@@ -610,7 +595,6 @@ void Parser::parseWhileLoop() {
     // int32_t jumpOffset = bytecode.size() - conditionJump - 1;
     // bytecode[conditionJump].value = jumpOffset;
 }
-
 
 void Parser::parseForLoop()
 {
@@ -641,6 +625,10 @@ void Parser::parseMatchStatement()
     parseExpression();
     emit(Opcode::PATTERN_MATCH, op.line);
 }
+
+void Parser::parseFnDeclaration() {}
+
+void Parser::parseFnCall() {}
 
 std::vector<Instruction> Parser::getBytecode() const
 {

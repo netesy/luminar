@@ -2,3 +2,4 @@
 #include "register.hh"
 #include "stack.hh"
 #include "codegen.hh"
+#include "jit.hh"

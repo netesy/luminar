@@ -2,14 +2,13 @@
 #define REGISTER_BACKEND_HH
 
 #include "backend.hh"
+#include <functional>
 #include <iostream>
-#include <variant>
-#include <vector>
+#include <mutex>
 #include <string>
 #include <thread>
-#include <functional>
-#include <mutex>
-
+#include <variant>
+#include <vector>
 
 class RegisterBackend : public Backend {
 public:

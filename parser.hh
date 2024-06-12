@@ -43,7 +43,9 @@ private:
 
     // Symbol table
     SymbolTable symbolTable;
-    std::unordered_set<std::string> declaredVariables;
+    //    std::unordered_set<std::string> variableMap;
+    std::unordered_map<std::string, int> variableMap; // Use unordered_map to track variable indices
+    int variableCounter = 0;                          // Initialize variable counter
 
     // Token variables
     Token currentToken;
@@ -55,7 +57,8 @@ private:
     void parseWhileLoop();           // while loop
     void parseForLoop();             //Python like forloop
     void parseMatchStatement();      // python like match and case
-    void parseFunctionDeclaration(); // Adapt from first parser (if supported)
+    void parseFnDeclaration();       // Adapt from first parser (if supported)
+    void parseFnCall();
     void parseClassDeclaration();    // Adapt from first parser (if supported)
     void parseReturnStatement();     // Adapt from first parser
 

@@ -3,31 +3,43 @@
 #include <iostream>
 #include <string>
 #include <variant>
-#include "backends/import.hh"
+
+REPL::REPL()
+    : backend(std::make_unique<StackBackend>(bytecode))
+    , vm(nullptr)
+{}
 
 void REPL::start()
 {
     std::cout << "Luminar REPL :" << std::endl;
-    while (true) {
-        // Read input
-        std::string input = readInput();
-        // Tokenize input
-        Scanner scanner(input);
-        Parser parser(scanner);
-        debug(scanner, parser);
-        auto backend = std::make_unique<StackBackend>(parser.getBytecode());
-        VM vm(parser, std::move(backend));
+    //    while (true) {
+    // Read input
+    //std::string input = readInput();
+    std::string input = readFile("test.lm");
+    // Tokenize input
+    Scanner scanner(input);
+    Parser parser(scanner);
+    debug(scanner, parser);
+    std::vector<Instruction> bytecode = parser.getBytecode();
+    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
+    VM vm(parser, std::move(backend));
 
-        // RegisterVM vm(parser);
-        try {
-            vm.run();
-            vm.dumpRegisters();
+    //        if (!vm) {
+    //            vm = std::make_unique<VM>(parser, std::move(backend));
+    //        } else {
+    //            vm->appendBytecode(bytecode);
+    //        }
+
+    // RegisterVM vm(parser);
+    try {
+        vm.run();
+        vm.dumpRegisters();
 
             } catch (const std::exception &e) {
                 std::cerr << " Repl Error: " << e.what() << std::endl;
                  // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
         }
-    }
+        //    }
 }
 
 void REPL::startDevMode()
