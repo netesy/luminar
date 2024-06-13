@@ -83,6 +83,9 @@ void StackBackend::execute(const Instruction& instruction) {
         case INVOKE_FUNCTION:
             handleCallFunction(std::get<std::string>(instruction.value));
             break;
+        case PUSH_ARGS:
+            handlePushArg(instruction);
+            break;
         case WHILE_LOOP:
             handleWhileLoop();
             break;
@@ -359,21 +362,45 @@ void StackBackend::handleHalt() {
     exit(0);
 }
 
-void StackBackend::handleDeclareFunction(const std::string& functionName) {
+void StackBackend::handleDeclareFunction(const std::string &functionName)
+{
     if (functions.find(functionName) != functions.end()) {
-        std::cerr << "Error: Function already declared" << std::endl;
+        std::cerr << "Error: Function " << functionName << " already declared" << std::endl;
         return;
     }
+    //    functions[functionName] = [this, functionName]() {
+    //        auto it = std::find_if(program.begin(), program.end(), [functionName](const Instruction& instr) {
+    //            return instr.opcode == Opcode::DEFINE_FUNCTION && std::get<std::string>(instr.value) == functionName;
+    //        });
+
+    //        if (it != program.end()) {
+    //            size_t index = std::distance(program.begin(), it);
+    //            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT; ++i) {
+    //                execute(program[i]);
+    //            }
+    //        } else {
+    //            std::cerr << "Error: Function not found" << std::endl;
+    //        }
+    //    };
+
     functions[functionName] = [this, functionName]() {
-        auto it = std::find_if(program.begin(), program.end(), [functionName](const Instruction& instr) {
-            return instr.opcode == Opcode::DEFINE_FUNCTION && std::get<std::string>(instr.value) == functionName;
-        });
+        auto it = std::find_if(program.begin(),
+                               program.end(),
+                               [functionName](const Instruction &instr) {
+                                   return instr.opcode == Opcode::DEFINE_FUNCTION
+                                          && std::get<std::string>(instr.value) == functionName;
+                               });
 
         if (it != program.end()) {
             size_t index = std::distance(program.begin(), it);
-            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT; ++i) {
+            std::stack<Value> localStack;
+            std::swap(stack, localStack); // Save current stack state
+            for (size_t i = index + 1;
+                 i < program.size() && program[i].opcode != Opcode::HALT; //was END_FUNCTION
+                 ++i) {
                 execute(program[i]);
             }
+            std::swap(stack, localStack); // Restore previous stack state
         } else {
             std::cerr << "Error: Function not found" << std::endl;
         }
@@ -388,6 +415,9 @@ void StackBackend::handleCallFunction(const std::string& functionName) {
     functions[functionName]();
 }
 
+void StackBackend::handlePushArg(const Instruction& instruction) {
+    stack.push(instruction.value);
+}
 
 void StackBackend::handleWhileLoop() {
     // Implementation for while loop

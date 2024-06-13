@@ -46,6 +46,7 @@ enum Opcode {
     // Function definition and invocation
     DEFINE_FUNCTION,
     INVOKE_FUNCTION,
+    PUSH_ARGS,
     RETURN_VALUE,
 
     // Loop operations

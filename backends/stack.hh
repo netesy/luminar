@@ -44,6 +44,7 @@ private:
     void handleCallFunction(const std::string& functionName);
     void handleParallel(unsigned int taskCount);
     void handleConcurrent(unsigned int taskCount);
+    void handlePushArg(const Instruction &instruction);
     void handlePrint();
     void handleHalt();
     void handleWhileLoop();

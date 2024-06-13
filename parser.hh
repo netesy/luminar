@@ -1,16 +1,16 @@
 //parser.hh
 #include "instructions.hh"
-#include "scanner.hh"
 #include "precedence.hh"
+#include "scanner.hh"
 #include "symbol.hh"
 #include <any>
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-
 
 enum ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
