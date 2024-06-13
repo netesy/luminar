@@ -1,6 +1,7 @@
 //parser.hh
 #include "instructions.hh"
 #include "precedence.hh"
+#include "variable.hh"
 #include "scanner.hh"
 #include "symbol.hh"
 #include <any>
@@ -41,8 +42,8 @@ private:
     // Scanner instance
     Scanner &scanner;
 
-    // Symbol table
-    SymbolTable symbolTable;
+    //variables 
+    Variables variable; // Instance of Variables class
     //    std::unordered_set<std::string> variableMap;
     std::unordered_map<std::string, int> variableMap; // Use unordered_map to track variable indices
     int variableCounter = 0;                          // Initialize variable counter
@@ -110,6 +111,33 @@ private:
 
     // Other helper functions (adapt from first parser or rewrite)
     void error(const std::string &message);
+
+    //var methods
+    void declareVariable(const Token& name) {
+        try {
+            int32_t memoryLocation = variable.addVariable(name.lexeme);
+            emit(Opcode::DECLARE_VARIABLE, name.line, memoryLocation);
+        } catch (const std::runtime_error& e) {
+            error(e.what());
+        }
+    }
+
+    int32_t getVariableMemoryLocation(const Token& name) {
+        try {
+            return variable.getVariableMemoryLocation(name.lexeme);
+        } catch (const std::runtime_error& e) {
+            error(e.what());
+            return -1; // Error case
+        }
+    }
+
+    void enterScope() {
+        variable.enterScope();
+    }
+
+    void exitScope() {
+        variable.exitScope();
+    }
 };
 
 //// Maybe consider using references for efficiency

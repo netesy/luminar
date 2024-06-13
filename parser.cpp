@@ -434,17 +434,9 @@ void Parser::parseDecVariable()
     }
     consume(TokenType::EQUAL, "Expected '=' after type");
     parseExpression();
-    if (variableMap.find(name.lexeme) == variableMap.end()) {
-        int index = variableCounter++;
-        variableMap[name.lexeme] = index;
-        emit(Opcode::DECLARE_VARIABLE, name.line, index);
-
-    } else {
-        error("Variable already declared: " + name.lexeme);
-    }
-    auto it = variableMap.find(name.lexeme);
-    int index = it->second;
-    emit(Opcode::STORE_VARIABLE, name.line, index);
+    declareVariable(name);
+    int32_t memoryLocation = getVariableMemoryLocation(name);
+    emit(Opcode::STORE_VARIABLE, name.line, memoryLocation);
 }
 
 void Parser::parseLoadVariable()
@@ -452,9 +444,10 @@ void Parser::parseLoadVariable()
     // Parse loading existing variable
     Token name = previous();
 
-    if (variableMap.find(name.lexeme) != variableMap.end()) {
-        int index = variableMap[name.lexeme];
-        emit(Opcode::LOAD_VARIABLE, name.line, index);
+    int32_t memoryLocation = getVariableMemoryLocation(name);
+
+    if (memoryLocation) {
+        emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
     } else if(check(TokenType::LEFT_PAREN)) {
         parseFnCall();
     }else{
@@ -464,11 +457,13 @@ void Parser::parseLoadVariable()
 
 void Parser::parseBlock()
 {
+    enterScope();
     consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        parseDeclaration(); //handles statements inside the block
+        parseDeclaration(); // Handles statements inside the block
     }
     consume(TokenType::RIGHT_BRACE, "Expected '}' after block.");
+    exitScope();
 }
 
 void Parser::parseAssignment()
@@ -478,15 +473,16 @@ void Parser::parseAssignment()
 
     parsePrecedence(PREC_ASSIGNMENT);
 
-    auto it = variableMap.find(varName);
-    if (it == variableMap.end()) {
-        int index = variableCounter++;
-        variableMap[varName] = index;
-        emit(Opcode::DECLARE_VARIABLE, token.line, index);
-    } else {
-        int index = it->second;
-        emit(Opcode::STORE_VARIABLE, token.line, index);
-    }
+        // Check if the variable exists in any scope
+        if (!variable.hasVariable(varName)) {
+            // Variable is not declared, declare it in the current scope
+            int32_t memoryLocation = variable.addVariable(varName);
+            emit(Opcode::DECLARE_VARIABLE, token.line, memoryLocation);
+        }
+
+        // Get the memory location of the variable (assumes variable is now declared)
+        int32_t memoryLocation = variable.getVariableMemoryLocation(varName);
+        emit(Opcode::STORE_VARIABLE, token.line, memoryLocation);
 }
 
 void Parser::parseAnd()

@@ -1,6 +1,7 @@
 # Luminar Programming Language
 
 **Luminar** is a new, statically typed programming language designed for readability, efficiency, and expressiveness.
+It aims to be interpreted for development but compiled for release.
 
 This README provides a basic overview of the language features.
 
