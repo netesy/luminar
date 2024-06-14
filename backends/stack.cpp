@@ -399,13 +399,7 @@ void StackBackend::handleWhileLoop() {
 }
 
 void StackBackend::handleJump() {
-    if (stack.empty()) {
-        std::cerr << "Error: Invalid value stack for jump operation" << std::endl;
-        return;
-    }
-
-    auto offset = stack.top();
-    stack.pop();
+    auto offset =  program[this->pc].value;
 
     if (!std::holds_alternative<int32_t>(offset)) {
         std::cerr << "Error: Invalid jump offset type" << std::endl;
@@ -416,25 +410,27 @@ void StackBackend::handleJump() {
 }
 
 void StackBackend::handleJumpZero() {
-    if (stack.size() < 2) {
-        std::cerr << "Error: Insufficient values on the stack for JUMP_IF_FALSE" << std::endl;
-        return;
-    }
+    auto offset =  program[this->pc].value;
 
-    auto offset = stack.top();
-    stack.pop();
     auto condition = stack.top();
     stack.pop();
+    // std::cout << typeid(condition).name() << std::endl;
+    // std::cout << "condition offset size: "<< std::get<double>(condition) << std::endl;
+   // std::visit([](const auto &value) { std::cout << "The condition : " << value << std::endl; }, condition);
+    //    std::visit([](const auto &value) {
+    //     std::cout << "The condition: " << value << " (Type: " << typeid(value).name() << ")" << std::endl;
+    // }, condition);
+
 
     if (!std::holds_alternative<bool>(condition)) {
         std::cerr << "Error: JUMP_IF_FALSE requires a boolean condition" << std::endl;
         return;
     }
 
-    if (!std::holds_alternative<int32_t>(offset)) {
-        std::cerr << "Error: JUMP_IF_FALSE requires an integer offset" << std::endl;
-        return;
-    }
+    // if (!std::holds_alternative<int32_t>(offset)) {
+    //     std::cerr << "Error: JUMP_IF_FALSE requires an integer offset" << std::endl;
+    //     return;
+    // }
 
     if (!std::get<bool>(condition)) {
         pc += std::get<int32_t>(offset);
