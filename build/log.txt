@@ -1,359 +1,359 @@
 
  ----------------DEBUG----------------
-Error at line 1, position 15 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 19, position 9 (Syntax Error): Variable not found: n
+Token: LESS_EQUAL
+Time: Thu Jun 13 21:16:12 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 19, position 9 (Syntax Error): Undeclared variable: n
+Token: LESS_EQUAL
+Time: Thu Jun 13 21:22:34 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 2, position 9 (Syntax Error): Undeclared variable: n
+Token: LESS_EQUAL
+Time: Thu Jun 13 21:22:52 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 2, position 9 (Syntax Error): Undeclared variable: n
+Token: LESS_EQUAL
+Time: Thu Jun 13 21:24:16 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 38, position 55 (Syntax Error): Variable not found: hello
+Token: LEFT_PAREN
+Time: Thu Jun 13 21:28:28 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 39, position 57 (Syntax Error): Variable not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 15:03:41 2024
+Time: Thu Jun 13 21:31:12 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: RIGHT_PAREN
-Time: Wed May  1 15:04:24 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: RIGHT_PAREN
-Time: Wed May  1 15:04:50 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: RIGHT_PAREN
-Time: Wed May  1 15:11:37 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 8 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: RIGHT_PAREN
-Time: Wed May  1 15:26:14 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 7 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 39, position 57 (Syntax Error): Variable not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 15:26:33 2024
+Time: Thu Jun 13 21:33:01 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 9 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 39, position 57 (Syntax Error): Variable is not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 15:42:13 2024
+Time: Thu Jun 13 21:33:10 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 39, position 57 (Syntax Error): Variable is not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 15:42:27 2024
+Time: Thu Jun 13 21:36:10 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 39, position 57 (Syntax Error): Variable is not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 16:32:18 2024
+Time: Thu Jun 13 21:41:04 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
+Error at line 38, position 57 (Syntax Error): Variable is not found: hello
 Token: EOF_TOKEN
-Time: Wed May  1 16:36:29 2024
+Time: Thu Jun 13 21:51:41 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: EOF_TOKEN
-Time: Wed May  1 16:44:04 2024
+Error at line 37, position 51 (Syntax Error): Variable is not found: hello
+Token: PRINT
+Time: Thu Jun 13 21:51:57 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: EOF_TOKEN
-Time: Wed May  1 16:58:49 2024
+Error at line 36, position 51 (Syntax Error): Variable is not found: hello
+Token: SEMICOLON
+Time: Thu Jun 13 21:52:09 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 4 (Scanning): Invalid character.
-Token: ^
-Time: Wed May  1 17:06:41 2024
-
-Suggestion: Check for invalid characters in your code.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 5 (Parsing): Expected binary operator (+, -, *, /, %)
-Token: EOF_TOKEN
-Time: Wed May  1 17:19:47 2024
+Error at line 33, position 22 (Syntax Error): Undeclared variable: age
+Token: STAR
+Time: Thu Jun 13 21:55:02 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 0 (Parsing): Unexpected token in primary expressions
-Token: DOT
-Time: Thu May  2 12:55:24 2024
+Error at line 34, position 22 (Syntax Error): Undeclared variable: age
+Token: STAR
+Time: Thu Jun 13 21:56:41 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 7 (Parsing): Expected '(' at start of group.
-Token: NUMBER
-Time: Fri May 24 05:57:42 2024
+Error at line 36, position 32 (Syntax Error): Undeclared variable: age
+Token: STAR
+Time: Thu Jun 13 21:57:01 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 5 (Parsing): Unexpected token in literal expression
-Token: GREATER
-Time: Fri May 24 06:16:17 2024
+Error at line 36, position 32 (Syntax Error): Undeclared variable: age
+Token: STAR
+Time: Thu Jun 13 21:57:19 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 7 (Parsing): Expected '(' at start of group.
-Token: NUMBER
-Time: Sat May 25 19:12:48 2024
+Error at line 42, position 9 (Syntax Error): Undeclared variable: n
+Token: LESS_EQUAL
+Time: Thu Jun 13 21:57:33 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 0, position 2 (Parsing): Unexpected token
-Token: UNKNOWN
-Time: Sat May 25 19:31:20 2024
+Error at line 56, position 5 (Syntax Error): Unexpected token
+Token: WHILE
+Time: Thu Jun 13 22:58:00 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Unexpected token in literal expression
-Token: EOF_TOKEN
-Time: Sun May 26 05:31:32 2024
+Error at line 56, position 5 (Syntax Error): Unexpected token
+Token: WHILE
+Time: Thu Jun 13 22:59:57 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Unexpected token in literal expression
-Token: AND
-Time: Sun May 26 05:35:53 2024
+Error at line 55, position 5 (Syntax Error): Unexpected token
+Token: WHILE
+Time: Thu Jun 13 23:01:25 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 0 (Parsing): Unexpected token in primary expressions
-Token: DOT
-Time: Sun May 26 06:12:51 2024
+Error at line 55, position 7 (Syntax Error): Undeclared variable: p
+Token: LESS
+Time: Thu Jun 13 23:01:52 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Parsing): Unexpected binary operator
-Token: EOF_TOKEN
-Time: Sun May 26 06:27:39 2024
+Error at line 55, position 7 (Syntax Error): Undeclared variable: p
+Token: LESS
+Time: Thu Jun 13 23:04:26 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected 'var' before the variable name
-Token: INDENTIFIER
-Time: Sun May 26 14:55:04 2024
+Error at line 55, position 7 (Syntax Error): Variable is not found: <
+Token: LESS
+Time: Thu Jun 13 23:05:14 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Variable 'var' not declared
-Token: INDENTIFIER
-Time: Sun May 26 15:15:36 2024
+Error at line 55, position 7 (Syntax Error): Undeclared variable: p
+Token: LESS
+Time: Thu Jun 13 23:06:31 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected ':' after variable name
-Token: INDENTIFIER
-Time: Sun May 26 15:20:33 2024
+Error at line 55, position 7 (Syntax Error): Undeclared variable: p
+Token: LESS
+Time: Thu Jun 13 23:06:50 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected ':' after variable name
-Token: INDENTIFIER
-Time: Sun May 26 15:20:45 2024
+Error at line 55, position 7 (Syntax Error): Undeclared variable: p
+Token: LESS
+Time: Thu Jun 13 23:07:44 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected ':' after variable name
-Token: INDENTIFIER
-Time: Sun May 26 15:28:48 2024
+Error at line 55, position 10 (Syntax Error): Expected ')' after expression
+Token: LEFT_BRACE
+Time: Thu Jun 13 23:08:00 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected '=' after type
-Token: INDENTIFIER
-Time: Sun May 26 15:30:17 2024
+Error at line 58, position 20 (Syntax Error): Expected ';' after expression.
+Token: RIGHT_BRACE
+Time: Thu Jun 13 23:08:45 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected '=' after type
-Token: INDENTIFIER
-Time: Sun May 26 15:31:06 2024
+Error at line 57, position 16 (Syntax Error): Unexpected token
+Token: INDENTIFIER: p
+Time: Thu Jun 13 23:09:52 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 17 (Scanning): Unterminated string.
-Token: ""Joel
-Time: Sun May 26 15:31:23 2024
+Error at line 61, position 27 (Syntax Error): Unexpected token
+Token: WHILE
+Time: Thu Jun 13 23:10:15 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Parsing): Expected 'var' before variable name
-Token: INDENTIFIER
-Time: Sun May 26 15:31:33 2024
+Error at line 63, position 38 (Syntax Error): Unexpected token
+Token: RIGHT_BRACE
+Time: Thu Jun 13 23:10:33 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Syntax Error): Expected 'var' before variable name
-Token: INDENTIFIER: name
-Time: Sun May 26 15:45:07 2024
+Error at line 57, position 11 (Syntax Error): Unexpected token
+Token: PRINT
+Time: Fri Jun 14 00:03:02 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Syntax Error): Expected '=' after type
-Token: INDENTIFIER: name
-Time: Sun May 26 15:47:57 2024
+Error at line 56, position 5 (Syntax Error): Unexpected token
+Token: IF
+Time: Fri Jun 14 00:03:30 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Syntax Error): Expected type after ':'
-Token: STR_TYPE
-Time: Sun May 26 15:50:21 2024
+Error at line 57, position 11 (Syntax Error): Unexpected token
+Token: PRINT
+Time: Fri Jun 14 00:03:53 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Syntax Error): Variable 'named' not declared
-Token: RIGHT_PAREN
-Time: Sun May 26 15:52:58 2024
+Error at line 57, position 11 (Syntax Error): Unexpected token
+Token: PRINT
+Time: Fri Jun 14 00:05:10 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 5 (Syntax Error): Variable 'name' not declared
-Token: EQUAL
-Time: Sun May 26 16:18:18 2024
+Error at line 58, position 16 (Syntax Error): Unexpected token
+Token: RIGHT_BRACE
+Time: Fri Jun 14 00:06:45 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 3 (Syntax Error): Variable 'name' not declared
-Token: RIGHT_PAREN
-Time: Sun May 26 16:41:14 2024
+Error at line 58, position 16 (Syntax Error): Unexpected token
+Token: RIGHT_BRACE
+Time: Fri Jun 14 00:07:56 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 5 (Syntax Error): Variable 'name' not declared
-Token: EQUAL
-Time: Sun May 26 16:51:15 2024
+Error at line 3, position 14 (Syntax Error): Unexpected token
+Token: NUMBER: 1
+Time: Fri Jun 14 00:39:31 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 1, position 1 (Syntax Error): Unexpected token
-Token: STRING: C:/Users/Fablur/Desktop/Projects/luminar/build/luminar.exe
-Time: Sun May 26 17:18:46 2024
+Error at line 3, position 14 (Syntax Error): Unexpected token
+Token: NUMBER: 1
+Time: Fri Jun 14 00:39:57 2024
 
 Suggestion: Check your code for errors.
  ----------------END----------------

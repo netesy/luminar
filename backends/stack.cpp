@@ -59,9 +59,6 @@ void StackBackend::execute(const Instruction& instruction) {
         case LOAD_STR:
             handleLoadConst(instruction.value);
             break;
-            //case LOAD_STR:
-            //handleLoadStr(std::get<std::string>(instruction.value));
-            break;
         case PRINT:
             handlePrint();
             break;
@@ -89,6 +86,12 @@ void StackBackend::execute(const Instruction& instruction) {
         case WHILE_LOOP:
             handleWhileLoop();
             break;
+        case JUMP:
+            handleJump();
+            break;
+        case JUMP_IF_FALSE:
+            handleJumpZero();
+            break;
         case PARALLEL:
             handleParallel(std::get<int32_t>(instruction.value));
             break;
@@ -97,6 +100,20 @@ void StackBackend::execute(const Instruction& instruction) {
             break;
         default:
             std::cerr << "Unknown opcode." << std::endl;
+    }
+}
+
+void StackBackend::run(const std::vector<Instruction>& program)  {
+    this->program = program; // Store the program in the instance
+    try {
+        pc = 0; // Reset program counter
+        while (pc < program.size()) {
+            const Instruction& instruction = program[pc];
+            execute(instruction);
+            pc++;
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
     }
 }
 
@@ -291,28 +308,11 @@ void StackBackend::performComparisonOperation(const Instruction& instruction) {
     }
 }
 
-void StackBackend::handleLoadConst(const Value &constantValue)
-{
-    //    if (constantIndex >= constants.size()) {
-    //        std::cerr << "Error: Invalid constant index" << std::endl;
-    //        return;
-    //    }
-    if (std::holds_alternative<int32_t>(constantValue)) {
-        constants.push_back(std::get<int32_t>(constantValue));
-        stack.push(std::get<int32_t>(constantValue));
-    } else if (std::holds_alternative<double>(constantValue)) {
-        constants.push_back(std::get<double>(constantValue));
-        stack.push(std::get<double>(constantValue));
-    } else if (std::holds_alternative<std::string>(constantValue)) {
-        constants.push_back(std::get<std::string>(constantValue));
-        stack.push(std::get<std::string>(constantValue));
-    } else {
-        std::cerr << "Error: Unsupported type for LOAD_CONST" << std::endl;
-    }
+void StackBackend::handleLoadConst(const Value &constantValue) {
+    stack.push(constantValue);
 }
 
-void StackBackend::handleLoadStr(const std::string &constantValue)
-{
+void StackBackend::handleLoadStr(const std::string &constantValue) {
     stack.push(constantValue);
 }
 
@@ -330,8 +330,7 @@ void StackBackend::handleLoadVariable(unsigned int variableIndex) {
     stack.push(variables[variableIndex]);
 }
 
-void StackBackend::handleStoreVariable(unsigned int variableIndex)
-{
+void StackBackend::handleStoreVariable(unsigned int variableIndex) {
     if (variableIndex >= variables.size()) {
         variables.resize(variableIndex + 1);
     }
@@ -341,9 +340,6 @@ void StackBackend::handleStoreVariable(unsigned int variableIndex)
     }
     auto value = stack.top();
     variables[variableIndex] = value;
-    //    std::cout << "This variable of index: " << variableIndex
-    //              << " has a value of: " << std::get<std::string>(value) << std::endl;
-
     stack.pop();
 }
 
@@ -362,42 +358,21 @@ void StackBackend::handleHalt() {
     exit(0);
 }
 
-void StackBackend::handleDeclareFunction(const std::string &functionName)
-{
+void StackBackend::handleDeclareFunction(const std::string &functionName) {
     if (functions.find(functionName) != functions.end()) {
         std::cerr << "Error: Function " << functionName << " already declared" << std::endl;
         return;
     }
-    //    functions[functionName] = [this, functionName]() {
-    //        auto it = std::find_if(program.begin(), program.end(), [functionName](const Instruction& instr) {
-    //            return instr.opcode == Opcode::DEFINE_FUNCTION && std::get<std::string>(instr.value) == functionName;
-    //        });
-
-    //        if (it != program.end()) {
-    //            size_t index = std::distance(program.begin(), it);
-    //            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT; ++i) {
-    //                execute(program[i]);
-    //            }
-    //        } else {
-    //            std::cerr << "Error: Function not found" << std::endl;
-    //        }
-    //    };
-
     functions[functionName] = [this, functionName]() {
-        auto it = std::find_if(program.begin(),
-                               program.end(),
-                               [functionName](const Instruction &instr) {
-                                   return instr.opcode == Opcode::DEFINE_FUNCTION
-                                          && std::get<std::string>(instr.value) == functionName;
-                               });
+        auto it = std::find_if(program.begin(), program.end(), [functionName](const Instruction &instr) {
+            return instr.opcode == Opcode::DEFINE_FUNCTION && std::get<std::string>(instr.value) == functionName;
+        });
 
         if (it != program.end()) {
             size_t index = std::distance(program.begin(), it);
             std::stack<Value> localStack;
             std::swap(stack, localStack); // Save current stack state
-            for (size_t i = index + 1;
-                 i < program.size() && program[i].opcode != Opcode::HALT; //was END_FUNCTION
-                 ++i) {
+            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT; ++i) {
                 execute(program[i]);
             }
             std::swap(stack, localStack); // Restore previous stack state
@@ -423,6 +398,49 @@ void StackBackend::handleWhileLoop() {
     // Implementation for while loop
 }
 
+void StackBackend::handleJump() {
+    if (stack.empty()) {
+        std::cerr << "Error: Invalid value stack for jump operation" << std::endl;
+        return;
+    }
+
+    auto offset = stack.top();
+    stack.pop();
+
+    if (!std::holds_alternative<int32_t>(offset)) {
+        std::cerr << "Error: Invalid jump offset type" << std::endl;
+        return;
+    }
+
+    pc += std::get<int32_t>(offset);
+}
+
+void StackBackend::handleJumpZero() {
+    if (stack.size() < 2) {
+        std::cerr << "Error: Insufficient values on the stack for JUMP_IF_FALSE" << std::endl;
+        return;
+    }
+
+    auto offset = stack.top();
+    stack.pop();
+    auto condition = stack.top();
+    stack.pop();
+
+    if (!std::holds_alternative<bool>(condition)) {
+        std::cerr << "Error: JUMP_IF_FALSE requires a boolean condition" << std::endl;
+        return;
+    }
+
+    if (!std::holds_alternative<int32_t>(offset)) {
+        std::cerr << "Error: JUMP_IF_FALSE requires an integer offset" << std::endl;
+        return;
+    }
+
+    if (!std::get<bool>(condition)) {
+        pc += std::get<int32_t>(offset);
+    }
+}
+
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks) {
     // Start threads for each task
     for (auto& task : tasks) {
@@ -446,7 +464,7 @@ void StackBackend::handleParallel(unsigned int taskCount) {
     for (unsigned int i = 0; i < taskCount; ++i) {
         tasks.push_back([this, i, instructionsPerTask]() {
             unsigned int start = i * instructionsPerTask;
-            unsigned int end = (i + 1) * instructionsPerTask;
+            unsigned int end = (i + 1) * instructionsPerTask; //(i == taskCount - 1) ? program.size() : (i + 1) * instructionsPerTask;
             for (unsigned int j = start; j < end; ++j) {
                 execute(program[j]);
             }
@@ -458,13 +476,6 @@ void StackBackend::handleParallel(unsigned int taskCount) {
 
 void StackBackend::handleConcurrent(unsigned int taskCount) {
     std::vector<std::function<void()>> tasks;
-    for (unsigned int i = 0; i < taskCount; ++i) {
-        tasks.push_back([this, i]() {
-            std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
-            this->pc = i;  // Assign each task its part of the program
-            //  this->execute(program[taskCount]); // Run each part of the program concurrently
-        });
-    }
 
     // Calculate the number of instructions per task
     unsigned int instructionsPerTask = program.size() / taskCount;
@@ -472,13 +483,14 @@ void StackBackend::handleConcurrent(unsigned int taskCount) {
     // Create tasks for each part of the program
     for (unsigned int i = 0; i < taskCount; ++i) {
         tasks.push_back([this, i, instructionsPerTask]() {
-            std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
             unsigned int start = i * instructionsPerTask;
-            unsigned int end = (i + 1) * instructionsPerTask;
+            unsigned int end = (i + 1) * instructionsPerTask; //(i == taskCount - 1) ? program.size() : (i + 1) * instructionsPerTask;
             for (unsigned int j = start; j < end; ++j) {
-                this->execute(program[j]);
+                std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
+                execute(program[j]);
             }
         });
     }
+
     concurrent(tasks);
 }

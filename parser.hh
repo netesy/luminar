@@ -3,7 +3,6 @@
 #include "precedence.hh"
 #include "variable.hh"
 #include "scanner.hh"
-#include "symbol.hh"
 #include <any>
 #include <functional>
 #include <map>

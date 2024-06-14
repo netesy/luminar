@@ -1,37 +1,71 @@
-// var named = "Joe Medly" 
-// var pi = 3.1423838
-// print(pi)
-// var name = "Jessy"
+        // fn factorial(n) {
+        //     if (n <= 1) {
+        //         return 1
+        //     }
+        //     return n * factorial(n - 1)
+        // }
+
+        // fn sum(a, b, c) {
+        //     return a + b + c
+        // }
+
+        // fn main() {
+        //     // var result1 = factorial(5)
+        //     // print(result1)
+
+        //     var result2 = sum(1, 2, 3)
+        //     print(result2)
+        // }
+
+        // main()
+
+
+// // var named = "Joe Medly" 
+// // var pi = 3.142383848
+// // print(pi)
+// // var name = "Jessy"
 // var age = 325
 // var radius:int = 5
-// print(age + radius)
+// // print(age + radius)
 
-
+// //issues with accessing global variables
 // fn hello() {
+// var age = 325
+// var radius:int = 5
 //   print("Hello, world!")
 //   print(age * radius)
 // }
+// hello()
 // print(age - radius)
 
-// hello()
-// //main()
-        fn factorial(n) {
-            if (n <= 1) {
-                return 1;
-            }
-            return n * factorial(n - 1);
-        }
+//        fn factorial(n) {
+//             if (n <= 1) {
+//                 return 1;
+//             }
+//             return n * factorial(n - 1);
+//         }
 
-        fn sum(a, b, c) {
-            return a + b + c;
-        }
+//         fn sum(a, b, c) {
+//             return a + b + c;
+//         }
 
-        fn main() {
-            var result1 = factorial(5);
-            print(result1);
+//             var result1 = factorial(5);
+//         print(result1)
 
-            var result2 = sum(1, 2, 3);
-            print(result2);
-        }
+var x = 10
+if (x < 15) {
+    print(x)
+} else {
+    print(15)
+}
 
-        main();
+    // var p = 0
+    // while (p < 5) {
+    //     print(p)
+    //     p = p + 1;
+    // }
+
+    // var i = 0
+    // while (i < 5) {
+    //     print(i)
+    // }

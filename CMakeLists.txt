@@ -18,8 +18,8 @@ add_executable(luminar main.cpp
     main.cpp
     opcodes.hh
     types.hh
-    symbol.hh
     helper.hh
+    variable.hh
     instructions.hh
     backends/jit.hh backends/jit.cpp
     backends/codegen.hh backends/codegen.cpp

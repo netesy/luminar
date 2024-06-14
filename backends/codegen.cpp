@@ -14,6 +14,20 @@ CodegenBackend::CodegenBackend(const std::vector<Instruction>& program)
     outFile << "int main() {\n";
 }
 
+void CodegenBackend::run(const std::vector<Instruction>& program)  {
+    this->program = program; // Store the program in the instance
+    try {
+        pc = 0; // Reset program counter
+        while (pc < program.size()) {
+            const Instruction& instruction = program[pc];
+            execute(instruction);
+            pc++;
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
+    }
+}
+
 void CodegenBackend::execute(const Instruction& instruction) {
     switch (instruction.opcode) {
         case NEGATE:

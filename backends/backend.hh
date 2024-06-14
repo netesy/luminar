@@ -11,6 +11,7 @@ public:
     virtual ~Backend() = default;
     virtual void execute(const Instruction &instruction) = 0;
     virtual void dumpRegisters() = 0;
+    virtual void run(const std::vector<Instruction> &program)  = 0;
 };
 
 #endif // BACKEND_HH

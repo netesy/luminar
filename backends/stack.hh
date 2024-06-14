@@ -19,6 +19,7 @@ public:
 
     void execute(const Instruction &instruction) override;
     void dumpRegisters() override;
+    void run(const std::vector<Instruction> &program) override;
 
 private:
     std::map<std::string, std::function<void()>> functions;
@@ -47,6 +48,8 @@ private:
     void handlePushArg(const Instruction &instruction);
     void handlePrint();
     void handleHalt();
+    void handleJump();
+    void handleJumpZero();
     void handleWhileLoop();
     void handleForLoop();
     void handleIfElse();

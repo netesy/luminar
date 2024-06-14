@@ -16,6 +16,7 @@ public:
     CodegenBackend(const std::vector<Instruction>& program);
     void execute(const Instruction& instruction) override;
     void dumpRegisters() override;
+    void run(const std::vector<Instruction> &program) override;
        unsigned int pc = 0;            // program counter
 
 private:

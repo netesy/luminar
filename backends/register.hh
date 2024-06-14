@@ -17,6 +17,7 @@ public:
 
     void execute(const Instruction &instruction) override;
     void dumpRegisters() override;
+    void run(const std::vector<Instruction> &program) override;
 
 private:
     unsigned int pc = 0;            // program counter

@@ -4,73 +4,99 @@
 #include <string>
 #include <unordered_map>
 #include <stack>
-using Scope = std::unordered_map<std::string, uint32_t>;
+//using Scope = std::unordered_map<std::string, int32_t>;
 
-class Variables
-{
+
+//     struct VariableInfo {
+//     uint32_t memoryLocation;
+//     VariableType type;
+//     bool isMutable;
+// };
+
+struct VariableInfo {
+    int32_t memoryLocation;
+    bool isMutable;
+};
+
+using Scope = std::unordered_map<std::string, VariableInfo>;
+class Variables {
 public:
-    Variables() {
-        enterScope(); // Start with a global scope
+  Variables() {
+    // Add a global scope initially
+    enterScope();
+  }
+
+  // Add a new variable to the current scope (local or global)
+  int32_t addVariable(const std::string& name, bool isGlobal = false) {
+    if (currentScope().count(name) > 0) {
+      throw std::runtime_error("Variable already declared in this scope: " + name);
     }
 
-    // Add a new variable to the current scope
-    uint32_t addVariable(const std::string &name)
-    {
-        if (currentScope().count(name) > 0) {
-            throw std::runtime_error("Variable already declared in this scope: " + name);
-        }
-        
-        // Use an atomic counter to ensure thread-safe memory allocation
-        static std::atomic<uint32_t> nextMemoryLocation = 0;
-        uint32_t memoryLocation = nextMemoryLocation++;
-        currentScope()[name] = memoryLocation;
-        return memoryLocation;
-    }
+    bool isMutable = true;
+    static std::atomic<int32_t> nextMemoryLocation = 0;
+    int32_t memoryLocation = nextMemoryLocation++;
 
-    // Check if a variable exists in any scope
-    bool hasVariable(const std::string &name) const {
-        for (const auto &scope : scopeStack_) {
-            if (scope.count(name) > 0) {
-                return true;
-            }
-        }
-        return false;
+    if (isGlobal) {
+      // Add to the global scope (first element in the vector)
+      scopeStack_.front()[name] = {memoryLocation, isMutable};
+    } else {
+      // Add to the current local scope
+      currentScope()[name] = {memoryLocation, isMutable};
     }
+    return memoryLocation;
+  }
 
-    // Get the memory location of a variable
-    uint32_t getVariableMemoryLocation(const std::string &name) const
-    {
-        for (const auto &scope : scopeStack_) {
-            if (scope.count(name) > 0) {
-                return scope.at(name);
-            }
-        }
-        // Handle error: variable not found in any scope
-        throw std::runtime_error("Variable not found: " + name);
+  // Check if a variable exists in any scope
+  bool hasVariable(const std::string& name) const {
+    for (const auto& scope : scopeStack_) {
+      if (scope.count(name) > 0) {
+        return true;
+      }
     }
+    return false;
+  }
 
-    // Enter a new scope
-    void enterScope() {
-        scopeStack_.push({});
+  // Get the memory location of a variable
+  int32_t getVariableMemoryLocation(const std::string& name) const {
+    for (const auto& scope : scopeStack_) {
+      if (scope.count(name) > 0) {
+        return scope.at(name).memoryLocation;
+      }
     }
+    throw std::runtime_error("Variable not found: " + name);
+  }
 
-    // Exit the current scope
-    void exitScope() {
-        if (!scopeStack_.empty()) {
-            scopeStack_.pop();
-        } else {
-            throw std::runtime_error("Mismatched scope exit");
-        }
+  // Get the mutability of a variable
+  bool isVariableMutable(const std::string& name) const {
+    for (const auto& scope : scopeStack_) {
+      if (scope.count(name) > 0) {
+        return scope.at(name).isMutable;
+      }
     }
+    throw std::runtime_error("Variable not found: " + name);
+  }
+
+  // Enter a new local scope
+  void enterScope() {
+    scopeStack_.push_back(Scope());
+  }
+
+  // Exit the current scope
+  void exitScope() {
+    if (scopeStack_.size() <= 1) {
+      throw std::runtime_error("Mismatched scope exit (cannot exit global scope)");
+    }
+    scopeStack_.pop_back();
+  }
 
 private:
-    std::stack<Scope> scopeStack_;
+  std::vector<Scope> scopeStack_;  // Vector to store scopes (global first)
 
-    Scope& currentScope() {
-        return scopeStack_.top();
-    }
+  Scope& currentScope() {
+    return scopeStack_.back();
+  }
 
-    const Scope& currentScope() const {
-        return scopeStack_.top();
-    }
+  const Scope& currentScope() const {
+    return scopeStack_.back();
+  }
 };

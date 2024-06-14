@@ -1,68 +1,74 @@
 [
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\main.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\main.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/main.cpp",
-  "output": "CMakeFiles/luminar.dir/main.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\main.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\main.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\main.cpp",
+  "output": "CMakeFiles\\luminar.dir\\main.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\debugger.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\debugger.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/debugger.cpp",
-  "output": "CMakeFiles/luminar.dir/debugger.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\debugger.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\debugger.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\debugger.cpp",
+  "output": "CMakeFiles\\luminar.dir\\debugger.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\parser.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/parser.cpp",
-  "output": "CMakeFiles/luminar.dir/parser.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\parser.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser.cpp",
+  "output": "CMakeFiles\\luminar.dir\\parser.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\repl.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\repl.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/repl.cpp",
-  "output": "CMakeFiles/luminar.dir/repl.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\repl.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\repl.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\repl.cpp",
+  "output": "CMakeFiles\\luminar.dir\\repl.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\scanner.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\scanner.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/scanner.cpp",
-  "output": "CMakeFiles/luminar.dir/scanner.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\scanner.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\scanner.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\scanner.cpp",
+  "output": "CMakeFiles\\luminar.dir\\scanner.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\syntax.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\syntax.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/syntax.cpp",
-  "output": "CMakeFiles/luminar.dir/syntax.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\syntax.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\syntax.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\syntax.cpp",
+  "output": "CMakeFiles\\luminar.dir\\syntax.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\ast.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\ast.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/ast.cpp",
-  "output": "CMakeFiles/luminar.dir/ast.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\ast.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\ast.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\ast.cpp",
+  "output": "CMakeFiles\\luminar.dir\\ast.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\vm.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\vm.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/vm.cpp",
-  "output": "CMakeFiles/luminar.dir/vm.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\vm.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\vm.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\vm.cpp",
+  "output": "CMakeFiles\\luminar.dir\\vm.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\codegen.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\codegen.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/backends/codegen.cpp",
-  "output": "CMakeFiles/luminar.dir/backends/codegen.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\jit.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\jit.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\jit.cpp",
+  "output": "CMakeFiles\\luminar.dir\\backends\\jit.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\register.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\register.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/backends/register.cpp",
-  "output": "CMakeFiles/luminar.dir/backends/register.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\codegen.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\codegen.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\codegen.cpp",
+  "output": "CMakeFiles\\luminar.dir\\backends\\codegen.cpp.obj"
 },
 {
   "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
-  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\g++.exe   -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\stack.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\stack.cpp",
-  "file": "C:/Users/Fablur/Desktop/Projects/luminar/backends/stack.cpp",
-  "output": "CMakeFiles/luminar.dir/backends/stack.cpp.obj"
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\register.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\register.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\register.cpp",
+  "output": "CMakeFiles\\luminar.dir\\backends\\register.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\stack.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\stack.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\stack.cpp",
+  "output": "CMakeFiles\\luminar.dir\\backends\\stack.cpp.obj"
 }
 ]

@@ -302,7 +302,9 @@ void Parser::parsePrimary()
         parseDecVariable();
     } else if (tokenType == TokenType::LEFT_PAREN) {
         parseParenthesis();
-    } else {
+    } else if(tokenType == TokenType::EOF_TOKEN){
+        parseEOF();
+    }else {
         error("Unexpected token in primary expression");
     }
 }
@@ -443,16 +445,17 @@ void Parser::parseLoadVariable()
 {
     // Parse loading existing variable
     Token name = previous();
+    if(check(TokenType::LEFT_PAREN)) {
+        parseFnCall();
+    }
 
     int32_t memoryLocation = getVariableMemoryLocation(name);
-
-    if (memoryLocation) {
-        emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
-    } else if(check(TokenType::LEFT_PAREN)) {
-        parseFnCall();
-    }else{
-        error("Undeclared variable: " + name.lexeme);
-    }
+    emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
+    // if (memoryLocation) {
+    //     emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
+    // } else{
+    //     error("Undeclared variable: " + name.lexeme);
+    // }
 }
 
 void Parser::parseBlock()
@@ -548,28 +551,81 @@ void Parser::parsePrintStatement()
 
 void Parser::parseIfStatement()
 {
+    Token op = previous();
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+
+    size_t thenJump = bytecode.size();
+    emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+
+    parseBlock();
+
+    if (match(TokenType::ELSE))
+    {
+        size_t elseJump = bytecode.size();
+        emit(Opcode::JUMP, op.line, 0);
+        int32_t thenJumpOffset = bytecode.size() - thenJump - 1;
+        bytecode[thenJump].value = thenJumpOffset;
+        parseBlock();
+        int32_t elseJumpOffset = bytecode.size() - elseJump - 1;
+        bytecode[elseJump].value = elseJumpOffset;
+    }
+    else
+    {
+        int32_t thenJumpOffset = bytecode.size() - thenJump - 1;
+        bytecode[thenJump].value = thenJumpOffset;
+    }
+     // Consume the 'if' token
     // Token op = previous();
     // consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+
+    // // Parse the condition expression
     // parseExpression();
     // consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
 
-    // size_t thenJump = emit(Opcode::JUMP_IF_FALSE, op.line,  0);
+    // // Emit the jump instruction for the false case
+    // size_t falseJump = bytecode.size();
+    // emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+    // // Parse the true branch (if block)
+    // parseBlock();
 
-    // parseExpression();
+    // // Initialize variables for elif and else blocks
+    // std::vector<size_t> elifFalseJumps;
+    // size_t elseJump = 0;
 
-    // if (match(TokenType::ELSE))
-    // {
-    //     size_t elseJump = emit(Opcode::JUMP, op.line, 0);
-    //     int32_t jump = bytecode.size() - thenJump - 1;
-    //     bytecode[thenJump].value = jump;
+    // // Parse elif blocks
+    // while (match(TokenType::ELIF)) {
+    //     consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
     //     parseExpression();
-    //     int32_t jump = bytecode.size() - elseJump - 1;
-    //     bytecode[elseJump].value = jump;
+    //     consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
+
+    //     // Emit the jump instruction for the false case of elif
+    //     elifFalseJumps.push_back(emit(Opcode::JUMP_IF_FALSE, op.line, 0));
+
+    //     // Parse the true branch (elif block)
+    //     parseBlock();
+
+    //     // Update the previous false jump to skip the current block
+    //     bytecode[falseJump].value = bytecode.size() - falseJump;
+    //     falseJump = elifFalseJumps.back();
     // }
-    // else
-    // {
-    //     int32_t jump = bytecode.size() - thenJump - 1;
-    //     bytecode[thenJump].value = jump;
+
+    // Parse else block (if any)
+    // if (match(TokenType::ELSE)) {
+    //     // Parse the else block
+    //     parseBlock();
+
+    //     // Update the previous false jump to skip the else block
+    //     bytecode[falseJump].value = bytecode.size() - falseJump;
+    // } else {
+    //     // If no else block, update the false jump to skip the entire if statement
+    //     bytecode[falseJump].value = bytecode.size() - falseJump;
+    // }
+
+    // // Update the false jumps for elif blocks to skip the entire if statement
+    // for (size_t jump : elifFalseJumps) {
+    //     bytecode[jump].value = bytecode.size() - jump;
     // }
 }
 
@@ -588,6 +644,23 @@ void Parser::parseWhileLoop()
 
     // int32_t jumpOffset = bytecode.size() - conditionJump - 1;
     // bytecode[conditionJump].value = jumpOffset;
+    Token op = previous();
+    size_t loopStart = bytecode.size(); // Start of the loop condition
+
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
+
+    size_t conditionJump = bytecode.size();
+    emit(Opcode::JUMP_IF_FALSE, op.line, 0); // Placeholder for the jump out of the loop
+
+    parseBlock();
+    
+    int32_t jmpLoc = loopStart - bytecode.size() - 1;
+    emit(Opcode::JUMP, op.line, jmpLoc); // Jump back to the start of the loop condition
+
+    int32_t conditionJumpOffset = bytecode.size() - conditionJump - 1;
+    bytecode[conditionJump].value = conditionJumpOffset; // Update the jump condition to exit the loop
 }
 
 void Parser::parseForLoop()
@@ -605,7 +678,7 @@ void Parser::parseForLoop()
     // parseExpression();
     // consume(TokenType::RIGHT_PAREN, "Expected ')' after loop increment");
 
-    // size_t bodyJump = emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+    // size_t bodyJump = bytecode.size();emit(Opcode::JUMP_IF_FALSE, op.line, 0);
     // parseExpression();
     // emit(Opcode::JUMP, op.line, (int32_t)(conditionOffset - bytecode.size() - 1));
 }
@@ -644,6 +717,7 @@ void Parser::parseFnDeclaration()
                 }
             }
             parameters.push_back(std::make_pair(paramName.lexeme, defaultValue));
+            declareVariable(paramName); // Declare parameter as a variable in the function scope
         } while (match(TokenType::COMMA));
     }
     consume(TokenType::RIGHT_PAREN, "Expected ')' after function parameters");

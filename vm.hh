@@ -14,15 +14,7 @@ public:
     }
 
     void run() {
-        try {
-            while (pc < program.size()) {
-                const Instruction& instruction = program[pc];
-                backend->execute(instruction);
-                pc++;
-            }
-        } catch (const std::exception& ex) {
-            std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
-        }
+        backend->run(program);
     }
 
     void dumpRegisters() {
@@ -31,7 +23,6 @@ public:
 
 private:
     Parser &parser;
-    unsigned int pc = 0; // program counter
     std::vector<Instruction> program;
     std::unique_ptr<Backend> backend;
 };
