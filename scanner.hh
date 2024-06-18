@@ -66,6 +66,7 @@ enum class TokenType {
     VAR,        // var
     THIS,       // this
     TRUE,       // true
+    ELIF,       //elif
     ELSE,       // else
     ENUM,       // enum
     ASYNC,      // async

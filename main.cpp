@@ -15,13 +15,16 @@ int main(int argc, char *argv[])
                     // Call function to build for Windows
                     // buildWindows();
                     std::cout << "Building for Windows..." << std::endl;
+                    REPL::start();
                 } else if (target == "mac") {
                     // Call function to build for macOS
                     // buildMac();
                     std::cout << "Building for macOS..." << std::endl;
+                    REPL::start();
                 } else if (target == "linux") {
                     // Call function to build for Linux
                     // buildLinux();
+                    REPL::start();
                     std::cout << "Building for Linux..." << std::endl;
                 } else {
                     std::cerr << "Error: Invalid target operating system." << std::endl;
@@ -40,7 +43,8 @@ int main(int argc, char *argv[])
         }
     } else {
         // Otherwise, start the REPL in interactive mode
-        REPL::start();
+        // REPL::start();
+        REPL::startDevMode();
     }
 
     return 0;

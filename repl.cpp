@@ -12,11 +12,13 @@ REPL::REPL()
 void REPL::start()
 {
     std::cout << "Luminar REPL :" << std::endl;
-    //    while (true) {
-    // Read input
-    //std::string input = readInput();
     std::string input = readFile("test.lm");
-    // Tokenize input
+    run(input);
+}
+
+void REPL::run(std::string input)
+{
+        // Tokenize input
     Scanner scanner(input);
     Parser parser(scanner);
     debug(scanner, parser);
@@ -45,9 +47,9 @@ void REPL::start()
 void REPL::startDevMode()
 {
     //start the language with debugging enabled.
-    std::cout << "Not yet Implemented" << std::endl;
     std::cout << "Luminar Dev REPL :" << std::endl;
-    start();
+    std::string input = readInput();
+    run(input);
 }
 
 std::string REPL::readInput()

@@ -45,6 +45,8 @@ std::string Parser::toString() const
 
 ParseFn Parser::getParseFn(TokenType type)
 {
+    std::cout << "get parsing function: " << peek().lexeme << " with type "
+              << scanner.tokenTypeToString(type, peek().lexeme) << std::endl;
     switch (type) {
     case TokenType::MINUS:
         return isNewExpression ? &Parser::parseUnary : &Parser::parseBinary;
@@ -83,9 +85,11 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::FN:
         return &Parser::parseFnDeclaration;
     case TokenType::IDENTIFIER:
-        return &Parser::parseLoadVariable;
+        return &Parser::parseIdentifier;
     case TokenType::LEFT_PAREN:
         return &Parser::parseParenthesis;
+    case TokenType::LEFT_BRACE:
+    return &Parser::parseBlock;
     case TokenType::PRINT:
         return &Parser::parsePrintStatement;
     case TokenType::IF:
@@ -96,6 +100,8 @@ ParseFn Parser::getParseFn(TokenType type)
         return &Parser::parseForLoop;
     case TokenType::MATCH:
         return &Parser::parseMatchStatement;
+    case TokenType::SEMICOLON:
+        return &Parser::advance;
     default:
         return nullptr;
     }
@@ -103,7 +109,7 @@ ParseFn Parser::getParseFn(TokenType type)
 
 void Parser::advance()
 {
-    if (current < tokens.size()) {
+    if (current < tokens.size() - 1) { //added -1
         current++;
     }
 }
@@ -129,7 +135,11 @@ bool Parser::isAtEnd()
 
 Token Parser::previous()
 {
-    return tokens[current - 1];
+    //    return tokens[current - 1];
+    if (current > 0) {
+        return tokens[current - 1];
+    }
+    return tokens[0]; // Return the first token if there is no previous one
 }
 
 bool Parser::check(TokenType type)
@@ -200,14 +210,15 @@ void Parser::error(const std::string &message)
 
 void Parser::parsePrecedence(Precedence precedence)
 {
-    advance();
-    ParseFn prefixParseFn = getParseFn(previous().type);
-
+    ParseFn prefixParseFn = getParseFn(peek().type);
+    std::cout << "Parsing prefix token: " << peek().lexeme << " with precedence "
+              << getTokenPrecedence(peek().type) << std::endl;
     if (prefixParseFn == nullptr) {
         error("Unexpected token");
         return;
     }
 
+    advance(); // Consume the current token
     (this->*prefixParseFn)();
     isNewExpression = false;
 
@@ -216,14 +227,17 @@ void Parser::parsePrecedence(Precedence precedence)
             break;
         }
 
-        advance();
-        ParseFn infixParseFn = getParseFn(previous().type);
-
+        Token currentToken = peek();
+        // advance(); // Consume the current token
+        std::cout << "Parsing infix token: " << peek().lexeme << " with precedence "
+                  << getTokenPrecedence(peek().type) << std::endl;
+        ParseFn infixParseFn = getParseFn(currentToken.type);
         if (infixParseFn == nullptr) {
-            error("Unexpected token");
-            return;
+            // If there is no infix parse function, it means we've reached the end of the expression
+            break;
         }
 
+        advance(); // Consume the current token
         (this->*infixParseFn)();
     }
 }
@@ -294,17 +308,20 @@ Instruction Parser::emit(Opcode opcode,
 void Parser::parsePrimary()
 {
     TokenType tokenType = peek().type;
+    std::cout << "Parsing primary: " << peek().lexeme << std::endl; // Debug statement
     if (tokenType == TokenType::NUMBER || tokenType == TokenType::STRING) {
         parseLiteral();
     } else if (tokenType == TokenType::TRUE || tokenType == TokenType::FALSE) {
         parseBoolean();
     } else if (tokenType == TokenType::IDENTIFIER) {
-        parseDecVariable();
+        parseIdentifier();
     } else if (tokenType == TokenType::LEFT_PAREN) {
         parseParenthesis();
-    } else if(tokenType == TokenType::EOF_TOKEN){
+    } else if (tokenType == TokenType::MINUS || tokenType == TokenType::PLUS) {
+        parseUnary();
+    } else if (isAtEnd()) { //isAtEnd()
         parseEOF();
-    }else {
+    } else {
         error("Unexpected token in primary expression");
     }
 }
@@ -350,7 +367,7 @@ void Parser::parseExpressionStatement()
 
 void Parser::parseParenthesis()
 {
-    // advance(); // Consume '('
+    //advance(); // Consume '('
 
     parseExpression(); // Parse the expression inside parentheses
 
@@ -360,6 +377,7 @@ void Parser::parseParenthesis()
 void Parser::parseUnary()
 {
     Token op = previous();
+    advance(); // Consume the unary operator
     parsePrecedence(PREC_UNARY);
     if (op.type == TokenType::MINUS) {
         emit(Opcode::NEGATE, op.line);
@@ -399,6 +417,7 @@ void Parser::parseBinary()
 void Parser::parseLiteral()
 {
     Token token = previous();
+    std::cout << "Parsing literal: " << token.lexeme << std::endl; // Debug statement
     switch (token.type) {
     case TokenType::NUMBER:
         emit(Opcode::LOAD_CONST, token.line, std::stod(token.lexeme));
@@ -411,9 +430,27 @@ void Parser::parseLiteral()
     }
 }
 
+void Parser::parseIdentifier()
+{
+    Token nameToken = peek();     // The identifier token
+    Token nextToken = peekNext(); // Look ahead at the next token
+
+    if (nextToken.type == TokenType::EQUAL) {
+        // Handle assignment
+        parseAssignment();
+    } else if (nextToken.type == TokenType::LEFT_PAREN) {
+        // Handle function call
+        parseFnCall();
+    } else {
+        // Handle variable load
+        parseLoadVariable();
+    }
+}
+
 void Parser::parseBoolean()
 {
     Token token = previous();
+    std::cout << "Parsing boolean: " << token.lexeme << std::endl; // Debug statement
     if (token.type == TokenType::TRUE) {
         emit(Opcode::LOAD_CONST, token.line, true);
     } else if (token.type == TokenType::FALSE) {
@@ -426,8 +463,10 @@ void Parser::parseBoolean()
 void Parser::parseDecVariable()
 {
     // Parse variable declaration with type
+    //consume(TokenType::VAR, "Expected 'var' before variable name");
     Token name = peek();
-    consume(TokenType::IDENTIFIER, "Expected 'var' before variable name");
+    std::cout << "Parsing var declaration: " << name.lexeme << std::endl; // Debug statement
+    consume(TokenType::IDENTIFIER, "Expected variable name after 'var' token");
     if (check(TokenType::COLON)) {
         consume(TokenType::COLON, "Expected ':' after variable name");
         Token typeToken = peek();
@@ -436,6 +475,12 @@ void Parser::parseDecVariable()
     }
     consume(TokenType::EQUAL, "Expected '=' after type");
     parseExpression();
+    // Check if the next token is a semicolon
+    if (match(TokenType::SEMICOLON)) {
+        // If it is, consume the semicolon without emitting any opcodes
+        advance();
+    }
+
     declareVariable(name);
     int32_t memoryLocation = getVariableMemoryLocation(name);
     emit(Opcode::STORE_VARIABLE, name.line, memoryLocation);
@@ -445,23 +490,21 @@ void Parser::parseLoadVariable()
 {
     // Parse loading existing variable
     Token name = previous();
-    if(check(TokenType::LEFT_PAREN)) {
+    std::cout << "Parsing load variable: " << name.lexeme << std::endl; // Debug statement
+    if (check(TokenType::LEFT_PAREN)) {
         parseFnCall();
     }
 
+    // consume(TokenType::SEMICOLON, "Expected ';' after var load.");
+
     int32_t memoryLocation = getVariableMemoryLocation(name);
     emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
-    // if (memoryLocation) {
-    //     emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
-    // } else{
-    //     error("Undeclared variable: " + name.lexeme);
-    // }
 }
 
 void Parser::parseBlock()
 {
     enterScope();
-    consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
+   consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         parseDeclaration(); // Handles statements inside the block
     }
@@ -471,26 +514,48 @@ void Parser::parseBlock()
 
 void Parser::parseAssignment()
 {
-    Token token = previous();
+    Token token = tokens[current - 2];
+    //    advance();
     std::string varName = token.lexeme;
+    std::cout << "Parsing assignment for variable: " << varName << std::endl;
+    std::cout << "Parsing assignment after var name: " << peek().lexeme << std::endl; // Debug statement
 
+    //     Ensure we are matching an assignment operator
+    //    if (!check(TokenType::EQUAL)) {
+    //        error("Expected '=' after the variable name for assignment.");
+    //        return;
+    //    }
+
+    // Parse the expression to be assigned to the variable
+    std::cout << "Parsing the assignment expression..." << std::endl;
     parsePrecedence(PREC_ASSIGNMENT);
 
-        // Check if the variable exists in any scope
-        if (!variable.hasVariable(varName)) {
-            // Variable is not declared, declare it in the current scope
-            int32_t memoryLocation = variable.addVariable(varName);
-            emit(Opcode::DECLARE_VARIABLE, token.line, memoryLocation);
-        }
+    // Ensure the semicolon after the assignment expression
+    consume(TokenType::SEMICOLON, "Expected ';' after the variable assignment.");
 
-        // Get the memory location of the variable (assumes variable is now declared)
-        int32_t memoryLocation = variable.getVariableMemoryLocation(varName);
-        emit(Opcode::STORE_VARIABLE, token.line, memoryLocation);
+    // Check if the variable exists in any scope
+    if (!variable.hasVariable(varName)) {
+        // Variable is not declared, declare it in the current scope
+        std::cout << "Variable not found. Declaring new variable: " << varName << std::endl;
+        //        int32_t memoryLocation = variable.addVariable(varName);
+        //        emit(Opcode::DECLARE_VARIABLE, token.line, memoryLocation);
+        // Variable is not declared, emit an error
+        error("Undeclared variable: " + varName);
+        return;
+    } else {
+        std::cout << "Variable found: " << varName << std::endl;
+    }
+
+    // Get the memory location of the variable (assumes variable is now declared)
+    int32_t memoryLocation = variable.getVariableMemoryLocation(varName);
+    std::cout << "Storing variable at memory location: " << memoryLocation << std::endl;
+    emit(Opcode::STORE_VARIABLE, token.line, memoryLocation);
 }
 
 void Parser::parseAnd()
 {
     Token op = previous();
+    std::cout << "Parsing AND operator: " << op.lexeme << std::endl; // Debug statement
     parsePrecedence(static_cast<Precedence>(PREC_AND + 1));
     emit(Opcode::AND, op.line);
 }
@@ -498,6 +563,7 @@ void Parser::parseAnd()
 void Parser::parseOr()
 {
     Token op = previous();
+    std::cout << "Parsing OR operator: " << op.lexeme << std::endl; // Debug statement
     parsePrecedence(static_cast<Precedence>(PREC_OR + 1));
     emit(Opcode::OR, op.line);
 }
@@ -505,6 +571,7 @@ void Parser::parseOr()
 void Parser::parseLogical()
 {
     Token op = previous();
+    std::cout << "Parsing logical operator: " << op.lexeme << std::endl; // Debug statement
     parsePrecedence(PREC_OR);
     if (op.type == TokenType::BANG) {
         emit(Opcode::NOT, op.line);
@@ -513,7 +580,8 @@ void Parser::parseLogical()
 
 void Parser::parseComparison()
 {
-    Token op = previous();
+    Token op = previous(); //change and or and comparison to previous
+    std::cout << "Parsing comparison operator: " << op.lexeme << std::endl; // Debug statement
     Precedence precedence = getTokenPrecedence(op.type);
 
     parsePrecedence(static_cast<Precedence>(precedence + 1));
@@ -545,12 +613,13 @@ void Parser::parseComparison()
 void Parser::parsePrintStatement()
 {
     Token op = previous();
-    parseExpression();
+    parseExpressionStatement();
     emit(Opcode::PRINT, op.line);
 }
 
 void Parser::parseIfStatement()
 {
+    // Consume the 'if' token
     Token op = previous();
     consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
     parseExpression();
@@ -561,89 +630,48 @@ void Parser::parseIfStatement()
 
     parseBlock();
 
-    if (match(TokenType::ELSE))
-    {
-        size_t elseJump = bytecode.size();
-        emit(Opcode::JUMP, op.line, 0);
-        int32_t thenJumpOffset = bytecode.size() - thenJump - 1;
-        bytecode[thenJump].value = thenJumpOffset;
+    size_t elseJump = bytecode.size();
+    emit(Opcode::JUMP, op.line, 0);
+
+    int32_t thenJumpOffset = bytecode.size() - thenJump - 1;
+    bytecode[thenJump].value = thenJumpOffset;
+
+    // Parse elif blocks
+    std::vector<size_t> elifJumps;
+    while (match(TokenType::ELIF)) {
+        consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
+        parseExpression();
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
+
+        size_t elifThenJump = bytecode.size();
+        emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+
         parseBlock();
-        int32_t elseJumpOffset = bytecode.size() - elseJump - 1;
-        bytecode[elseJump].value = elseJumpOffset;
+
+        elifJumps.push_back(bytecode.size());
+        emit(Opcode::JUMP, op.line, 0);
+
+        int32_t elifThenJumpOffset = bytecode.size() - elifThenJump - 1;
+        bytecode[elifThenJump].value = elifThenJumpOffset;
     }
-    else
-    {
-        int32_t thenJumpOffset = bytecode.size() - thenJump - 1;
-        bytecode[thenJump].value = thenJumpOffset;
-    }
-     // Consume the 'if' token
-    // Token op = previous();
-    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-
-    // // Parse the condition expression
-    // parseExpression();
-    // consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
-
-    // // Emit the jump instruction for the false case
-    // size_t falseJump = bytecode.size();
-    // emit(Opcode::JUMP_IF_FALSE, op.line, 0);
-    // // Parse the true branch (if block)
-    // parseBlock();
-
-    // // Initialize variables for elif and else blocks
-    // std::vector<size_t> elifFalseJumps;
-    // size_t elseJump = 0;
-
-    // // Parse elif blocks
-    // while (match(TokenType::ELIF)) {
-    //     consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
-    //     parseExpression();
-    //     consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
-
-    //     // Emit the jump instruction for the false case of elif
-    //     elifFalseJumps.push_back(emit(Opcode::JUMP_IF_FALSE, op.line, 0));
-
-    //     // Parse the true branch (elif block)
-    //     parseBlock();
-
-    //     // Update the previous false jump to skip the current block
-    //     bytecode[falseJump].value = bytecode.size() - falseJump;
-    //     falseJump = elifFalseJumps.back();
-    // }
 
     // Parse else block (if any)
-    // if (match(TokenType::ELSE)) {
-    //     // Parse the else block
-    //     parseBlock();
+    if (match(TokenType::ELSE)) {
+        parseBlock();
+    }
 
-    //     // Update the previous false jump to skip the else block
-    //     bytecode[falseJump].value = bytecode.size() - falseJump;
-    // } else {
-    //     // If no else block, update the false jump to skip the entire if statement
-    //     bytecode[falseJump].value = bytecode.size() - falseJump;
-    // }
+    int32_t elseJumpOffset = bytecode.size() - elseJump - 1;
+    bytecode[elseJump].value = elseJumpOffset;
 
-    // // Update the false jumps for elif blocks to skip the entire if statement
-    // for (size_t jump : elifFalseJumps) {
-    //     bytecode[jump].value = bytecode.size() - jump;
-    // }
+    // Update all elif jumps to point to the end of the else block
+    for (size_t jump : elifJumps) {
+        int32_t elifJumpOffset = bytecode.size() - jump - 1;
+        bytecode[jump].value = elifJumpOffset;
+    }
 }
 
 void Parser::parseWhileLoop()
 {
-    // Token op = previous();
-    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
-    // parseExpression();
-    // consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
-
-    // size_t loopStart = bytecode.size();
-
-    // size_t conditionJump = emit(Opcode::JUMP_IF_FALSE, op.line, 0);
-    // parseStatement();
-    // emit(Opcode::JUMP, op.line, (int32_t)(loopStart - bytecode.size() - 1));
-
-    // int32_t jumpOffset = bytecode.size() - conditionJump - 1;
-    // bytecode[conditionJump].value = jumpOffset;
     Token op = previous();
     size_t loopStart = bytecode.size(); // Start of the loop condition
 
@@ -653,9 +681,9 @@ void Parser::parseWhileLoop()
 
     size_t conditionJump = bytecode.size();
     emit(Opcode::JUMP_IF_FALSE, op.line, 0); // Placeholder for the jump out of the loop
-
+    std::cout << "Parsing whileloop: " << peek().lexeme << std::endl; // Debug statement
     parseBlock();
-    
+
     int32_t jmpLoc = loopStart - bytecode.size() - 1;
     emit(Opcode::JUMP, op.line, jmpLoc); // Jump back to the start of the loop condition
 
@@ -695,7 +723,7 @@ void Parser::parseMatchStatement()
 
 void Parser::parseFnDeclaration()
 {
-    consume(TokenType::FN, "Expected 'fn' keyword to start function definition");
+    //consume(TokenType::FN, "Expected 'fn' keyword to start function definition");
     Token name = previous();
     // consume(TokenType::IDENTIFIER, "Expected function name");
 
@@ -730,7 +758,7 @@ void Parser::parseFnDeclaration()
         advance();
     }
 
-    // Function body parsing logic goes here 
+    // Function body parsing logic goes here
     parseBlock();
     //    consume(TokenType::LEFT_BRACE, "Expected '{' before function body");
     //    parseDeclaration();
@@ -740,32 +768,33 @@ void Parser::parseFnDeclaration()
     emit(Opcode::DEFINE_FUNCTION, name.line, name.lexeme);
 }
 
-void Parser::parseFnCall() {
+void Parser::parseFnCall()
+{
     Token name = previous();
-  //consume(TokenType::IDENTIFIER, "Expected function name for call");
-  consume(TokenType::LEFT_PAREN, "Expected '(' after function name in call");
+    //consume(TokenType::IDENTIFIER, "Expected function name for call");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after function name in call");
 
-  // Parse arguments (optional)
-  std::vector<std::variant<int32_t, double, bool, std::string>> arguments;
-  if (peek().type != TokenType::RIGHT_PAREN) {
-    do {
-      parseExpression();
-      arguments.push_back(previous().lexeme);
-    } while (match(TokenType::COMMA));
-  }
-  consume(TokenType::RIGHT_PAREN, "Expected ')' after function call arguments");
-  // Emit bytecode for function call with arguments
-  for (const auto &arg : arguments) {
-    emit(Opcode::PUSH_ARGS, name.line, arg);
-  }
+    // Parse arguments (optional)
+    std::vector<std::variant<int32_t, double, bool, std::string>> arguments;
+    if (peek().type != TokenType::RIGHT_PAREN) {
+        do {
+            parseExpression();
+            arguments.push_back(previous().lexeme);
+        } while (match(TokenType::COMMA));
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after function call arguments");
+    // Emit bytecode for function call with arguments
+    for (const auto &arg : arguments) {
+        emit(Opcode::PUSH_ARGS, name.line, arg);
+    }
 
-  // Emit bytecode for function call with arguments
-  emit(Opcode::INVOKE_FUNCTION, name.line, name.lexeme);
+    // Emit bytecode for function call with arguments
+    emit(Opcode::INVOKE_FUNCTION, name.line, name.lexeme);
 }
 
 std::vector<Instruction> Parser::getBytecode() const
 {
-   // std::cout << "Getting the bytecode: " << std::endl;
+    // std::cout << "Getting the bytecode: " << std::endl;
     // Get the generated bytecode
     return bytecode;
 }

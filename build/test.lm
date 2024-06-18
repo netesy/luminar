@@ -52,20 +52,20 @@
 //             var result1 = factorial(5);
 //         print(result1)
 
-var x = 10
-if (x < 15) {
-    print(x)
+var x = 20;
+if (x < 150) {
+    print(x);
 } else {
-    print(15)
+    print(15);
 }
-
-    // var p = 0
+// var n = 0; n= 3+2; print(n); var p = 0; p = p+n; print(p);
+    // var p = 0;
     // while (p < 5) {
-    //     print(p)
+    //     print(p);
     //     p = p + 1;
     // }
 
-    // var i = 0
+    // var i = 4
     // while (i < 5) {
     //     print(i)
     // }

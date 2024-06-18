@@ -1,225 +1,167 @@
 #include "codegen.hh"
 
-CodegenBackend::CodegenBackend(const std::vector<Instruction>& program)
-    : Backend(), outFile("generated_code.c") {
-    outFile << "#include <stdio.h>\n";
-    outFile << "#include <stdlib.h>\n";
-    outFile << "#include <pthread.h>\n";
-    outFile << "#define MAX_STACK_SIZE 1024\n";
-    outFile << "int stack[MAX_STACK_SIZE];\n";
-    outFile << "int top = -1;\n";
-    outFile << "int constants[MAX_STACK_SIZE];\n";
-    outFile << "int variables[MAX_STACK_SIZE];\n";
-    outFile << "void* run_task(void* arg);\n\n";
-    outFile << "int main() {\n";
+CodegenBackend::CodegenBackend(const std::string &outputFile) {
+    outFile.open(outputFile);
+    if (!outFile) {
+        throw std::runtime_error("Failed to open output file");
+    }
+    writeHeader();
 }
 
-void CodegenBackend::run(const std::vector<Instruction>& program)  {
-    this->program = program; // Store the program in the instance
-    try {
-        pc = 0; // Reset program counter
-        while (pc < program.size()) {
-            const Instruction& instruction = program[pc];
-            execute(instruction);
-            pc++;
-        }
-    } catch (const std::exception& ex) {
-        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
+CodegenBackend::~CodegenBackend() {
+    writeFooter();
+    if (outFile.is_open()) {
+        outFile.close();
     }
 }
 
-void CodegenBackend::execute(const Instruction& instruction) {
+void CodegenBackend::execute(const Instruction &instruction) {
     switch (instruction.opcode) {
-        case NEGATE:
-            generateUnaryOperation("NEGATE");
-            break;
-        case ADD:
-            generateBinaryOperation("ADD");
-            break;
-        case SUBTRACT:
-            generateBinaryOperation("SUBTRACT");
-            break;
-        case MULTIPLY:
-            generateBinaryOperation("MULTIPLY");
-            break;
-        case DIVIDE:
-            generateBinaryOperation("DIVIDE");
-            break;
-        case MODULUS:
-            generateBinaryOperation("MODULUS");
-            break;
-        case EQUAL:
-            generateComparisonOperation("EQUAL");
-            break;
-        case NOT_EQUAL:
-            generateComparisonOperation("NOT_EQUAL");
-            break;
-        case LESS_THAN:
-            generateComparisonOperation("LESS_THAN");
-            break;
-        case LESS_THAN_OR_EQUAL:
-            generateComparisonOperation("LESS_THAN_OR_EQUAL");
-            break;
-        case GREATER_THAN:
-            generateComparisonOperation("GREATER_THAN");
-            break;
-        case GREATER_THAN_OR_EQUAL:
-            generateComparisonOperation("GREATER_THAN_OR_EQUAL");
-            break;
-        case AND:
-            generateLogicalOperation("AND");
-            break;
-        case OR:
-            generateLogicalOperation("OR");
-            break;
-        case NOT:
-            generateUnaryOperation("NOT");
-            break;
         case LOAD_CONST:
-            generateLoadConst(pc);
-            break;
-        case PRINT:
-            generatePrint();
-            break;
-        case HALT:
-            generateHalt();
+            handleLoadConst(instruction.value);
             break;
         case DECLARE_VARIABLE:
-            generateDeclareVariable(pc);
+            handleDeclareVariable(std::get<int32_t>(instruction.value));
             break;
         case LOAD_VARIABLE:
-            generateLoadVariable(pc);
+            handleLoadVariable(std::get<int32_t>(instruction.value));
             break;
         case STORE_VARIABLE:
-            generateStoreVariable(pc);
+            handleStoreVariable(std::get<int32_t>(instruction.value));
             break;
-        case WHILE_LOOP:
-            generateWhileLoop();
+        case PRINT:
+            handlePrint();
             break;
-        case PARALLEL:
-            generateParallel(pc);
+        case HALT:
+            handleHalt();
             break;
-        case CONCURRENT:
-            generateConcurrent(pc);
+        case ADD:
+        case SUBTRACT:
+        case MULTIPLY:
+        case DIVIDE:
+        case MODULUS:
+            handleBinaryOperation(instruction);
+            break;
+        case NEGATE:
+            handleUnaryOperation(instruction);
+            break;
+        case JUMP:
+            handleJump(std::get<int32_t>(instruction.value));
+            break;
+        case JUMP_IF_FALSE:
+            handleJumpZero(std::get<int32_t>(instruction.value));
             break;
         default:
-            std::cerr << "Unknown opcode." << std::endl;
+            outFile << "// Unknown opcode\n";
     }
 }
 
 void CodegenBackend::dumpRegisters() {
-    // Not needed for code generation
+    // Not applicable for code generation, but could log state
 }
 
-void CodegenBackend::generateUnaryOperation(const std::string& op) {
-    outFile << "// Unary Operation: " << op << "\n";
-    outFile << "stack[top] = -stack[top];\n";
-}
-
-void CodegenBackend::generateBinaryOperation(const std::string& op) {
-    outFile << "// Binary Operation: " << op << "\n";
-    outFile << "stack[top-1] = stack[top-1] ";
-    if (op == "ADD") outFile << "+";
-    else if (op == "SUBTRACT") outFile << "-";
-    else if (op == "MULTIPLY") outFile << "*";
-    else if (op == "DIVIDE") outFile << "/";
-    else if (op == "MODULUS") outFile << "%";
-    outFile << " stack[top];\n";
-    outFile << "top--;\n";
-}
-
-void CodegenBackend::generateComparisonOperation(const std::string& op) {
-    outFile << "// Comparison Operation: " << op << "\n";
-    outFile << "stack[top-1] = stack[top-1] ";
-    if (op == "EQUAL") outFile << "==";
-    else if (op == "NOT_EQUAL") outFile << "!=";
-    else if (op == "LESS_THAN") outFile << "<";
-    else if (op == "LESS_THAN_OR_EQUAL") outFile << "<=";
-    else if (op == "GREATER_THAN") outFile << ">";
-    else if (op == "GREATER_THAN_OR_EQUAL") outFile << ">=";
-    outFile << " stack[top];\n";
-    outFile << "top--;\n";
-}
-
-void CodegenBackend::generateLogicalOperation(const std::string& op) {
-    outFile << "// Logical Operation: " << op << "\n";
-    if (op == "NOT") {
-        outFile << "stack[top] = !stack[top];\n";
-    } else {
-        outFile << "stack[top-1] = stack[top-1] ";
-        if (op == "AND") outFile << "&&";
-        else if (op == "OR") outFile << "||";
-        outFile << " stack[top];\n";
-        outFile << "top--;\n";
+void CodegenBackend::run(const std::vector<Instruction> &program) {
+    for (const auto &instruction : program) {
+        execute(instruction);
     }
 }
 
-void CodegenBackend::generateLoadConst(int constantIndex) {
-    outFile << "// Load Constant\n";
-    outFile << "stack[++top] = constants[" << constantIndex << "];\n";
+void CodegenBackend::handleLoadConst(const Value &constantValue) {
+    std::visit([this](auto &&val) {
+        outFile << "push(" << val << ");\n";
+    }, constantValue);
 }
 
-void CodegenBackend::generatePrint() {
-    outFile << "// Print\n";
-    outFile << "printf(\"%d\\n\", stack[top--]);\n";
+void CodegenBackend::handleDeclareVariable(unsigned int variableIndex) {
+    if (variableIndex >= variables.size()) {
+        variables.resize(variableIndex + 1);
+    }
+    outFile << "int var" << variableIndex << ";\n";
 }
 
-void CodegenBackend::generateHalt() {
-    outFile << "// Halt\n";
+void CodegenBackend::handleLoadVariable(unsigned int variableIndex) {
+    if (variableIndex >= variables.size()) {
+        outFile << "// Error: Invalid variable index\n";
+        return;
+    }
+    outFile << "push(var" << variableIndex << ");\n";
+}
+
+void CodegenBackend::handleStoreVariable(unsigned int variableIndex) {
+    if (variableIndex >= variables.size()) {
+        variables.resize(variableIndex + 1);
+    }
+    outFile << "var" << variableIndex << " = pop();\n";
+}
+
+void CodegenBackend::handlePrint() {
+    outFile << "printf(\"%d\\n\", pop());\n";
+}
+
+void CodegenBackend::handleHalt() {
     outFile << "exit(0);\n";
 }
 
-void CodegenBackend::generateDeclareVariable(int variableIndex) {
-    outFile << "// Declare Variable\n";
-    outFile << "variables[" << variableIndex << "] = 0;\n";
+void CodegenBackend::handleBinaryOperation(const Instruction &instruction) {
+    outFile << "int b = pop();\n";
+    outFile << "int a = pop();\n";
+
+    switch (instruction.opcode) {
+        case ADD:
+            outFile << "push(a + b);\n";
+            break;
+        case SUBTRACT:
+            outFile << "push(a - b);\n";
+            break;
+        case MULTIPLY:
+            outFile << "push(a * b);\n";
+            break;
+        case DIVIDE:
+            outFile << "push(a / b);\n";
+            break;
+        case MODULUS:
+            outFile << "push(a % b);\n";
+            break;
+        default:
+            outFile << "// Error: Invalid binary operation\n";
+    }
 }
 
-void CodegenBackend::generateLoadVariable(int variableIndex) {
-    outFile << "// Load Variable\n";
-    outFile << "stack[++top] = variables[" << variableIndex << "];\n";
+void CodegenBackend::handleUnaryOperation(const Instruction &instruction) {
+    outFile << "int a = pop();\n";
+
+    switch (instruction.opcode) {
+        case NEGATE:
+            outFile << "push(-a);\n";
+            break;
+        default:
+            outFile << "// Error: Invalid unary operation\n";
+    }
 }
 
-void CodegenBackend::generateStoreVariable(int variableIndex) {
-    outFile << "// Store Variable\n";
-    outFile << "variables[" << variableIndex << "] = stack[top--];\n";
+void CodegenBackend::handleJump(int targetAddress) {
+    outFile << "goto label" << targetAddress << ";\n";
 }
 
-void CodegenBackend::generateWhileLoop() {
-    // Note: This method will require additional logic to generate proper C loop structures
-    // Placeholder for the logic to generate while loop
-    outFile << "// While Loop\n";
-    // Example:
-    outFile << "while (condition) {\n";
-    outFile << "    // Loop body\n";
+void CodegenBackend::handleJumpZero(int targetAddress) {
+    outFile << "if (pop() == 0) goto label" << targetAddress << ";\n";
+}
+
+void CodegenBackend::writeHeader() {
+    outFile << "#include <stdio.h>\n";
+    outFile << "#include <stdlib.h>\n\n";
+    outFile << "int stack[1024];\n";
+    outFile << "int sp = -1;\n\n";
+    outFile << "void push(int value) {\n";
+    outFile << "    stack[++sp] = value;\n";
+    outFile << "}\n\n";
+    outFile << "int pop() {\n";
+    outFile << "    return stack[sp--];\n";
+    outFile << "}\n\n";
+    outFile << "int main() {\n";
+}
+
+void CodegenBackend::writeFooter() {
+    outFile << "    return 0;\n";
     outFile << "}\n";
 }
-
-void CodegenBackend::generateParallel(int taskCount) {
-    outFile << "// Parallel\n";
-    outFile << "pthread_t threads[" << taskCount << "];\n";
-    outFile << "for (int i = 0; i < " << taskCount << "; ++i) {\n";
-    outFile << "    pthread_create(&threads[i], NULL, run_task, (void*)(intptr_t)i);\n";
-    outFile << "}\n";
-    outFile << "for (int i = 0; i < " << taskCount << "; ++i) {\n";
-    outFile << "    pthread_join(threads[i], NULL);\n";
-    outFile << "}\n";
-}
-
-void CodegenBackend::generateConcurrent(int taskCount) {
-    outFile << "// Concurrent\n";
-    outFile << "pthread_t threads[" << taskCount << "];\n";
-    outFile << "for (int i = 0; i < " << taskCount << "; ++i) {\n";
-    outFile << "    pthread_create(&threads[i], NULL, run_task, (void*)(intptr_t)i);\n";
-    outFile << "}\n";
-    outFile << "for (int i = 0; i < " << taskCount << "; ++i) {\n";
-    outFile << "    pthread_join(threads[i], NULL);\n";
-    outFile << "}\n";
-}
-
-extern "C" void* run_task(void* arg) {
-    int task_id = (intptr_t)arg;
-    // Implement the task execution logic here
-    return NULL;
-}
-
-

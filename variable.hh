@@ -6,7 +6,6 @@
 #include <stack>
 //using Scope = std::unordered_map<std::string, int32_t>;
 
-
 //     struct VariableInfo {
 //     uint32_t memoryLocation;
 //     VariableType type;
@@ -27,9 +26,11 @@ public:
   }
 
   // Add a new variable to the current scope (local or global)
-  int32_t addVariable(const std::string& name, bool isGlobal = false) {
-    if (currentScope().count(name) > 0) {
-      throw std::runtime_error("Variable already declared in this scope: " + name);
+  int32_t addVariable(const std::string &name, bool isGlobal = true)
+  {
+    // Check if the variable already exists in the current scope
+    if (!isGlobal && currentScope().count(name) > 0) {
+        throw std::runtime_error("Variable already declared in this scope: " + name);
     }
 
     bool isMutable = true;
@@ -63,7 +64,8 @@ public:
         return scope.at(name).memoryLocation;
       }
     }
-    throw std::runtime_error("Variable not found: " + name);
+    return -1;
+    //throw std::runtime_error("Variable not found: " + name);
   }
 
   // Get the mutability of a variable
@@ -73,7 +75,7 @@ public:
         return scope.at(name).isMutable;
       }
     }
-    throw std::runtime_error("Variable not found: " + name);
+    throw std::runtime_error("Variable for mutablitiy check not found: " + name);
   }
 
   // Enter a new local scope

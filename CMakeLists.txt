@@ -13,6 +13,7 @@ add_executable(luminar main.cpp
     scanner.cpp scanner.hh
     syntax.cpp syntax.hh
     sample.lm sample_new.lm
+    readme.md issues.md features.md
     ast.hh ast.cpp
     vm.hh vm.cpp vm-old.cx
     main.cpp
@@ -20,13 +21,16 @@ add_executable(luminar main.cpp
     types.hh
     helper.hh
     variable.hh
+    precedence.hh
     instructions.hh
     backends/jit.hh backends/jit.cpp
     backends/codegen.hh backends/codegen.cpp
     backends/register.hh backends/register.cpp
     backends/stack.hh backends/stack.cpp
     backends/import.hh
-    backends/backend.hh)
+    backends/backend.hh
+    test/tst_parser.cpp
+    tst_scanner.cpp)
 
 include(GNUInstallDirs)
 install(TARGETS luminar

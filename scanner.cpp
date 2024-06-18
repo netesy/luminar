@@ -393,6 +393,8 @@ TokenType Scanner::checkKeyword(size_t begin,
         return TokenType::CLASS;
     if (rest == "else")
         return TokenType::ELSE;
+    if (rest == "elif")
+        return TokenType::ELIF;
     if (rest == "false")
         return TokenType::FALSE;
     if (rest == "for")
@@ -600,6 +602,14 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
     case TokenType::UNDEFINED:
         break;
     case TokenType::ENUM:
+        return "ENUM";
+        break;
+    case TokenType::PLUS_EQUAL:
+        return "PLUS_EQUAL";
+    case TokenType::MINUS_EQUAL:
+        return "MINUS_EQUAL";
+    case TokenType::ELIF:
+        return "DEFAULT";
         break;
     }
     return "UNKNOWN";
@@ -607,7 +617,5 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
 
 void Scanner::error(const std::string &message)
 {
-    //    while (isAlphaNumeric(peek()))
-    //        advance();
     Debugger::error(message, getLine(), getCurrent(), InterpretationStage::SCANNING, getLexeme());
 }

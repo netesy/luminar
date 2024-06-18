@@ -50,9 +50,6 @@ private:
     void handleHalt();
     void handleJump();
     void handleJumpZero();
-    void handleWhileLoop();
-    void handleForLoop();
-    void handleIfElse();
     void handleMatch();
     void handleInput();
     void handleOutput();

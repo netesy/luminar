@@ -70,5 +70,17 @@
   "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\stack.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\stack.cpp",
   "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\stack.cpp",
   "output": "CMakeFiles\\luminar.dir\\backends\\stack.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\test\\tst_parser.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\test\\tst_parser.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\test\\tst_parser.cpp",
+  "output": "CMakeFiles\\luminar.dir\\test\\tst_parser.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\tst_scanner.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\tst_scanner.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\tst_scanner.cpp",
+  "output": "CMakeFiles\\luminar.dir\\tst_scanner.cpp.obj"
 }
 ]

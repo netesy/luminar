@@ -96,6 +96,7 @@ private:
     void parseBoolean();
     void parseUnary();
     void parseLiteral();
+    void parseIdentifier();
     void parseDecVariable();
     void parseLoadVariable();
     void parseAssignment();

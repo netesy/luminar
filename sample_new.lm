@@ -179,10 +179,10 @@ module Sample {
 // }
 //
 // // Execute multiple tasks in parallel
-// parallel {
-//     for (var i = 1; i <= 5; i++) {
-//         parallel_task(i);
-//     }
+parallel(tasks, cores=Auto, on_error=Auto) {
+    for (var i = 1; i <= 5; i++) {
+        run_task(i);
+    }
 // }
 //
 //
@@ -195,9 +195,9 @@ module Sample {
 // }
 //
 // // Execute multiple tasks concurrently
-// concurrent {
+// concurrent(tasks, cores=Auto, on_error=Auto) {
 //     for (var i = 1; i <= 3; i++) {
-//         concurrent_task(i);
+//         run_task(i);
 //     }
 // }
 //

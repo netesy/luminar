@@ -32,74 +32,71 @@ void StackBackend::dumpRegisters() {
 
 void StackBackend::execute(const Instruction& instruction) {
     switch (instruction.opcode) {
-        case NEGATE:
-            performUnaryOperation(instruction);
-            break;
-        case ADD:
-        case SUBTRACT:
-        case MULTIPLY:
-        case DIVIDE:
-        case MODULUS:
-            performBinaryOperation(instruction);
-            break;
-        case EQUAL:
-        case NOT_EQUAL:
-        case LESS_THAN:
-        case LESS_THAN_OR_EQUAL:
-        case GREATER_THAN:
-        case GREATER_THAN_OR_EQUAL:
-            performComparisonOperation(instruction);
-            break;
-        case AND:
-        case OR:
-        case NOT:
-            performLogicalOperation(instruction);
-            break;
-        case LOAD_CONST:
-        case LOAD_STR:
-            handleLoadConst(instruction.value);
-            break;
-        case PRINT:
-            handlePrint();
-            break;
-        case HALT:
-            handleHalt();
-            return;
-        case DECLARE_VARIABLE:
-            handleDeclareVariable(std::get<int32_t>(instruction.value));
-            break;
-        case LOAD_VARIABLE:
-            handleLoadVariable(std::get<int32_t>(instruction.value));
-            break;
-        case STORE_VARIABLE:
-            handleStoreVariable(std::get<int32_t>(instruction.value));
-            break;
-        case DEFINE_FUNCTION:
-            handleDeclareFunction(std::get<std::string>(instruction.value));
-            break;
-        case INVOKE_FUNCTION:
-            handleCallFunction(std::get<std::string>(instruction.value));
-            break;
-        case PUSH_ARGS:
-            handlePushArg(instruction);
-            break;
-        case WHILE_LOOP:
-            handleWhileLoop();
-            break;
-        case JUMP:
-            handleJump();
-            break;
-        case JUMP_IF_FALSE:
-            handleJumpZero();
-            break;
-        case PARALLEL:
-            handleParallel(std::get<int32_t>(instruction.value));
-            break;
-        case CONCURRENT:
-            handleConcurrent(std::get<int32_t>(instruction.value));
-            break;
-        default:
-            std::cerr << "Unknown opcode." << std::endl;
+    case NEGATE:
+    case NOT:
+        performUnaryOperation(instruction);
+        break;
+    case ADD:
+    case SUBTRACT:
+    case MULTIPLY:
+    case DIVIDE:
+    case MODULUS:
+        performBinaryOperation(instruction);
+        break;
+    case EQUAL:
+    case NOT_EQUAL:
+    case LESS_THAN:
+    case LESS_THAN_OR_EQUAL:
+    case GREATER_THAN:
+    case GREATER_THAN_OR_EQUAL:
+        performComparisonOperation(instruction);
+        break;
+    case AND:
+    case OR:
+        performLogicalOperation(instruction);
+        break;
+    case LOAD_CONST:
+    case LOAD_STR:
+        handleLoadConst(instruction.value);
+        break;
+    case PRINT:
+        handlePrint();
+        break;
+    case HALT:
+        handleHalt();
+        return;
+    case DECLARE_VARIABLE:
+        handleDeclareVariable(std::get<int32_t>(instruction.value));
+        break;
+    case LOAD_VARIABLE:
+        handleLoadVariable(std::get<int32_t>(instruction.value));
+        break;
+    case STORE_VARIABLE:
+        handleStoreVariable(std::get<int32_t>(instruction.value));
+        break;
+    case DEFINE_FUNCTION:
+        handleDeclareFunction(std::get<std::string>(instruction.value));
+        break;
+    case INVOKE_FUNCTION:
+        handleCallFunction(std::get<std::string>(instruction.value));
+        break;
+    case PUSH_ARGS:
+        handlePushArg(instruction);
+        break;
+    case JUMP:
+        handleJump();
+        break;
+    case JUMP_IF_FALSE:
+        handleJumpZero();
+        break;
+    case PARALLEL:
+        handleParallel(std::get<int32_t>(instruction.value));
+        break;
+    case CONCURRENT:
+        handleConcurrent(std::get<int32_t>(instruction.value));
+        break;
+    default:
+        std::cerr << "Unknown opcode." << std::endl;
     }
 }
 
@@ -133,6 +130,12 @@ void StackBackend::performUnaryOperation(const Instruction& instruction) {
             stack.push(-std::get<double>(value));
         } else {
             std::cerr << "Error: Unsupported type for NEGATE operation" << std::endl;
+        }
+    } else if (instruction.opcode == NOT) {
+        if (std::holds_alternative<bool>(value)) {
+            stack.push(!std::get<bool>(value));
+        } else {
+            std::cerr << "Error: Unsupported type for NOT operation" << std::endl;
         }
     } else {
         std::cerr << "Error: Invalid unary operation opcode" << std::endl;
@@ -394,10 +397,6 @@ void StackBackend::handlePushArg(const Instruction& instruction) {
     stack.push(instruction.value);
 }
 
-void StackBackend::handleWhileLoop() {
-    // Implementation for while loop
-}
-
 void StackBackend::handleJump() {
     auto offset =  program[this->pc].value;
 
@@ -414,23 +413,11 @@ void StackBackend::handleJumpZero() {
 
     auto condition = stack.top();
     stack.pop();
-    // std::cout << typeid(condition).name() << std::endl;
-    // std::cout << "condition offset size: "<< std::get<double>(condition) << std::endl;
-   // std::visit([](const auto &value) { std::cout << "The condition : " << value << std::endl; }, condition);
-    //    std::visit([](const auto &value) {
-    //     std::cout << "The condition: " << value << " (Type: " << typeid(value).name() << ")" << std::endl;
-    // }, condition);
-
 
     if (!std::holds_alternative<bool>(condition)) {
         std::cerr << "Error: JUMP_IF_FALSE requires a boolean condition" << std::endl;
         return;
     }
-
-    // if (!std::holds_alternative<int32_t>(offset)) {
-    //     std::cerr << "Error: JUMP_IF_FALSE requires an integer offset" << std::endl;
-    //     return;
-    // }
 
     if (!std::get<bool>(condition)) {
         pc += std::get<int32_t>(offset);
