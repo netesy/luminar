@@ -25,3 +25,102 @@ Time: Mon Jun 17 21:14:23 2024
 Suggestion: Check your code for errors.
  ----------------END----------------
 
+
+ ----------------DEBUG----------------
+Error at line 1, position 0 (Syntax Error): Unexpected token
+Token: DOT
+Time: Tue Jun 18 04:42:50 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 12 (Syntax Error): Expected '{' before block.
+Token: PRINT
+Time: Tue Jun 18 04:43:44 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 11 (Syntax Error): Unexpected token
+Token: LEFT_BRACE
+Time: Tue Jun 18 04:46:07 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 19 (Lexical Error): Invalid character.
+Token: $
+Time: Tue Jun 18 05:33:53 2024
+
+Suggestion: Check for invalid characters in your code.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 1 (Lexical Error): Invalid character.
+Token: $
+Time: Tue Jun 18 05:34:21 2024
+
+Suggestion: Check for invalid characters in your code.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 12 (Syntax Error): Expected '{' before block.
+Token: PRINT
+Time: Tue Jun 18 05:34:35 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 18 (Lexical Error): Invalid character.
+Token: $
+Time: Tue Jun 18 05:39:02 2024
+
+Suggestion: Check for invalid characters in your code.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 18 (Syntax Error): Unexpected token
+Token: ELSE
+Time: Tue Jun 18 05:39:09 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 19 (Syntax Error): Expected '(' after 'if'
+Token: LEFT_BRACE
+Time: Tue Jun 18 05:41:48 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 26 (Syntax Error): Expected '}' after block.
+Token: EOF_TOKEN
+Time: Tue Jun 18 06:04:46 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error at line 1, position 26 (Syntax Error): Expected '}' after block.
+Token: EOF_TOKEN
+Time: Wed Jun 19 07:04:27 2024
+
+Suggestion: Check your code for errors.
+ ----------------END----------------
+

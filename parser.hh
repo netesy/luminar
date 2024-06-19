@@ -92,6 +92,7 @@ private:
     void parseAnd();
     void parseOr();
     void parseEOF();
+    void parseUnexpected();
     void parseComparison();
     void parseBoolean();
     void parseUnary();
