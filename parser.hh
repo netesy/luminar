@@ -57,10 +57,15 @@ private:
     void parseWhileLoop();           // while loop
     void parseForLoop();             //Python like forloop
     void parseMatchStatement();      // python like match and case
+    void parseConcurrentStatement();      // Concurrent Operations
+    void parseParallelStatement();      // Parallel Operations
     void parseFnDeclaration();       // Adapt from first parser (if supported)
     void parseFnCall();
     void parseClassDeclaration();    // Adapt from first parser (if supported)
     void parseReturnStatement();     // Adapt from first parser
+    //To be implemented
+    void parseImport();
+    void parseModules();
 
     // Pratt parsing utility functions
     ParseFn getParseFn(TokenType type);

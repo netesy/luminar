@@ -667,43 +667,94 @@ void Parser::parsePrintStatement()
 
 void Parser::parseIfStatement()
 {
-    std::vector<size_t> jumpOffsets;
-    bool hasElseBlock = false;
+    //    std::vector<size_t> jumpOffsets;
+    //    bool hasElseBlock = false;
 
-    while (true) {
-        Token op = previous();
-        if (op.type == TokenType::IF || op.type == TokenType::ELIF) {
-            consume(TokenType::LEFT_PAREN, "Expected '(' after 'if/elif'");
+    //    while (true) {
+    //        Token op = previous();
+    //        if (op.type == TokenType::IF || op.type == TokenType::ELIF) {
+    //            consume(TokenType::LEFT_PAREN, "Expected '(' after 'if/elif'");
+    //            parseExpression();
+    //            consume(TokenType::RIGHT_PAREN, "Expected ')' after if/elif condition");
+
+    //            size_t jumpIfFalseOffset = bytecode.size();
+    //            emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+
+    //            parseBlock();
+
+    //            size_t jumpOffset = bytecode.size();
+    //            emit(Opcode::JUMP, op.line, 0);
+
+    //            int32_t JNEOffset = bytecode.size() - jumpIfFalseOffset - 1;
+    //            bytecode[jumpIfFalseOffset].value = JNEOffset;
+    //            jumpOffsets.push_back(jumpOffset);
+    //        } else if (op.type == TokenType::ELSE) {
+    //            advance();
+    //            parseBlock();
+    //            hasElseBlock = true;
+    //            break;
+    //        } else {
+    //            break;
+    //        }
+    //    }
+
+    //    for (size_t offset : jumpOffsets) {
+    //        int32_t offsetValue = bytecode.size() - offset - 1;
+    //        bytecode[offset].value = offsetValue;
+    //    }
+
+    //    if (!hasElseBlock) {
+    //        bytecode.push_back({ Opcode::NOP, 0, 0 });
+    //    }
+    std::vector<size_t> endJumps;
+
+    // Parse 'if' condition
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+
+    size_t thenJump = bytecode.size();
+    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+
+    parseBlock();
+
+    size_t elseJump = bytecode.size();
+    endJumps.push_back(elseJump);
+    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+
+    // Patch thenJump
+    int32_t thenOffset = bytecode.size() - thenJump - 1;
+    bytecode[thenJump].value = thenOffset;
+
+    // Handle 'elif' and 'else'
+    while (match(TokenType::ELIF) || match(TokenType::ELSE)) {
+        if (previous().type == TokenType::ELIF) {
+            consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
             parseExpression();
-            consume(TokenType::RIGHT_PAREN, "Expected ')' after if/elif condition");
+            consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
 
-            size_t jumpIfFalseOffset = bytecode.size();
-            emit(Opcode::JUMP_IF_FALSE, op.line, 0);
+            thenJump = bytecode.size();
+            emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
 
             parseBlock();
 
-            size_t jumpOffset = bytecode.size();
-            emit(Opcode::JUMP, op.line, 0);
+            elseJump = bytecode.size();
+            endJumps.push_back(elseJump);
+            emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
 
-            int32_t JNEOffset = bytecode.size() - jumpIfFalseOffset - 1;
-            bytecode[jumpIfFalseOffset].value = JNEOffset;
-            jumpOffsets.push_back(jumpOffset);
-        } else if (op.type == TokenType::ELSE) {
+            // Patch thenJump
+            thenOffset = bytecode.size() - thenJump - 1;
+            bytecode[thenJump].value = thenOffset;
+        } else { // ELSE block
             parseBlock();
-            hasElseBlock = true;
-            break;
-        } else {
-            break;
+            break; // 'else' is always the last block
         }
     }
 
-    for (size_t offset : jumpOffsets) {
-        int32_t offsetValue = bytecode.size() - offset - 1;
-        bytecode[offset].value = offsetValue;
-    }
-
-    if (!hasElseBlock) {
-        bytecode.push_back({ Opcode::NOP, 0, 0 });
+    // Patch all endJumps
+    for (size_t jump : endJumps) {
+        int32_t endOffset = bytecode.size() - jump - 1;
+        bytecode[jump].value = endOffset;
     }
 }
 
@@ -756,6 +807,42 @@ void Parser::parseMatchStatement()
 
     parseExpression();
     emit(Opcode::PATTERN_MATCH, op.line);
+}
+
+void Parser::parseConcurrentStatement()
+{
+    consume(TokenType::CONCURRENT, "Expected 'concurrent' keyword");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'concurrent'");
+
+    // Parse arguments (if any)
+    while (!check(TokenType::RIGHT_PAREN)) {
+        parseExpression(); // Parse each argument
+        if (match(TokenType::COMMA)) {
+            continue; // Allow multiple arguments separated by commas
+        }
+    }
+
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after concurrent arguments");
+
+    parseBlock(); // Parse the block of statements to be executed concurrently
+}
+
+void Parser::parseParallelStatement()
+{
+    consume(TokenType::PARALLEL, "Expected 'parallel' keyword");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'parallel'");
+
+    // Parse arguments (if any)
+    while (!check(TokenType::RIGHT_PAREN)) {
+        parseExpression(); // Parse each argument
+        if (match(TokenType::COMMA)) {
+            continue; // Allow multiple arguments separated by commas
+        }
+    }
+
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after parallel arguments");
+
+    parseBlock(); // Parse the block of statements to be executed in parallel
 }
 
 void Parser::parseFnDeclaration()
@@ -827,6 +914,77 @@ void Parser::parseFnCall()
 
     // Emit bytecode for function call with arguments
     emit(Opcode::INVOKE_FUNCTION, name.line, name.lexeme);
+}
+
+void Parser::parseImport()
+{
+    consume(TokenType::IMPORT, "Expected 'import' keyword");
+
+    std::vector<std::string> importPath;
+
+    do {
+        if (check(TokenType::IDENTIFIER)) {
+            importPath.push_back(current().lexeme);
+            advance();
+        } else if (match(TokenType::STRING)) {
+            importPath.push_back(previous().literal.toString());
+        } else {
+            error(current(), "Expected module name or string literal in import statement");
+            return;
+        }
+
+        // Handle submodules
+        if (match(TokenType::DOT)) {
+            if (!check(TokenType::IDENTIFIER)) {
+                error(current(), "Expected identifier after '.' in import statement");
+                return;
+            }
+        }
+    } while (match(TokenType::DOT));
+
+    // Now importPath contains the complete module path
+
+    // Perform semantic checks
+    std::string moduleName = ""; // Construct the full module name
+    for (const auto &component : importPath) {
+        if (!moduleName.empty()) {
+            moduleName += ".";
+        }
+        moduleName += component;
+
+        // Check if moduleName exists and is accessible
+        //        if (!moduleExists(moduleName)) {
+        //            error(current(), "Module '" + moduleName + "' not found or inaccessible");
+        //            return;
+        //        }
+    }
+
+    // Example logic: Print the imported module path
+    std::cout << "Imported module path: ";
+    for (const auto &pathComponent : importPath) {
+        std::cout << pathComponent << ".";
+    }
+    std::cout << std::endl;
+}
+
+void Parser::parseModules()
+{
+    consume(TokenType::MODULE, "Expected 'module' keyword");
+    std::string moduleName = consume(TokenType::IDENTIFIER, "Expected module name").lexeme;
+    consume(TokenType::LEFT_BRACE, "Expected '{' after module name");
+
+    // Enter the module scope
+    enterScope(moduleName);
+
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        parseDeclaration(); // Parse declarations within the module
+    }
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after module contents");
+    consume(TokenType::SEMICOLON, "Expected ';' after module declaration");
+
+    // Exit the module scope
+    exitScope();
 }
 
 std::vector<Instruction> Parser::getBytecode() const
