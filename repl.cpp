@@ -26,13 +26,6 @@ void REPL::run(std::string input)
     auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
     VM vm(parser, std::move(backend));
 
-    //        if (!vm) {
-    //            vm = std::make_unique<VM>(parser, std::move(backend));
-    //        } else {
-    //            vm->appendBytecode(bytecode);
-    //        }
-
-    // RegisterVM vm(parser);
     try {
         vm.run();
         vm.dumpRegisters();

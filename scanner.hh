@@ -119,6 +119,7 @@ public:
     std::string tokenTypeToString(TokenType type, std::string value) const;
     int getLine() const { return line; }
     int getCurrent() const { return current; }
+    std::string getSource();
     std::string getLexeme() const { return source.substr(start, current - start); }
     size_t current;
     size_t start;

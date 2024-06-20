@@ -49,5 +49,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-//    std::string source = "var name = \"Joe Medly\"; var pi = 3.1423838; print(pi); print(name); ";

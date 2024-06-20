@@ -615,7 +615,13 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
     return "UNKNOWN";
 }
 
+std::string Scanner::getSource()
+{
+    return this->source;
+}
+
 void Scanner::error(const std::string &message)
 {
+    Debugger(source);
     Debugger::error(message, getLine(), getCurrent(), InterpretationStage::SCANNING, getLexeme());
 }

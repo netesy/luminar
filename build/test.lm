@@ -59,11 +59,11 @@ if (x < 150) {
     print(15);
 }
 // var n = 0; n= 3+2; print(n); var p = 0; p = p+n; print(p);
-    // var p = 0;
-    // while (p < 5) {
-    //     print(p);
-    //     p = p + 1;
-    // }
+    var p = 0;
+    while (p < 5) {
+        print(p);
+        p = p + 1;
+    }
 
     // var i = 4
     // while (i < 5) {
