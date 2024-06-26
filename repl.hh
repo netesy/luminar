@@ -10,9 +10,9 @@ class REPL
 {
 public:
     REPL();
-    static void start();
+    static void start(const std::string &filename);
     static void run(std::string input, const std::string &filename, const std::string &filepath);
-    static void startDevMode();
+    static void startDevMode(const std::string &filename);
 
 private:
     std::unique_ptr<StackBackend> backend;

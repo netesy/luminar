@@ -1,342 +1,260 @@
 
  ----------------DEBUG----------------
-Error at line 1, position 11 (Syntax Error): Unexpected token
-Token: LEFT_BRACE
-Time: Mon Jun 17 21:11:25 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 12 (Syntax Error): Expected '{' before block.
-Token: PRINT
-Time: Mon Jun 17 21:13:09 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 18 (Syntax Error): Unexpected token
-Token: ELSE
-Time: Mon Jun 17 21:14:23 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 0 (Syntax Error): Unexpected token
-Token: DOT
-Time: Tue Jun 18 04:42:50 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 12 (Syntax Error): Expected '{' before block.
-Token: PRINT
-Time: Tue Jun 18 04:43:44 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 11 (Syntax Error): Unexpected token
-Token: LEFT_BRACE
-Time: Tue Jun 18 04:46:07 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 19 (Lexical Error): Invalid character.
-Token: $
-Time: Tue Jun 18 05:33:53 2024
-
-Suggestion: Check for invalid characters in your code.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 1 (Lexical Error): Invalid character.
-Token: $
-Time: Tue Jun 18 05:34:21 2024
-
-Suggestion: Check for invalid characters in your code.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 12 (Syntax Error): Expected '{' before block.
-Token: PRINT
-Time: Tue Jun 18 05:34:35 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 18 (Lexical Error): Invalid character.
-Token: $
-Time: Tue Jun 18 05:39:02 2024
-
-Suggestion: Check for invalid characters in your code.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 18 (Syntax Error): Unexpected token
-Token: ELSE
-Time: Tue Jun 18 05:39:09 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 19 (Syntax Error): Expected '(' after 'if'
-Token: LEFT_BRACE
-Time: Tue Jun 18 05:41:48 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 26 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Tue Jun 18 06:04:46 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 26 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Wed Jun 19 07:04:27 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 71, position 26 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Thu Jun 20 22:38:46 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 65, position 18 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:42:04 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 66, position 23 (Syntax Error): Expected ';' after expression.
-Token: RIGHT_BRACE
-Time: Thu Jun 20 22:42:04 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 65, position 18 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:44:16 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 66, position 23 (Syntax Error): Expected ';' after expression.
-Token: RIGHT_BRACE
-Time: Thu Jun 20 22:44:16 2024
-
-Suggestion: Check your code for errors.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 65, position 18 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:53:12 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 66, position 23 (Syntax Error): Expected ';' after expression.
-Token: RIGHT_BRACE
-Time: Thu Jun 20 22:53:12 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 13 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:54:47 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 18 (Syntax Error): Expected ';' after expression.
-Token: PRINT
-Time: Thu Jun 20 22:54:47 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 11 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Thu Jun 20 22:55:44 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected '}' after block.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 18 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:56:40 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 1, position 23 (Syntax Error): Expected ';' after expression.
-Token: PRINT
-Time: Thu Jun 20 22:56:40 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 58, position 19 (Syntax Error): Expected '(' after 'if'
-Token: LEFT_BRACE
-Time: Thu Jun 20 22:59:34 2024
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 58, Column 1156 (Syntax Error): Expected '(' after 'if'
+Time: Wed Jun 26 18:34:52 2024
+
+
+Context:
+57 |     print(x);
+58 | [1m} else {[0m
+59 |     print(15);
 
 Suggestion: Ensure the correct syntax is followed. Expected '(' after 'if'
+Sample Solution: Ensure the correct syntax is followed. Expected '(' after 'if'
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 62, position 26 (Syntax Error): Expected ')' after if condition
-Token: VAR
-Time: Thu Jun 20 22:59:34 2024
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 71, Column 1398 (Syntax Error): Expected ')' after if condition
+Time: Wed Jun 26 18:34:53 2024
+
+
+Context:
+70 |     //     print(i)
+71 | [1m    // }[0m
 
 Suggestion: Ensure the correct syntax is followed. Expected ')' after if condition
+Sample Solution: Ensure the correct syntax is followed. Expected ')' after if condition
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 63, position 37 (Syntax Error): Expected ';' after expression.
-Token: LEFT_BRACE
-Time: Thu Jun 20 22:59:34 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 71, Column 1398 (Syntax Error): Expected '}' after block.
+Time: Wed Jun 26 18:34:53 2024
 
 
- ----------------DEBUG----------------
-Error at line 65, position 44 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Thu Jun 20 22:59:34 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 66, position 49 (Syntax Error): Expected ';' after expression.
-Token: RIGHT_BRACE
-Time: Thu Jun 20 22:59:34 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 71, position 50 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Thu Jun 20 22:59:34 2024
+Context:
+70 |     //     print(i)
+71 | [1m    // }[0m
 
 Suggestion: Ensure the correct syntax is followed. Expected '}' after block.
+Sample Solution: Ensure the correct syntax is followed. Expected '}' after block.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 58, position 19 (Syntax Error): Expected '(' after 'if'
-Token: LEFT_BRACE
-Time: Sat Jun 22 06:16:02 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected '(' after 'if'
- ----------------END----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 65, Column 1318 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 18:37:34 2024
 
 
- ----------------DEBUG----------------
-Error at line 62, position 26 (Syntax Error): Expected ')' after if condition
-Token: VAR
-Time: Sat Jun 22 06:16:02 2024
-
-Suggestion: Ensure the correct syntax is followed. Expected ')' after if condition
- ----------------END----------------
-
-
- ----------------DEBUG----------------
-Error at line 63, position 37 (Syntax Error): Expected ';' after expression.
-Token: LEFT_BRACE
-Time: Sat Jun 22 06:16:02 2024
+Context:
+64 |         print(p);
+65 | [1m        p = p + 1;[0m
+66 |     }
 
 Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 65, position 44 (Syntax Error): Expected ';' after expression.
-Token: EQUAL
-Time: Sat Jun 22 06:16:02 2024
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 66, Column 1331 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 18:37:34 2024
+
+
+Context:
+65 |         p = p + 1;
+66 | [1m    }[0m
+67 | 
 
 Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 66, position 49 (Syntax Error): Expected ';' after expression.
-Token: RIGHT_BRACE
-Time: Sat Jun 22 06:16:02 2024
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 65, Column 1318 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 18:45:13 2024
+
+
+Context:
+64 |         print(p);
+65 | [1m        p = p + 1;[0m
+66 |     }
 
 Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
  ----------------END----------------
 
 
  ----------------DEBUG----------------
-Error at line 71, position 50 (Syntax Error): Expected '}' after block.
-Token: EOF_TOKEN
-Time: Sat Jun 22 06:16:02 2024
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 66, Column 1331 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 18:45:13 2024
+
+
+Context:
+65 |         p = p + 1;
+66 | [1m    }[0m
+67 | 
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 65, Column 1318 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:13:17 2024
+
+
+Context:
+64 |         print(p);
+65 | [1m        p = p + 1;[0m
+66 |     }
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 66, Column 1331 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:13:17 2024
+
+
+Context:
+65 |         p = p + 1;
+66 | [1m    }[0m
+67 | 
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 65, Column 1318 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:13:54 2024
+
+
+Context:
+64 |         print(p);
+65 | [1m        p = p + 1;[0m
+66 |     }
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: C:\Users\Fablur\Desktop\Projects\luminar\build\test.lm
+Line 66, Column 1331 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:13:54 2024
+
+
+Context:
+65 |         p = p + 1;
+66 | [1m    }[0m
+67 | 
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: 
+Path: 
+Line 1, Column 39 (Syntax Error): Expected '}' after block.
+Time: Wed Jun 26 19:15:51 2024
+
+
+Context:
+1 | [1mwhile(false){print("False condition");}[0m
 
 Suggestion: Ensure the correct syntax is followed. Expected '}' after block.
+Sample Solution: Ensure the correct syntax is followed. Expected '}' after block.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: 
+Path: 
+Line 1, Column 39 (Syntax Error): Expected '}' after block.
+Time: Wed Jun 26 19:16:39 2024
+
+
+Context:
+1 | [1mwhile(false){print("False condition");}[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected '}' after block.
+Sample Solution: Ensure the correct syntax is followed. Expected '}' after block.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: 
+Path: 
+Line 1, Column 24 (Syntax Error): Expected '}' after block.
+Time: Wed Jun 26 19:17:36 2024
+
+
+Context:
+1 | [1mwhile(false){print(23);}[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected '}' after block.
+Sample Solution: Ensure the correct syntax is followed. Expected '}' after block.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: 
+Path: 
+Line 1, Column 35 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:18:10 2024
+
+
+Context:
+1 | [1mvar m = 2; while(m>3){print(m); m = m+1;}[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: 
+Path: 
+Line 1, Column 41 (Syntax Error): Expected ';' after expression.
+Time: Wed Jun 26 19:18:10 2024
+
+
+Context:
+1 | [1mvar m = 2; while(m>3){print(m); m = m+1;}[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected ';' after expression.
+Sample Solution: Ensure the correct syntax is followed. Expected ';' after expression.
  ----------------END----------------
 

@@ -539,7 +539,7 @@ void Parser::parseLoadVariable()
 {
     // Parse loading existing variable
     Token name = previous();
-    std::cout << "Parsing load variable: " << name.lexeme << std::endl; // Debug statement
+    //std::cout << "Parsing load variable: " << name.lexeme << std::endl; // Debug statement
     if (check(TokenType::LEFT_PAREN)) {
         parseFnCall();
     }

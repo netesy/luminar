@@ -10,11 +10,31 @@ REPL::REPL()
     , vm(nullptr)
 {}
 
-void REPL::start()
+void REPL::start(const std::string &filename = "test.lm")
 {
-    std::cout << "Luminar REPL :" << std::endl;
-    std::string input = readFile("test.lm");
-    run(input, "loop.lm", std::filesystem::absolute("loop.lm").string());
+    std::cout << "Luminar Interpreter :" << std::endl;
+    if (!filename.empty()) {
+        // If a filename is provided, read and run the file
+        std::string fileContent = readFile(filename);
+        std::string filePath = std::filesystem::absolute(filename).string();
+        if (!fileContent.empty()) {
+            std::cout << "Interpreting file: " << filename << std::endl;
+            run(fileContent, filename, filePath);
+        } else {
+            std::cerr << "Error: Unable to read file or file is empty." << std::endl;
+        }
+    }
+
+    // Start the REPL loop
+    while (true) {
+        std::string input = readInput();
+        if (input == "exit" || input == "quit") {
+            break;
+        }
+        run(input, "", "");
+    }
+    //    std::string input = readFile("test.lm");
+    //    run(input, "loop.lm", std::filesystem::absolute("loop.lm").string());
 }
 
 void REPL::run(std::string input, const std::string &filename = "", const std::string &filepath = "")
@@ -37,12 +57,29 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
     }
 }
 
-void REPL::startDevMode()
+void REPL::startDevMode(const std::string &filename = "")
 {
-    //start the language with debugging enabled.
-    std::cout << "Luminar Dev REPL :" << std::endl;
-    std::string input = readInput();
-    run(input);
+    std::cout << "Luminar REPL :" << std::endl;
+    if (!filename.empty()) {
+        // If a filename is provided, read and run the file
+        std::string fileContent = readFile(filename);
+        std::string filePath = std::filesystem::absolute(filename).string();
+        if (!fileContent.empty()) {
+            std::cout << "Interpreting file: " << filename << std::endl;
+            run(fileContent, filename, filePath);
+        } else {
+            std::cerr << "Error: Unable to read file or file is empty." << std::endl;
+        }
+    }
+
+    // Start the REPL loop
+    while (true) {
+        std::string input = readInput();
+        if (input == "exit" || input == "quit") {
+            break;
+        }
+        run(input);
+    }
 }
 
 std::string REPL::readInput()
