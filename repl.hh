@@ -11,7 +11,7 @@ class REPL
 public:
     REPL();
     static void start();
-    static void run(std::string input);
+    static void run(std::string input, const std::string &filename, const std::string &filepath);
     static void startDevMode();
 
 private:

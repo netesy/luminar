@@ -30,7 +30,8 @@ add_executable(luminar main.cpp
     backends/import.hh
     backends/backend.hh
     test/tst_parser.cpp
-    test/tst_scanner.cpp)
+    test/tst_scanner.cpp
+    token.hh)
 
 include(GNUInstallDirs)
 install(TARGETS luminar

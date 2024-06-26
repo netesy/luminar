@@ -1,4 +1,5 @@
 #include "repl.hh"
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -13,13 +14,13 @@ void REPL::start()
 {
     std::cout << "Luminar REPL :" << std::endl;
     std::string input = readFile("test.lm");
-    run(input);
+    run(input, "test.lm", std::filesystem::absolute("test.lm").string());
 }
 
-void REPL::run(std::string input)
+void REPL::run(std::string input, const std::string &filename = "", const std::string &filepath = "")
 {
         // Tokenize input
-    Scanner scanner(input);
+    Scanner scanner(input, filename, filepath);
     Parser parser(scanner);
     debug(scanner, parser);
     std::vector<Instruction> bytecode = parser.getBytecode();

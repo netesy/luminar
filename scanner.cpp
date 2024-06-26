@@ -220,9 +220,9 @@ void Scanner::addToken(TokenType type, const std::string &text)
 {
     std::string lexeme = source.substr(start, current - start);
     if (text != "") {
-        tokens.push_back({type, text, line});
+        tokens.push_back({type, text, filename, filepath, int(current), line});
     } else {
-        tokens.push_back({type, lexeme, line});
+        tokens.push_back({type, lexeme, filename, filepath, int(current), line});
     }
     currentToken = tokens.back(); // Update currentToken
 }
@@ -622,6 +622,6 @@ std::string Scanner::getSource()
 
 void Scanner::error(const std::string &message)
 {
-    Debugger(source);
+    Debugger::getSource(getSource());
     Debugger::error(message, getLine(), getCurrent(), InterpretationStage::SCANNING, getLexeme());
 }

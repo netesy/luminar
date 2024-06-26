@@ -1,6 +1,7 @@
 // debugger.h
 #pragma once
 
+#include "token.hh"
 #include <chrono>
 #include <ctime>
 #include <fstream>
@@ -15,58 +16,57 @@ enum class InterpretationStage { SCANNING, PARSING, SYNTAX, SEMANTIC, INTERPRETI
 
 class Debugger
 {
-    Debugger(const std::string &sourceCode)
-        : sourceCode(splitLines(sourceCode))
-    {}
+    //    Debugger(const std::string &sourceCode)
+    //        : sourceCode(splitLines(sourceCode))
+    //    {}
 
 public:
-    static void debugInfo(const std::string &errorMessage,
-                          int lineNumber,
-                          int position,
-                          InterpretationStage stage,
-                          const std::string &expectedValue = "")
+    static void getSource(const std::string &code) { sourceCode = splitLines(code); }
+    //    static void getSource(const std::string &source) {Debugger::sourceCode(splitLines(source); }
+
+    static void error(const std::string &errorMessage,
+                      const Token &errorToken,
+                      InterpretationStage stage,
+                      const std::string &expectedValue = "")
     {
-        std::cerr << "Debug Info (" << stageToString(stage) << "):" << std::endl;
-        std::cerr << "Line number: " << lineNumber << ", Position: " << position << std::endl;
-        std::cerr << "Error: " << errorMessage << std::endl;
+        debugConsole(errorMessage, errorToken, stage, expectedValue);
+        debugLog(errorMessage, errorToken, stage, expectedValue);
+    }
+
+private:
+    static std::vector<std::string> sourceCode;
+
+    static void debugConsole(const std::string &errorMessage,
+                             const Token &errorToken,
+                             InterpretationStage stage,
+                             const std::string &expectedValue)
+    {
+        std::cerr << "\n ----------------DEBUG----------------\n"
+                  << "Error in file: " << errorToken.filename << std::endl
+                  << "Path: " << errorToken.filepath << std::endl
+                  << "Line " << errorToken.line << ", Column " << errorToken.column << " ("
+                  << stageToString(stage) << "): " << errorMessage << std::endl;
+
         if (!expectedValue.empty()) {
             std::cerr << "Expected value: " << expectedValue << std::endl;
         }
+
         std::cerr << "Time: " << getTime() << std::endl;
-        // Show the line of code and highlight the problematic part
-        if (lineNumber >= 1 && lineNumber <= sourceCode.size()) {
-            std::cerr << "\nCode:\n" << sourceCode[lineNumber - 1] << std::endl;
-            std::cerr << std::string(position - 1, ' ') << "^" << std::endl;
-        }
+
+        // Show the line before, the error line (in bold), and the line after
+        printContextLines(std::cerr, errorToken.line);
 
         std::cerr << "Suggestion: " << getSuggestion(errorMessage, expectedValue) << std::endl;
-        std::cerr << "Sample Solution: "
-                  << getSampleSolution(errorMessage, expectedValue, lineNumber, position)
+        std::cerr << "Sample Solution: " << getSampleSolution(errorMessage, expectedValue)
                   << "\n ----------------END----------------\n"
                   << std::endl;
     }
 
-    static void error(const std::string &errorMessage,
-                      int lineNumber,
-                      int position,
-                      InterpretationStage stage,
-                      const std::string &token = "",
-                      const std::string &expectedValue = "")
+    static void debugLog(const std::string &errorMessage,
+                         const Token &errorToken,
+                         InterpretationStage stage,
+                         const std::string &expectedValue)
     {
-        std::cerr << "\n ----------------DEBUG----------------\n"
-                  << "Error at line " << lineNumber << ", position " << position << " ("
-                  << stageToString(stage) << "): " << errorMessage << std::endl;
-        if (!token.empty()) {
-            std::cerr << "Token: " << token << std::endl;
-        }
-        if (!expectedValue.empty()) {
-            std::cerr << "Expected value: " << expectedValue << std::endl;
-        }
-        std::cerr << "Time: " << getTime() << std::endl;
-        std::cerr << "Suggestion: " << getSuggestion(errorMessage, expectedValue)
-                  << "\n ----------------END----------------\n"
-                  << std::endl;
-
         std::ofstream logfile("log.txt", std::ios_base::app); // Open log file for appending
         if (!logfile.is_open()) {
             std::cerr << "Failed to open log file." << std::endl;
@@ -74,36 +74,42 @@ public:
         }
 
         logfile << "\n ----------------DEBUG----------------\n"
-                << "Error at line " << lineNumber << ", position " << position << " ("
+                << "Error in file: " << errorToken.filename << std::endl
+                << "Path: " << errorToken.filepath << std::endl
+                << "Line " << errorToken.line << ", Column " << errorToken.column << " ("
                 << stageToString(stage) << "): " << errorMessage << std::endl;
 
-        if (!token.empty()) {
-            logfile << "Token: " << token << std::endl;
-        }
         if (!expectedValue.empty()) {
             logfile << "Expected value: " << expectedValue << std::endl;
         }
 
         logfile << "Time: " << getTime() << std::endl;
 
-        // Show the line of code and highlight the problematic part
-        if (lineNumber >= 1 && lineNumber <= sourceCode.size()) {
-            logfile << "\nCode:\n" << sourceCode[lineNumber - 1] << std::endl;
-            logfile << std::string(position - 1, ' ') << "^" << std::endl;
-        }
+        // Show the line before, the error line, and the line after
+        printContextLines(logfile, errorToken.line);
 
         logfile << "Suggestion: " << getSuggestion(errorMessage, expectedValue) << std::endl;
-        logfile << "Sample Solution: "
-                << getSampleSolution(errorMessage, expectedValue, lineNumber, position)
+        logfile << "Sample Solution: " << getSampleSolution(errorMessage, expectedValue)
                 << "\n ----------------END----------------\n"
                 << std::endl;
 
         logfile.close(); // Close the log file
-        // exit(4);
     }
 
-private:
-    std::vector<std::string> sourceCode;
+    static void printContextLines(std::ostream &out, int errorLine)
+    {
+        out << "\nContext:\n";
+        if (errorLine > 1 && errorLine <= int(sourceCode.size())) {
+            out << (errorLine - 1) << " | " << sourceCode[errorLine - 2] << std::endl;
+        }
+        if (errorLine >= 1 && errorLine <= int(sourceCode.size())) {
+            out << errorLine << " | \033[1m" << sourceCode[errorLine - 1] << "\033[0m" << std::endl;
+        }
+        if (errorLine < int(sourceCode.size())) {
+            out << (errorLine + 1) << " | " << sourceCode[errorLine] << std::endl;
+        }
+        out << std::endl;
+    }
 
     static std::vector<std::string> splitLines(const std::string &sourceCode)
     {
@@ -125,7 +131,6 @@ private:
     static std::string getSuggestion(const std::string &errorMessage,
                                      const std::string &expectedValue = "")
     {
-        // Provide suggestions based on the error message and expected value
         // Provide suggestions based on the error message and expected value
         if (errorMessage.find("Invalid character") != std::string::npos) {
             return "Check for invalid characters in your code.";
@@ -186,9 +191,7 @@ private:
     }
 
     static std::string getSampleSolution(const std::string &errorMessage,
-                                         const std::string &expectedValue,
-                                         int lineNumber,
-                                         int position)
+                                         const std::string &expectedValue)
     {
         // Provide a sample solution based on the error message and expected value
         if (errorMessage.find("Invalid character") != std::string::npos) {

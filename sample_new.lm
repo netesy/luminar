@@ -183,7 +183,7 @@ parallel(tasks, cores=Auto, on_error=Auto) {
     for (var i = 1; i <= 5; i++) {
         run_task(i);
     }
-// }
+  }
 //
 //
 // // Define a function for concurrent execution
@@ -195,11 +195,11 @@ parallel(tasks, cores=Auto, on_error=Auto) {
 // }
 //
 // // Execute multiple tasks concurrently
-// concurrent(tasks, cores=Auto, on_error=Auto) {
-//     for (var i = 1; i <= 3; i++) {
-//         run_task(i);
-//     }
-// }
+ concurrent(tasks, cores=Auto, on_error=Auto) {
+     for (var i = 1; i <= 3; i++) {
+         run_task(i);
+     }
+ }
 //
 //
 // // Define a function for asynchronous execution
