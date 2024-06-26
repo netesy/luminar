@@ -52,12 +52,12 @@
 //             var result1 = factorial(5);
 //         print(result1)
 
-var x = 20;
-if (x < 150) {
-    print(x);
-} else {
-    print(15);
-}
+// var x = 20;
+// if (x < 150) {
+//     print(x);
+// } else {
+//     print(15);
+// }
 // var n = 0; n= 3+2; print(n); var p = 0; p = p+n; print(p);
     var p = 0;
     while (p < 5) {

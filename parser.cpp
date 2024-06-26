@@ -93,8 +93,8 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::PRINT:
         return &Parser::parsePrintStatement;
     case TokenType::IF:
-        case TokenType::ELIF:
-            case TokenType::ELSE:
+    case TokenType::ELIF:
+    case TokenType::ELSE:
         return &Parser::parseIfStatement;
     case TokenType::WHILE:
         return &Parser::parseWhileLoop;
@@ -165,7 +165,12 @@ Token Parser::peekNext()
     if (current + 1 < tokens.size()) {
         return tokens[current + 1];
     } else {
-        return Token{TokenType::EOF_TOKEN, "", scanner.getLine()};
+        return Token{TokenType::EOF_TOKEN,
+                     "",
+                     scanner.getFilename(),
+                     scanner.getFilepath(),
+                     static_cast<int>(current),
+                     scanner.getLine()};
     }
 }
 
@@ -242,11 +247,7 @@ bool Parser::isExpression(TokenType type)
 
 void Parser::error(const std::string &message)
 {
-    Debugger::error(message,
-                    peek().line,
-                    current,
-                    InterpretationStage::PARSING,
-                    scanner.tokenTypeToString(peek().type, peek().lexeme));
+    Debugger::error(message, peek(), InterpretationStage::PARSING, scanner.getSource());
 }
 
 void Parser::parsePrecedence(Precedence precedence)
@@ -552,7 +553,7 @@ void Parser::parseLoadVariable()
 void Parser::parseBlock()
 {
     enterScope();
-   // consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
+    // consume(TokenType::LEFT_BRACE, "Expected '{' before block.");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         parseStatement(); // Handles statements inside the block
     }
@@ -566,7 +567,8 @@ void Parser::parseAssignment()
     //    advance();
     std::string varName = token.lexeme;
     std::cout << "Parsing assignment for variable: " << varName << std::endl;
-    std::cout << "Parsing assignment after var name: " << peek().lexeme << std::endl; // Debug statement
+    std::cout << "Parsing assignment after var name: " << peek().lexeme
+              << std::endl; // Debug statement
 
     //     Ensure we are matching an assignment operator
     //    if (!check(TokenType::EQUAL)) {
@@ -706,6 +708,58 @@ void Parser::parseIfStatement()
     //    if (!hasElseBlock) {
     //        bytecode.push_back({ Opcode::NOP, 0, 0 });
     //    }
+
+    //    std::vector<size_t> endJumps;
+
+    //    // Parse 'if' condition
+    //    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    //    parseExpression();
+    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+
+    //    size_t thenJump = bytecode.size();
+    //    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+
+    //    parseBlock();
+
+    //    size_t elseJump = bytecode.size();
+    //    endJumps.push_back(elseJump);
+    //    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+
+    //    // Patch thenJump
+    //    int32_t thenOffset = bytecode.size() - thenJump - 1;
+    //    bytecode[thenJump].value = thenOffset;
+
+    //    // Handle 'elif' and 'else'
+    //    while (match(TokenType::ELIF) || match(TokenType::ELSE)) {
+    //        if (previous().type == TokenType::ELIF) {
+    //            consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
+    //            parseExpression();
+    //            consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
+
+    //            thenJump = bytecode.size();
+    //            emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+
+    //            parseBlock();
+
+    //            elseJump = bytecode.size();
+    //            endJumps.push_back(elseJump);
+    //            emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+
+    //            // Patch thenJump
+    //            thenOffset = bytecode.size() - thenJump - 1;
+    //            bytecode[thenJump].value = thenOffset;
+    //        } else { // ELSE block
+    //            parseBlock();
+    //            break; // 'else' is always the last block
+    //        }
+    //    }
+
+    //    // Patch all endJumps
+    //    for (size_t jump : endJumps) {
+    //        int32_t endOffset = bytecode.size() - jump - 1;
+    //        bytecode[jump].value = endOffset;
+    //    }
+
     std::vector<size_t> endJumps;
 
     // Parse 'if' condition
@@ -918,73 +972,76 @@ void Parser::parseFnCall()
 
 void Parser::parseImport()
 {
-    consume(TokenType::IMPORT, "Expected 'import' keyword");
+    //    consume(TokenType::IMPORT, "Expected 'import' keyword");
 
-    std::vector<std::string> importPath;
+    //    std::vector<std::string> importPath;
 
-    do {
-        if (check(TokenType::IDENTIFIER)) {
-            importPath.push_back(current().lexeme);
-            advance();
-        } else if (match(TokenType::STRING)) {
-            importPath.push_back(previous().literal.toString());
-        } else {
-            error(current(), "Expected module name or string literal in import statement");
-            return;
-        }
+    //    do {
+    //        if (check(TokenType::IDENTIFIER)) {
+    //            importPath.push_back(current().lexeme);
+    //            advance();
+    //        } else if (match(TokenType::STRING)) {
+    //            importPath.push_back(previous().literal.toString());
+    //        } else {
+    //            error(current(), "Expected module name or string literal in import statement");
+    //            return;
+    //        }
 
-        // Handle submodules
-        if (match(TokenType::DOT)) {
-            if (!check(TokenType::IDENTIFIER)) {
-                error(current(), "Expected identifier after '.' in import statement");
-                return;
-            }
-        }
-    } while (match(TokenType::DOT));
+    //        // Handle submodules
+    //        if (match(TokenType::DOT)) {
+    //            if (!check(TokenType::IDENTIFIER)) {
+    //                error(current(), "Expected identifier after '.' in import statement");
+    //                return;
+    //            }
+    //        }
+    //    } while (match(TokenType::DOT));
 
-    // Now importPath contains the complete module path
+    //    // Now importPath contains the complete module path
 
-    // Perform semantic checks
-    std::string moduleName = ""; // Construct the full module name
-    for (const auto &component : importPath) {
-        if (!moduleName.empty()) {
-            moduleName += ".";
-        }
-        moduleName += component;
+    //    // Perform semantic checks
+    //    std::string moduleName = ""; // Construct the full module name
+    //    for (const auto &component : importPath) {
+    //        if (!moduleName.empty()) {
+    //            moduleName += ".";
+    //        }
+    //        moduleName += component;
 
-        // Check if moduleName exists and is accessible
-        //        if (!moduleExists(moduleName)) {
-        //            error(current(), "Module '" + moduleName + "' not found or inaccessible");
-        //            return;
-        //        }
-    }
+    //        // Check if moduleName exists and is accessible
+    //        //        if (!moduleExists(moduleName)) {
+    //        //            error(current(), "Module '" + moduleName + "' not found or inaccessible");
+    //        //            return;
+    //        //        }
+    //    }
 
-    // Example logic: Print the imported module path
-    std::cout << "Imported module path: ";
-    for (const auto &pathComponent : importPath) {
-        std::cout << pathComponent << ".";
-    }
-    std::cout << std::endl;
+    //    // Example logic: Print the imported module path
+    //    std::cout << "Imported module path: ";
+    //    for (const auto &pathComponent : importPath) {
+    //        std::cout << pathComponent << ".";
+    //    }
+    //    std::cout << std::endl;
 }
 
 void Parser::parseModules()
 {
-    consume(TokenType::MODULE, "Expected 'module' keyword");
-    std::string moduleName = consume(TokenType::IDENTIFIER, "Expected module name").lexeme;
-    consume(TokenType::LEFT_BRACE, "Expected '{' after module name");
+    //    consume(TokenType::MODULE, "Expected 'module' keyword");
+    //    if (check(TokenType::IDENTIFIER)) {
+    //        std::string moduleName = peek().lexeme;
+    //        consume(TokenType::IDENTIFIER, "Expected module name")
+    //    }
+    //    consume(TokenType::LEFT_BRACE, "Expected '{' after module name");
 
-    // Enter the module scope
-    enterScope(moduleName);
+    //    // Enter the module scope
+    //    enterScope(moduleName);
 
-    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        parseDeclaration(); // Parse declarations within the module
-    }
+    //    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //        parseDeclaration(); // Parse declarations within the module
+    //    }
 
-    consume(TokenType::RIGHT_BRACE, "Expected '}' after module contents");
-    consume(TokenType::SEMICOLON, "Expected ';' after module declaration");
+    //    consume(TokenType::RIGHT_BRACE, "Expected '}' after module contents");
+    //    consume(TokenType::SEMICOLON, "Expected ';' after module declaration");
 
-    // Exit the module scope
-    exitScope();
+    //    // Exit the module scope
+    //    exitScope();
 }
 
 std::vector<Instruction> Parser::getBytecode() const

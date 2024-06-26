@@ -10,7 +10,8 @@ std::vector<Token> Scanner::scanTokens()
         scanToken();
     }
 
-    tokens.push_back({TokenType::EOF_TOKEN, "", line});
+    tokens.push_back(
+        {TokenType::EOF_TOKEN, "", filename, filepath, static_cast<int>(current), line});
     return tokens;
 }
 
@@ -121,84 +122,105 @@ Token Scanner::getTokenFromChar(char c)
 {
     switch (c) {
     case '(':
-        return Token{TokenType::LEFT_PAREN, std::string(1, c), line};
+        addToken(TokenType::LEFT_PAREN);
+        break;
     case ')':
-        return Token{TokenType::RIGHT_PAREN, std::string(1, c), line};
+        addToken(TokenType::RIGHT_PAREN);
+        break;
     case '{':
-        return Token{TokenType::LEFT_BRACE, std::string(1, c), line};
+        addToken(TokenType::LEFT_BRACE);
+        break;
     case '}':
-        return Token{TokenType::RIGHT_BRACE, std::string(1, c), line};
+        addToken(TokenType::RIGHT_BRACE);
+        break;
     case '[':
-        return Token{TokenType::LEFT_BRACKET, std::string(1, c), line};
+        addToken(TokenType::LEFT_BRACKET);
+        break;
     case ']':
-        return Token{TokenType::RIGHT_BRACKET, std::string(1, c), line};
+        addToken(TokenType::RIGHT_BRACKET);
+        break;
     case ',':
-        return Token{TokenType::COMMA, std::string(1, c), line};
+        addToken(TokenType::COMMA);
+        break;
     case '.':
-        return Token{TokenType::DOT, std::string(1, c), line};
+        addToken(TokenType::DOT);
+        break;
     case '-':
-        return match('>') ? Token{TokenType::ARROW, "->", line}
-                          : Token{TokenType::MINUS, std::string(1, c), line};
+        if (match('>')) {
+            addToken(TokenType::ARROW);
+        } else if (match('=')) {
+            addToken(TokenType::MINUS_EQUAL);
+        } else {
+            addToken(TokenType::MINUS);
+        }
+        break;
     case '+':
-        return Token{TokenType::PLUS, std::string(1, c), line};
+        addToken(match('=') ? TokenType::PLUS_EQUAL : TokenType::PLUS);
+        break;
     case '?':
-        return Token{TokenType::QUESTION, std::string(1, c), line};
+        addToken(TokenType::QUESTION);
+        break;
     case ':':
-        return Token{TokenType::COLON, std::string(1, c), line};
+        addToken(TokenType::COLON);
+        break;
     case ';':
-        return Token{TokenType::SEMICOLON, std::string(1, c), line};
+        addToken(TokenType::SEMICOLON);
+        break;
     case '*':
-        return Token{TokenType::STAR, std::string(1, c), line};
+        addToken(TokenType::STAR);
+        break;
     case '!':
-        return match('=') ? Token{TokenType::BANG_EQUAL, "!=", line}
-                          : Token{TokenType::BANG, std::string(1, c), line};
+        addToken(match('=') ? TokenType::BANG_EQUAL : TokenType::BANG);
+        break;
     case '=':
-        return match('=') ? Token{TokenType::EQUAL_EQUAL, "==", line}
-                          : Token{TokenType::EQUAL, std::string(1, c), line};
+        addToken(match('=') ? TokenType::EQUAL_EQUAL : TokenType::EQUAL);
+        break;
     case '<':
-        return match('=') ? Token{TokenType::LESS_EQUAL, "<=", line}
-                          : Token{TokenType::LESS, std::string(1, c), line};
+        addToken(match('=') ? TokenType::LESS_EQUAL : TokenType::LESS);
+        break;
     case '>':
-        return match('=') ? Token{TokenType::GREATER_EQUAL, ">=", line}
-                          : Token{TokenType::GREATER, std::string(1, c), line};
+        addToken(match('=') ? TokenType::GREATER_EQUAL : TokenType::GREATER);
+        break;
     case '_':
-        return Token{TokenType::DEFAULT, std::string(1, c), line};
+        addToken(TokenType::DEFAULT);
+        break;
     case '/':
         if (match('/')) {
             // Handle comments if needed
-            // return getTokenFromComment(};
+            while (peek() != '\n' && !isAtEnd())
+                advance();
         } else {
-            return Token{TokenType::SLASH, std::string(1, c), line};
+            addToken(TokenType::SLASH);
         }
+        break;
     case '%':
-        return Token{TokenType::MODULUS, std::string(1, c), line};
+        addToken(TokenType::MODULUS);
+        break;
     case ' ':
     case '\r':
     case '\t':
         // Ignore whitespace.
-        // return Token{TokenType::WHITESPACE, std::string(1, c), line}; // If whitespace is significant, adjust accordingly.
         break;
     case '\n':
         line++;
-        // return Token{TokenType::NEWLINE, std::string(1, c), line}; // Assuming line is a member variable.
         break;
     case '"':
     case '\'':
-        // Handle strings
-        // return getTokenFromStringLiteral();
+        string();
+        break;
     default:
         if (isDigit(c)) {
-            // Handle numbers
-            // return getTokenFromNumber();
+            number();
         } else if (isAlpha(c)) {
-            // Handle identifiers
-            // return getTokenFromIdentifier();
+            identifier();
         } else {
-            // Handle error
-            // return Token{TokenType::UNDEFINED, std::string(1, c), line};
+            addToken(TokenType::UNDEFINED);
+            error("Unexpected character.");
         }
+        break;
     }
-    return Token{TokenType::UNDEFINED, std::string(1, c), line};
+
+    return currentToken;
 }
 
 bool Scanner::isAtEnd() const
@@ -251,7 +273,7 @@ const Token Scanner::getNextToken()
         return tokens[index];
     } else {
         // Handle end of tokens
-        return Token{TokenType::EOF_TOKEN, "", line};
+        return Token{TokenType::EOF_TOKEN, "", filename, filepath, static_cast<int>(current), line};
     }
 }
 
@@ -263,7 +285,7 @@ const Token Scanner::getPrevToken()
         return tokens[index];
     } else {
         // Handle no previous token
-        return Token{TokenType::EOF_TOKEN, "", line};
+        return Token{TokenType::EOF_TOKEN, "", filename, filepath, static_cast<int>(current), line};
     }
 }
 
@@ -600,16 +622,17 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
     case TokenType::DEFAULT:
         return "DEFAULT";
     case TokenType::UNDEFINED:
-        break;
+        return "UNDEFINED";
     case TokenType::ENUM:
         return "ENUM";
-        break;
     case TokenType::PLUS_EQUAL:
         return "PLUS_EQUAL";
     case TokenType::MINUS_EQUAL:
         return "MINUS_EQUAL";
     case TokenType::ELIF:
-        return "DEFAULT";
+        return "ELIF";
+    case TokenType::MUT:
+        return "MUT";
         break;
     }
     return "UNKNOWN";
@@ -622,6 +645,5 @@ std::string Scanner::getSource()
 
 void Scanner::error(const std::string &message)
 {
-    Debugger::getSource(getSource());
-    Debugger::error(message, getLine(), getCurrent(), InterpretationStage::SCANNING, getLexeme());
+    Debugger::error(message, currentToken, InterpretationStage::SCANNING, getSource(), "");
 }

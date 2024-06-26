@@ -14,7 +14,7 @@ void REPL::start()
 {
     std::cout << "Luminar REPL :" << std::endl;
     std::string input = readFile("test.lm");
-    run(input, "test.lm", std::filesystem::absolute("test.lm").string());
+    run(input, "loop.lm", std::filesystem::absolute("loop.lm").string());
 }
 
 void REPL::run(std::string input, const std::string &filename = "", const std::string &filepath = "")
@@ -31,11 +31,10 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
         vm.run();
         vm.dumpRegisters();
 
-            } catch (const std::exception &e) {
-                std::cerr << " Repl Error: " << e.what() << std::endl;
-                 // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-        }
-        //    }
+    } catch (const std::exception &e) {
+        std::cerr << " Repl Error: " << e.what() << std::endl;
+        // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
+    }
 }
 
 void REPL::startDevMode()
