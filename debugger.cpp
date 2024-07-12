@@ -33,7 +33,7 @@ void Debugger::debugConsole(const std::string &errorMessage,
     std::cerr << "Time: " << getTime() << std::endl;
 
     // Show the line before, the error line (in bold), and the line after
-    printContextLines(std::cerr, errorToken.line);
+    printContextLines(std::cerr, errorToken.line, errorToken.column);
 
     std::cerr << "Suggestion: " << getSuggestion(errorMessage, expectedValue) << std::endl;
     std::cerr << "Sample Solution: " << getSampleSolution(errorMessage, expectedValue)
@@ -46,7 +46,7 @@ void Debugger::debugLog(const std::string &errorMessage,
                         InterpretationStage stage,
                         const std::string &expectedValue)
 {
-    std::ofstream logfile("log.txt", std::ios_base::app); // Open log file for appending
+    std::ofstream logfile("debug_log.log", std::ios_base::app); // Open log file for appending
     if (!logfile.is_open()) {
         std::cerr << "Failed to open log file." << std::endl;
         return;
@@ -65,7 +65,7 @@ void Debugger::debugLog(const std::string &errorMessage,
     logfile << "Time: " << getTime() << std::endl;
 
     // Show the line before, the error line, and the line after
-    printContextLines(logfile, errorToken.line);
+    printContextLines(logfile, errorToken.line, errorToken.column);
 
     logfile << "Suggestion: " << getSuggestion(errorMessage, expectedValue) << std::endl;
     logfile << "Sample Solution: " << getSampleSolution(errorMessage, expectedValue)
@@ -75,19 +75,64 @@ void Debugger::debugLog(const std::string &errorMessage,
     logfile.close(); // Close the log file
 }
 
-void Debugger::printContextLines(std::ostream &out, int errorLine)
+void Debugger::printContextLines(std::ostream &out, int errorLine, int errorIndex)
 {
-    out << "\nContext:\n";
-    if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
-        out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
+    // out << "\nContext:\n";
+    // if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
+    //     out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
+    // }
+    // if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
+    //     out << errorLine << " | \033[1m" << sourceCodez[errorLine - 1] << "\033[0m" << std::endl;
+    // }
+    // if (errorLine < int(sourceCodez.size())) {
+    //     out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
+    // }
+    // out << std::endl;
+    // Function to wrap text in specific styles
+  // You might need to adjust these escape sequences based on your terminal
+  std::string boldOn( "\033[1m" );
+  std::string boldOff( "\033[0m" );
+  std::string colorRed( "\033[31m" );
+  std::string colorReset( "\033[0m" );
+
+  if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
+    out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
+  }
+
+  if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
+    std::string currentLine = sourceCodez[errorLine - 1];
+
+    // Highlight the faulty token if an index is provided
+    if (errorIndex >= 0 && errorIndex < int(currentLine.size())) {
+        // Split the line into tokens based on whitespace (assuming basic tokenization)
+        std::vector<std::string> tokens;
+        std::stringstream ss(currentLine);
+        std::string token;
+        while (std::getline(ss, token, ' ')) {
+            tokens.push_back(token);
+        }
+
+        // Rebuild the line with highlighted faulty token
+        currentLine.clear();
+        for (int i = 0; i < int(tokens.size()); i++) {
+            if (i == errorIndex) {
+                currentLine += colorRed + tokens[i] + colorReset + " ";
+            } else {
+                currentLine += tokens[i] + " ";
+            }
+        }
     }
-    if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
-        out << errorLine << " | \033[1m" << sourceCodez[errorLine - 1] << "\033[0m" << std::endl;
-    }
-    if (errorLine < int(sourceCodez.size())) {
-        out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
-    }
-    out << std::endl;
+
+    out << errorLine << " | " << boldOn << currentLine << boldOff << std::endl;
+  }
+
+  if (errorLine < int(sourceCodez.size())) {
+    out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
+  }
+
+  // Additional information about the error
+  //out << "Error: " << errorMessage << std::endl;
+  out << std::endl;
 }
 
 std::vector<std::string> Debugger::splitLines(const std::string &sourceCode)

@@ -1,0 +1,16 @@
+======= Scanner Debug =======
+Token: 48 | Type: NUMBER: 48 | Line: 1
+Token: + | Type: PLUS | Line: 1
+Token: 6 | Type: NUMBER: 6 | Line: 1
+Token:  | Type: EOF_TOKEN | Line: 1
+======= End Debug =======
+
+======= parse Debug =======
+Instruction: LOAD_CONST | Line: 1
+ | Value: 48
+Instruction: LOAD_CONST | Line: 1
+ | Value: 6
+Instruction: ADD | Line: 1
+ | Value: 0
+======= End Debug =======
+

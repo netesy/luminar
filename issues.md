@@ -1,5 +1,10 @@
 # Issues With Luminar
 
-var name = 45; name + 4 lead // leades to an error
-but var name = 45; print(name+4); //leads to success
+```json
+    while(0<3){
+       print("infinite loop");
+       } 
+''' //success
+== ```  var m = 0; while(m<3){print(m); m=m+1;}```== //error the presence of the first variable stops the parsing
+[x] Not functional
 

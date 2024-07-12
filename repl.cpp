@@ -44,7 +44,7 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
     Parser parser(scanner);
     debug(scanner, parser);
     std::vector<Instruction> bytecode = parser.getBytecode();
-    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
+    auto backend = std::make_unique<YASMBackend>(bytecode); // passing by value
     VM vm(parser, std::move(backend));
 
     try {
@@ -104,12 +104,19 @@ std::string REPL::readFile(const std::string &filename)
 
 void REPL::debug(Scanner scanner, Parser parser)
 {
+    std::ofstream debugfile("debug_file.log",
+                            std::ios_base::app); // Open debug log file for appending
+    if (!debugfile.is_open()) {
+        std::cerr << "Failed to open debug log file." << std::endl;
+        return;
+    }
     //Now parse the tokens using scanner methods directly
-    std::cout << "======= Scanner Debug =======\n"
+    debugfile << "======= Scanner Debug =======\n"
               << scanner.toString() << "======= End Debug =======\n"
               << std::endl;
 
-    std::cout << "======= parse Debug =======\n"
+    debugfile << "======= parse Debug =======\n"
               << parser.toString() << "======= End Debug =======\n"
               << std::endl;
+    debugfile.close(); // Close the log file
 }

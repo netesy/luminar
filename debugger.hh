@@ -34,7 +34,7 @@ private:
                          const Token &errorToken,
                          InterpretationStage stage,
                          const std::string &expectedValue);
-    static void printContextLines(std::ostream &out, int errorLine);
+    static void printContextLines(std::ostream &out, int errorLine, int errorIndex);
     static std::vector<std::string> splitLines(const std::string &sourceCode);
     static std::string getTime();
     static std::string getSuggestion(const std::string &errorMessage,
