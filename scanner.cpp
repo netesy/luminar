@@ -235,7 +235,7 @@ char Scanner::advance()
 
 void Scanner::addToken(TokenType type)
 {
-    addToken(type, "");
+    addToken(type, tokenTypeToString(type, ""));
 }
 
 void Scanner::addToken(TokenType type, const std::string &text)

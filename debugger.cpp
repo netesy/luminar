@@ -77,62 +77,94 @@ void Debugger::debugLog(const std::string &errorMessage,
 
 void Debugger::printContextLines(std::ostream &out, int errorLine, int errorIndex)
 {
-    // out << "\nContext:\n";
-    // if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
-    //     out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
-    // }
-    // if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
-    //     out << errorLine << " | \033[1m" << sourceCodez[errorLine - 1] << "\033[0m" << std::endl;
-    // }
-    // if (errorLine < int(sourceCodez.size())) {
-    //     out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
-    // }
-    // out << std::endl;
-    // Function to wrap text in specific styles
-  // You might need to adjust these escape sequences based on your terminal
-  std::string boldOn( "\033[1m" );
-  std::string boldOff( "\033[0m" );
-  std::string colorRed( "\033[31m" );
-  std::string colorReset( "\033[0m" );
+    //    // Function to wrap text in specific styles
+    //  // You might need to adjust these escape sequences based on your terminal
+    //  std::string boldOn( "\033[1m" );
+    //  std::string boldOff( "\033[0m" );
+    //  std::string colorRed( "\033[31m" );
+    //  std::string colorReset( "\033[0m" );
 
-  if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
-    out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
-  }
+    //  if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
+    //    out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
+    //  }
 
-  if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
-    std::string currentLine = sourceCodez[errorLine - 1];
+    //  if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
+    //    std::string currentLine = sourceCodez[errorLine - 1];
 
-    // Highlight the faulty token if an index is provided
-    if (errorIndex >= 0 && errorIndex < int(currentLine.size())) {
-        // Split the line into tokens based on whitespace (assuming basic tokenization)
-        std::vector<std::string> tokens;
-        std::stringstream ss(currentLine);
-        std::string token;
-        while (std::getline(ss, token, ' ')) {
-            tokens.push_back(token);
-        }
+    //    // Highlight the faulty token if an index is provided
+    //    if (errorIndex >= 0 && errorIndex < int(currentLine.size())) {
+    //        // Split the line into tokens based on whitespace (assuming basic tokenization)
+    //        std::vector<std::string> tokens;
+    //        std::stringstream ss(currentLine);
+    //        std::string token;
+    //        while (std::getline(ss, token, ' ')) {
+    //            tokens.push_back(token);
+    //        }
 
-        // Rebuild the line with highlighted faulty token
-        currentLine.clear();
-        for (int i = 0; i < int(tokens.size()); i++) {
-            if (i == errorIndex) {
-                currentLine += colorRed + tokens[i] + colorReset + " ";
-            } else {
-                currentLine += tokens[i] + " ";
-            }
-        }
+    //        // Rebuild the line with highlighted faulty token
+    //        currentLine.clear();
+    //        for (int i = 0; i < int(tokens.size()); i++) {
+    //            if (i == errorIndex) {
+    //                currentLine += colorRed + tokens[i] + colorReset + " ";
+    //            } else {
+    //                currentLine += tokens[i] + " ";
+    //            }
+    //        }
+    //    }
+
+    //    out << errorLine << colorRed << " > " << colorReset << boldOn << currentLine << boldOff
+    //        << std::endl;
+    //  }
+
+    //  if (errorLine < int(sourceCodez.size())) {
+    //    out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
+    //  }
+
+    //  // Additional information about the error
+    //  //out << "Error: " << errorMessage << std::endl;
+    //  out << std::endl;
+    std::string boldOn("\033[1m");
+    std::string boldOff("\033[0m");
+    std::string colorRed("\033[31m");
+    std::string colorBlue("\033[32m");
+    std::string colorReset("\033[0m");
+
+    // Print the line before the error
+    if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
+        out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
     }
 
-    out << errorLine << " | " << boldOn << currentLine << boldOff << std::endl;
-  }
+    // Print the error line with the faulty token highlighted
+    if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
+        std::string currentLine = sourceCodez[errorLine - 1];
+        out << errorLine << colorBlue << " > " << colorReset << boldOn;
 
-  if (errorLine < int(sourceCodez.size())) {
-    out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
-  }
+        // Highlight only the faulty token
+        int currentColumn = 1;
+        for (char c : currentLine) {
+            if (currentColumn == errorIndex) {
+                out << colorRed;
+            }
+            out << c;
+            if (currentColumn == errorIndex) {
+                out << colorReset;
+            }
+            if (c == '\t') {
+                currentColumn += 4; // Assuming tab width of 4
+            } else {
+                currentColumn++;
+            }
+        }
 
-  // Additional information about the error
-  //out << "Error: " << errorMessage << std::endl;
-  out << std::endl;
+        out << boldOff << std::endl;
+    }
+
+    // Print the line after the error
+    if (errorLine < int(sourceCodez.size())) {
+        out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
+    }
+
+    out << std::endl;
 }
 
 std::vector<std::string> Debugger::splitLines(const std::string &sourceCode)
@@ -212,67 +244,63 @@ std::string Debugger::getSuggestion(const std::string &errorMessage,
 }
 
 std::string Debugger::getSampleSolution(const std::string &errorMessage,
-                                         const std::string &expectedValue)
-    {
-        // Provide a sample solution based on the error message and expected value
-        if (errorMessage.find("Invalid character") != std::string::npos) {
-            return "Check for invalid characters such as '$', '$', or '$' in your code.";
-        } else if (errorMessage.find("Variable/function not found") != std::string::npos) {
-            return "Check the spelling of the variable or function name, or make sure it has been "
-                   "declared or defined before use.";
-        } else if (errorMessage.find("Invalid factor") != std::string::npos) {
-            return "Ensure the expression follows the correct syntax, with valid operators and "
-                   "operands.";
-        } else if (errorMessage.find("Unexpected token") != std::string::npos) {
-            if (!expectedValue.empty()) {
-                return "Expected '" + expectedValue
-                       + "'. Ensure the syntax matches the expected pattern.";
-            }
-            return "Check your code for syntax errors, such as missing or misplaced tokens.";
-        } else if (errorMessage.find("Expected") != std::string::npos) {
-            return "Ensure the correct syntax is followed. " + errorMessage;
-        } else if (errorMessage.find("Invalid value stack for unary operation")
-                   != std::string::npos) {
-            return "Ensure the stack has enough values for the operation.";
-        } else if (errorMessage.find("Invalid value stack for binary operation")
-                   != std::string::npos) {
-            return "Ensure the stack has two values for the binary operation.";
-        } else if (errorMessage.find("Unsupported type for NEGATE operation") != std::string::npos) {
-            return "NEGATE operation only supports int32_t and double types.";
-        } else if (errorMessage.find("Unsupported type for NOT operation") != std::string::npos) {
-            return "NOT operation only supports bool type.";
-        } else if (errorMessage.find("Division by zero") != std::string::npos) {
-            return "Ensure the divisor is not zero.";
-        } else if (errorMessage.find("Modulo by zero") != std::string::npos) {
-            return "Ensure the divisor is not zero.";
-        } else if (errorMessage.find("Unsupported types for binary operation")
-                   != std::string::npos) {
-            return "Binary operations support int32_t and double types.";
-        } else if (errorMessage.find("Insufficient value stack for logical operation")
-                   != std::string::npos) {
-            return "Ensure the stack has two values for the logical operation.";
-        } else if (errorMessage.find("Unsupported types for logical operation")
-                   != std::string::npos) {
-            return "Logical operations only support bool type.";
-        } else if (errorMessage.find("Insufficient value stack for comparison operation")
-                   != std::string::npos) {
-            return "Ensure the stack has two values for the comparison operation.";
-        } else if (errorMessage.find("Unsupported types for comparison operation")
-                   != std::string::npos) {
-            return "Comparison operations support int32_t and double types.";
-        } else if (errorMessage.find("Invalid variable index") != std::string::npos) {
-            return "Ensure the variable index is within the valid range.";
-        } else if (errorMessage.find("value stack underflow") != std::string::npos) {
-            return "Ensure there are enough values on the stack for the operation.";
-        } else if (errorMessage.find("Invalid jump offset type") != std::string::npos) {
-            return "Ensure the jump offset is of type int32_t.";
-        } else if (errorMessage.find("JUMP_IF_FALSE requires a boolean condition")
-                   != std::string::npos) {
-            return "Ensure the condition for JUMP_IF_FALSE is a boolean.";
-        } else {
-            return "Check your code for errors.";
+                                        const std::string &expectedValue)
+{
+    // Provide a sample solution based on the error message and expected value
+    if (errorMessage.find("Invalid character") != std::string::npos) {
+        return "Check for invalid characters such as '$', '$', or '$' in your code.";
+    } else if (errorMessage.find("Variable/function not found") != std::string::npos) {
+        return "Check the spelling of the variable or function name, or make sure it has been "
+               "declared or defined before use.";
+    } else if (errorMessage.find("Invalid factor") != std::string::npos) {
+        return "Ensure the expression follows the correct syntax, with valid operators and "
+               "operands.";
+    } else if (errorMessage.find("Unexpected token") != std::string::npos) {
+        if (!expectedValue.empty()) {
+            return "Expected '" + expectedValue
+                   + "'. Ensure the syntax matches the expected pattern.";
         }
+        return "Check your code for syntax errors, such as missing or misplaced tokens.";
+    } else if (errorMessage.find("Expected") != std::string::npos) {
+        return "Ensure the correct syntax is followed. " + errorMessage;
+    } else if (errorMessage.find("Invalid value stack for unary operation") != std::string::npos) {
+        return "Ensure the stack has enough values for the operation.";
+    } else if (errorMessage.find("Invalid value stack for binary operation") != std::string::npos) {
+        return "Ensure the stack has two values for the binary operation.";
+    } else if (errorMessage.find("Unsupported type for NEGATE operation") != std::string::npos) {
+        return "NEGATE operation only supports int32_t and double types.";
+    } else if (errorMessage.find("Unsupported type for NOT operation") != std::string::npos) {
+        return "NOT operation only supports bool type.";
+    } else if (errorMessage.find("Division by zero") != std::string::npos) {
+        return "Ensure the divisor is not zero.";
+    } else if (errorMessage.find("Modulo by zero") != std::string::npos) {
+        return "Ensure the divisor is not zero.";
+    } else if (errorMessage.find("Unsupported types for binary operation") != std::string::npos) {
+        return "Binary operations support int32_t and double types.";
+    } else if (errorMessage.find("Insufficient value stack for logical operation")
+               != std::string::npos) {
+        return "Ensure the stack has two values for the logical operation.";
+    } else if (errorMessage.find("Unsupported types for logical operation") != std::string::npos) {
+        return "Logical operations only support bool type.";
+    } else if (errorMessage.find("Insufficient value stack for comparison operation")
+               != std::string::npos) {
+        return "Ensure the stack has two values for the comparison operation.";
+    } else if (errorMessage.find("Unsupported types for comparison operation")
+               != std::string::npos) {
+        return "Comparison operations support int32_t and double types.";
+    } else if (errorMessage.find("Invalid variable index") != std::string::npos) {
+        return "Ensure the variable index is within the valid range.";
+    } else if (errorMessage.find("value stack underflow") != std::string::npos) {
+        return "Ensure there are enough values on the stack for the operation.";
+    } else if (errorMessage.find("Invalid jump offset type") != std::string::npos) {
+        return "Ensure the jump offset is of type int32_t.";
+    } else if (errorMessage.find("JUMP_IF_FALSE requires a boolean condition")
+               != std::string::npos) {
+        return "Ensure the condition for JUMP_IF_FALSE is a boolean.";
+    } else {
+        return "Check your code for errors.";
     }
+}
 
 std::string Debugger::stageToString(InterpretationStage stage)
 {
