@@ -44,7 +44,7 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
     Parser parser(scanner);
     debug(scanner, parser);
     std::vector<Instruction> bytecode = parser.getBytecode();
-    auto backend = std::make_unique<YASMBackend>(bytecode); // passing by value
+    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
     VM vm(parser, std::move(backend));
 
     try {
