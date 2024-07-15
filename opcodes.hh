@@ -1,6 +1,6 @@
 //opcodes.hh
 #pragma once
-/// @brief 
+/// @brief
 
 enum Opcode {
     // Arithmetic operations
@@ -31,6 +31,7 @@ enum Opcode {
     JUMP,
     JUMP_IF_TRUE,
     JUMP_IF_FALSE,
+
     RETURN,
 
     // Variable operations

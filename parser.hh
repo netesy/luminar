@@ -35,6 +35,7 @@ public:
 
 private:
     std::vector<Token> tokens;
+    bool hadError = false;
     size_t current = 0;                           // get the current index position
     std::vector<Instruction> bytecode;            // Declare bytecode as a local variable
     bool isNewExpression = true;
@@ -66,6 +67,7 @@ private:
     //To be implemented
     void parseImport();
     void parseModules();
+    void parseTypes();
 
     // Pratt parsing utility functions
     ParseFn getParseFn(TokenType type);
@@ -141,9 +143,9 @@ private:
         variable.enterScope();
     }
 
-    void exitScope() {
-        variable.exitScope();
-    }
+    void exitScope() { variable.exitScope(); }
+
+    void synchronize();
 };
 
 //// Maybe consider using references for efficiency

@@ -1,9 +1,10 @@
 #pragma once
 #include <atomic>
+#include <stack>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
-#include <stack>
+#include <vector>
 //using Scope = std::unordered_map<std::string, int32_t>;
 
 //     struct VariableInfo {
@@ -18,6 +19,7 @@ struct VariableInfo {
 };
 
 using Scope = std::unordered_map<std::string, VariableInfo>;
+
 class Variables {
 public:
   Variables() {

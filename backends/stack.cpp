@@ -1,4 +1,6 @@
 #include "stack.hh"
+#include <stdexcept>
+#include <type_traits>
 
 void StackBackend::dumpRegisters() {
     std::cout << "Stack:\n";
@@ -308,6 +310,13 @@ void StackBackend::performComparisonOperation(const Instruction& instruction) {
         }
     } else {
         std::cerr << "Error: Unsupported types for comparison operation" << std::endl;
+        std::cerr << "Operand 1 type: " << getTypeName(value1) << ", value: ";
+        std::visit([](const auto &v) { std::cerr << v; }, value1);
+        std::cerr << std::endl;
+        std::cerr << "Operand 2 type: " << getTypeName(value2) << ", value: ";
+        std::visit([](const auto &v) { std::cerr << v; }, value2);
+        std::cerr << std::endl;
+        return;
     }
 }
 

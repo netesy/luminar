@@ -82,5 +82,11 @@
   "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\test\\tst_scanner.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\test\\tst_scanner.cpp",
   "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\test\\tst_scanner.cpp",
   "output": "CMakeFiles\\luminar.dir\\test\\tst_scanner.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\yasm.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\yasm.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\yasm.cpp",
+  "output": "CMakeFiles\\luminar.dir\\backends\\yasm.cpp.obj"
 }
 ]

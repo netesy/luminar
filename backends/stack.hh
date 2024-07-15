@@ -56,6 +56,18 @@ private:
 
     //helpers functions
     void concurrent(std::vector<std::function<void()>> tasks);
+    std::string getTypeName(const Value &value)
+    {
+        if (std::holds_alternative<int32_t>(value))
+            return "int32_t";
+        if (std::holds_alternative<double>(value))
+            return "double";
+        if (std::holds_alternative<bool>(value))
+            return "bool";
+        if (std::holds_alternative<std::string>(value))
+            return "string";
+        return "unknown";
+    }
 };
 
 #endif // STACK_BACKEND_HH
