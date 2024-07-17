@@ -1,106 +1,207 @@
 // types.hh
 #pragma once
 
+#include <functional>
+#include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
 
-class BaseType
+enum class TypeTag { Int, Float, String, List, Dict, Enum, Function, Any, UserDefined };
+
+struct Type;
+using TypePtr = std::shared_ptr<Type>;
+
+struct ListType
 {
-public:
-    virtual ~BaseType() = default;
-    virtual std::string getTypeName() const = 0;
+    TypePtr elementType;
 };
 
-// Forward declaration of Type
-class IntegerType;
-class FloatType;
-class StringType;
-class BooleanType;
-class UserType;
-class FunctionType;
-class ListType;
-class DictType;
-class ArrayType;
-class EnumType;
-
-using Type = std::variant < std::shared_ptr<IntegerType>;
-std::shared_ptr<FloatType>, std::shared_ptr<StringType>, std::shared_ptr<BooleanType>,
-    std::shared_ptr<UserType>, std::shared_ptr<FunctionType>, std::shared_ptr<ListType>,
-    std::shared_ptr<DictType>, std::shared_ptr<ArrayType>, std::shared_ptr < EnumType >> ;
-
-class IntegerType : public BaseType
+struct DictType
 {
-public:
-    std::string getTypeName() const override { return "int"; }
+    TypePtr keyType;
+    TypePtr valueType;
 };
 
-class FloatType : public BaseType
+struct EnumType
 {
-public:
-    std::string getTypeName() const override { return "float"; }
+    std::vector<std::string> values;
 };
 
-class StringType : public BaseType
+struct FunctionType
 {
-public:
-    std::string getTypeName() const override { return "str"; }
+    std::vector<TypePtr> paramTypes;
+    TypePtr returnType;
 };
 
-class BooleanType : public BaseType
+struct UserDefinedType
 {
-public:
-    std::string getTypeName() const override { return "bool"; }
+    std::string name;
+    std::map<std::string, TypePtr> fields;
 };
 
-class UserType : public BaseType
+struct Type
 {
-public:
-    std::string typeName;
+    TypeTag tag;
+    std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, UserDefinedType> extra;
 
-    std::string getTypeName() const override { return typeName; }
+    Type(TypeTag t)
+        : tag(t)
+    {}
+    Type(TypeTag t, ListType lt)
+        : tag(t)
+        , extra(lt)
+    {}
+    Type(TypeTag t, DictType dt)
+        : tag(t)
+        , extra(dt)
+    {}
+    Type(TypeTag t, EnumType et)
+        : tag(t)
+        , extra(et)
+    {}
+    Type(TypeTag t, FunctionType ft)
+        : tag(t)
+        , extra(ft)
+    {}
+    Type(TypeTag t, UserDefinedType udt)
+        : tag(t)
+        , extra(udt)
+    {}
 };
 
-class FunctionType : public BaseType
-{
-public:
-    std::string returnType;
-    std::vector<std::string> parameterTypes;
+struct Value;
+using ValuePtr = std::shared_ptr<Value>;
 
-    std::string getTypeName() const override { return "fn"; }
+struct ListValue
+{
+    std::vector<ValuePtr> elements;
 };
 
-class ListType : public BaseType
+struct DictValue
 {
-public:
-    Type elementType; // Type of elements in the list
-
-    std::string getTypeName() const override { return "list"; }
+    std::map<ValuePtr, ValuePtr> elements;
 };
 
-class DictType : public BaseType
+struct UserDefinedValue
 {
-public:
-    Type keyType;   // Type of keys in the dictionary
-    Type valueType; // Type of values in the dictionary
-
-    std::string getTypeName() const override { return "dict"; }
+    std::map<std::string, ValuePtr> fields;
 };
 
-class ArrayType : public BaseType
+struct Value
 {
-public:
-    Type elementType; // Type of elements in the array
-    size_t size;      // Size of the array
-
-    std::string getTypeName() const override { return "array"; }
+    TypePtr type;
+    std::variant<int32_t, double, std::string, ListValue, DictValue, UserDefinedValue> data;
 };
 
-class EnumType : public BaseType
+class TypeSystem
 {
-public:
-    std::vector<std::string> enumValues; // Names of enumeration values
+private:
+    std::map<std::string, TypePtr> userDefinedTypes;
 
-    std::string getTypeName() const override { return "enum"; }
+    bool canConvert(TypePtr from, TypePtr to)
+    {
+        if (from == to)
+            return true;
+        if (to->tag == TypeTag::Any)
+            return true;
+        if (from->tag == TypeTag::Int && to->tag == TypeTag::Float)
+            return true;
+        if (from->tag == TypeTag::Float && to->tag == TypeTag::Int)
+            return true;
+        if (from->tag == TypeTag::Int && to->tag == TypeTag::String)
+            return true;
+        if (from->tag == TypeTag::Float && to->tag == TypeTag::String)
+            return true;
+        return false;
+    }
+
+public:
+    const TypePtr INT_TYPE = std::make_shared<Type>(TypeTag::Int);
+    const TypePtr FLOAT_TYPE = std::make_shared<Type>(TypeTag::Float);
+    const TypePtr STRING_TYPE = std::make_shared<Type>(TypeTag::String);
+    const TypePtr ANY_TYPE = std::make_shared<Type>(TypeTag::Any);
+
+    TypePtr makeListType(TypePtr elementType)
+    {
+        return std::make_shared<Type>(TypeTag::List, ListType{elementType});
+    }
+
+    TypePtr makeDictType(TypePtr keyType, TypePtr valueType)
+    {
+        return std::make_shared<Type>(TypeTag::Dict, DictType{keyType, valueType});
+    }
+
+    TypePtr makeEnumType(const std::vector<std::string> &values)
+    {
+        return std::make_shared<Type>(TypeTag::Enum, EnumType{values});
+    }
+
+    TypePtr makeFunctionType(const std::vector<TypePtr> &paramTypes, TypePtr returnType)
+    {
+        return std::make_shared<Type>(TypeTag::Function, FunctionType{paramTypes, returnType});
+    }
+
+    TypePtr makeUserDefinedType(const std::string &name,
+                                const std::map<std::string, TypePtr> &fields)
+    {
+        auto type = std::make_shared<Type>(TypeTag::UserDefined, UserDefinedType{name, fields});
+        userDefinedTypes[name] = type;
+        return type;
+    }
+
+    TypePtr getUserDefinedType(const std::string &name)
+    {
+        auto it = userDefinedTypes.find(name);
+        if (it != userDefinedTypes.end()) {
+            return it->second;
+        }
+        throw std::runtime_error("Undefined user type: " + name);
+    }
+
+    TypePtr inferType(const Value &value) { return value.type; }
+
+    bool isCompatibleType(const Value &value, TypePtr type) { return canConvert(value.type, type); }
+
+    ValuePtr convertValue(const Value &value, TypePtr targetType)
+    {
+        if (value.type == targetType) {
+            return std::make_shared<Value>(value);
+        }
+
+        auto convertedValue = std::make_shared<Value>();
+        convertedValue->type = targetType;
+
+        if (targetType->tag == TypeTag::Int) {
+            if (value.type->tag == TypeTag::Float) {
+                convertedValue->data = static_cast<int32_t>(std::get<double>(value.data));
+            } else if (value.type->tag == TypeTag::String) {
+                convertedValue->data = std::stoi(std::get<std::string>(value.data));
+            } else {
+                throw std::runtime_error("Cannot convert to Int");
+            }
+        } else if (targetType->tag == TypeTag::Float) {
+            if (value.type->tag == TypeTag::Int) {
+                convertedValue->data = static_cast<double>(std::get<int32_t>(value.data));
+            } else if (value.type->tag == TypeTag::String) {
+                convertedValue->data = std::stod(std::get<std::string>(value.data));
+            } else {
+                throw std::runtime_error("Cannot convert to Float");
+            }
+        } else if (targetType->tag == TypeTag::String) {
+            if (value.type->tag == TypeTag::Int) {
+                convertedValue->data = std::to_string(std::get<int32_t>(value.data));
+            } else if (value.type->tag == TypeTag::Float) {
+                convertedValue->data = std::to_string(std::get<double>(value.data));
+            } else {
+                throw std::runtime_error("Cannot convert to String");
+            }
+        } else {
+            throw std::runtime_error("Unsupported type conversion");
+        }
+
+        return convertedValue;
+    }
 };
