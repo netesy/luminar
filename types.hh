@@ -1,8 +1,8 @@
-// types.hh
 #pragma once
 
 #include <cstdint>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -129,6 +129,91 @@ struct Value
         data;
 };
 
+class OverflowException : public std::runtime_error
+{
+public:
+    OverflowException(const std::string &msg)
+        : std::runtime_error(msg)
+    {}
+};
+
+template<typename To, typename From>
+To safe_cast(From value)
+{
+    To result = static_cast<To>(value);
+    if (static_cast<From>(result) != value || (value > 0 && result < 0)
+        || (value < 0 && result > 0)) {
+        throw OverflowException("Overflow detected in integer conversion");
+    }
+    return result;
+}
+
+std::string typeTagToString(TypeTag tag)
+{
+    switch (tag) {
+    case TypeTag::Int:
+        return "Int";
+    case TypeTag::Int8:
+        return "Int8";
+    case TypeTag::Int16:
+        return "Int16";
+    case TypeTag::Int32:
+        return "Int32";
+    case TypeTag::Int64:
+        return "Int64";
+    case TypeTag::UInt:
+        return "UInt";
+    case TypeTag::UInt8:
+        return "UInt8";
+    case TypeTag::UInt16:
+        return "UInt16";
+    case TypeTag::UInt32:
+        return "UInt32";
+    case TypeTag::UInt64:
+        return "UInt64";
+    case TypeTag::Float:
+        return "Float";
+    case TypeTag::String:
+        return "String";
+    case TypeTag::List:
+        return "List";
+    case TypeTag::Dict:
+        return "Dict";
+    case TypeTag::Enum:
+        return "Enum";
+    case TypeTag::Function:
+        return "Function";
+    case TypeTag::Any:
+        return "Any";
+    case TypeTag::UserDefined:
+        return "UserDefined";
+    default:
+        return "Unknown";
+    }
+}
+
+int getSizeInBits(TypeTag tag)
+{
+    switch (tag) {
+    case TypeTag::Int8:
+    case TypeTag::UInt8:
+        return 8;
+    case TypeTag::Int16:
+    case TypeTag::UInt16:
+        return 16;
+    case TypeTag::Int:
+    case TypeTag::UInt:
+    case TypeTag::Int32:
+    case TypeTag::UInt32:
+        return 32;
+    case TypeTag::Int64:
+    case TypeTag::UInt64:
+        return 64;
+    default:
+        return 0; // Unknown size
+    }
+}
+
 class TypeSystem
 {
 private:
@@ -141,7 +226,7 @@ private:
         if (to->tag == TypeTag::Any)
             return true;
 
-        // Allow conversion between any integer types
+        // Allow conversion between integer types, but warn about potential data loss
         if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
              || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
              || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
@@ -150,8 +235,14 @@ private:
             && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
                 || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
                 || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16
-                || to->tag == TypeTag::UInt32 || to->tag == TypeTag::UInt64))
+                || to->tag == TypeTag::UInt32 || to->tag == TypeTag::UInt64)) {
+            if (getSizeInBits(from->tag) > getSizeInBits(to->tag)) {
+                std::cout << "Warning: Potential data loss in conversion from "
+                          << typeTagToString(from->tag) << " to " << typeTagToString(to->tag)
+                          << std::endl;
+            }
             return true;
+        }
 
         // Allow conversion from any integer type to float
         if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
@@ -171,25 +262,26 @@ private:
             && to->tag == TypeTag::String)
             return true;
 
+        // Existing conversions
         if (from->tag == TypeTag::Float && to->tag == TypeTag::Int)
             return true;
-
         if (from->tag == TypeTag::Float && to->tag == TypeTag::String)
             return true;
+
         return false;
     }
 
 public:
+    const TypePtr INT_TYPE = std::make_shared<Type>(TypeTag::Int);
     const TypePtr INT8_TYPE = std::make_shared<Type>(TypeTag::Int8);
     const TypePtr INT16_TYPE = std::make_shared<Type>(TypeTag::Int16);
     const TypePtr INT32_TYPE = std::make_shared<Type>(TypeTag::Int32);
     const TypePtr INT64_TYPE = std::make_shared<Type>(TypeTag::Int64);
+    const TypePtr UINT_TYPE = std::make_shared<Type>(TypeTag::UInt);
     const TypePtr UINT8_TYPE = std::make_shared<Type>(TypeTag::UInt8);
     const TypePtr UINT16_TYPE = std::make_shared<Type>(TypeTag::UInt16);
     const TypePtr UINT32_TYPE = std::make_shared<Type>(TypeTag::UInt32);
     const TypePtr UINT64_TYPE = std::make_shared<Type>(TypeTag::UInt64);
-    const TypePtr INT_TYPE = std::make_shared<Type>(TypeTag::Int);
-    const TypePtr UINT_TYPE = std::make_shared<Type>(TypeTag::UInt);
     const TypePtr FLOAT_TYPE = std::make_shared<Type>(TypeTag::Float);
     const TypePtr STRING_TYPE = std::make_shared<Type>(TypeTag::String);
     const TypePtr ANY_TYPE = std::make_shared<Type>(TypeTag::Any);
@@ -249,21 +341,21 @@ public:
             -> std::variant<int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t> {
             switch (toType) {
             case TypeTag::Int8:
-                return static_cast<int8_t>(fromValue);
+                return safe_cast<int8_t>(fromValue);
             case TypeTag::Int16:
-                return static_cast<int16_t>(fromValue);
+                return safe_cast<int16_t>(fromValue);
             case TypeTag::Int32:
-                return static_cast<int32_t>(fromValue);
+                return safe_cast<int32_t>(fromValue);
             case TypeTag::Int64:
-                return static_cast<int64_t>(fromValue);
+                return safe_cast<int64_t>(fromValue);
             case TypeTag::UInt8:
-                return static_cast<uint8_t>(fromValue);
+                return safe_cast<uint8_t>(fromValue);
             case TypeTag::UInt16:
-                return static_cast<uint16_t>(fromValue);
+                return safe_cast<uint16_t>(fromValue);
             case TypeTag::UInt32:
-                return static_cast<uint32_t>(fromValue);
+                return safe_cast<uint32_t>(fromValue);
             case TypeTag::UInt64:
-                return static_cast<uint64_t>(fromValue);
+                return safe_cast<uint64_t>(fromValue);
             default:
                 throw std::runtime_error("Unsupported integer conversion");
             }
@@ -280,9 +372,24 @@ public:
                 || targetType->tag == TypeTag::Int64 || targetType->tag == TypeTag::UInt
                 || targetType->tag == TypeTag::UInt8 || targetType->tag == TypeTag::UInt16
                 || targetType->tag == TypeTag::UInt32 || targetType->tag == TypeTag::UInt64)) {
-            std::visit([&](auto &&
-                               arg) { convertedValue->data = convertInteger(arg, targetType->tag); },
-                       value.data);
+            try {
+                std::visit(
+                    [&](auto &&arg) { convertedValue->data = convertInteger(arg, targetType->tag); },
+                    value.data);
+            } catch (const OverflowException &e) {
+                throw std::runtime_error("Overflow detected: " + std::string(e.what())
+                                         + ". Conversion from " + typeTagToString(value.type->tag)
+                                         + " to " + typeTagToString(targetType->tag)
+                                         + " is not safe.");
+            }
+
+            // Check for potential data loss (e.g., converting from larger to smaller type)
+            if (getSizeInBits(value.type->tag) > getSizeInBits(targetType->tag)) {
+                std::cout << "Warning: Potential data loss in conversion from "
+                          << typeTagToString(value.type->tag) << " to "
+                          << typeTagToString(targetType->tag) << std::endl;
+            }
+
             return convertedValue;
         }
 
