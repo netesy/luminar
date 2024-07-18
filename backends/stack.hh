@@ -41,6 +41,7 @@ private:
     void handleDeclareVariable(unsigned int variableIndex);
     void handleLoadVariable(unsigned int variableIndex);
     void handleStoreVariable(unsigned int variableIndex);
+    void handleInterpolateString(unsigned int partCount);
     void handleDeclareFunction(const std::string& functionName);
     void handleCallFunction(const std::string& functionName);
     void handleParallel(unsigned int taskCount);

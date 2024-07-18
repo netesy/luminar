@@ -61,6 +61,9 @@ void StackBackend::execute(const Instruction& instruction) {
     case LOAD_STR:
         handleLoadConst(instruction.value);
         break;
+    case INTERPOLATE_STRING:
+        handleInterpolateString(std::get<int32_t>(instruction.value));
+        break;
     case PRINT:
         handlePrint();
         break;
@@ -256,68 +259,91 @@ void StackBackend::performComparisonOperation(const Instruction& instruction) {
     auto value1 = stack.top();
     stack.pop();
 
-    if (std::holds_alternative<int32_t>(value1) && std::holds_alternative<int32_t>(value2)) {
-        int32_t reg1 = std::get<int32_t>(value1);
-        int32_t reg2 = std::get<int32_t>(value2);
+    bool result;
 
-        switch (instruction.opcode) {
-            case EQUAL:
-                stack.push(reg1 == reg2);
-                break;
-            case NOT_EQUAL:
-                stack.push(reg1 != reg2);
-                break;
-            case LESS_THAN:
-                stack.push(reg1 < reg2);
-                break;
-            case LESS_THAN_OR_EQUAL:
-                stack.push(reg1 <= reg2);
-                break;
-            case GREATER_THAN:
-                stack.push(reg1 > reg2);
-                break;
-            case GREATER_THAN_OR_EQUAL:
-                stack.push(reg1 >= reg2);
-                break;
-            default:
-                std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
-        }
-    } else if (std::holds_alternative<double>(value1) && std::holds_alternative<double>(value2)) {
-        double reg1 = std::get<double>(value1);
-        double reg2 = std::get<double>(value2);
-
-        switch (instruction.opcode) {
-            case EQUAL:
-                stack.push(reg1 == reg2);
-                break;
-            case NOT_EQUAL:
-                stack.push(reg1 != reg2);
-                break;
-            case LESS_THAN:
-                stack.push(reg1 < reg2);
-                break;
-            case LESS_THAN_OR_EQUAL:
-                stack.push(reg1 <= reg2);
-                break;
-            case GREATER_THAN:
-                stack.push(reg1 > reg2);
-                break;
-            case GREATER_THAN_OR_EQUAL:
-                stack.push(reg1 >= reg2);
-                break;
-            default:
-                std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
-        }
-    } else {
-        std::cerr << "Error: Unsupported types for comparison operation" << std::endl;
-        std::cerr << "Operand 1 type: " << getTypeName(value1) << ", value: ";
-        std::visit([](const auto &v) { std::cerr << v; }, value1);
-        std::cerr << std::endl;
-        std::cerr << "Operand 2 type: " << getTypeName(value2) << ", value: ";
-        std::visit([](const auto &v) { std::cerr << v; }, value2);
-        std::cerr << std::endl;
+    switch (instruction.opcode) {
+    case EQUAL:
+        result = value1 == value2;
+        break;
+    case NOT_EQUAL:
+        result = value1 != value2;
+        break;
+    case LESS_THAN:
+        result = std::visit(
+            [](const auto &a, const auto &b) -> bool {
+                using T1 = std::decay_t<decltype(a)>;
+                using T2 = std::decay_t<decltype(b)>;
+                if constexpr (std::is_same_v<T1, T2> && std::is_convertible_v<T1, double>) {
+                    return static_cast<double>(a) < static_cast<double>(b);
+                } else if constexpr (std::is_same_v<T1, std::string>
+                                     && std::is_same_v<T2, std::string>) {
+                    return a < b;
+                } else {
+                    throw std::runtime_error("Incompatible types for less than comparison");
+                }
+            },
+            value1,
+            value2);
+        break;
+    case LESS_THAN_OR_EQUAL:
+        result = std::visit(
+            [](const auto &a, const auto &b) -> bool {
+                using T1 = std::decay_t<decltype(a)>;
+                using T2 = std::decay_t<decltype(b)>;
+                if constexpr (std::is_same_v<T1, T2> && std::is_convertible_v<T1, double>) {
+                    return static_cast<double>(a) <= static_cast<double>(b);
+                } else if constexpr (std::is_same_v<T1, std::string>
+                                     && std::is_same_v<T2, std::string>) {
+                    return a <= b;
+                } else {
+                    throw std::runtime_error(
+                        "Incompatible types for less than or equal comparison");
+                }
+            },
+            value1,
+            value2);
+        break;
+    case GREATER_THAN:
+        result = std::visit(
+            [](const auto &a, const auto &b) -> bool {
+                using T1 = std::decay_t<decltype(a)>;
+                using T2 = std::decay_t<decltype(b)>;
+                if constexpr (std::is_same_v<T1, T2> && std::is_convertible_v<T1, double>) {
+                    return static_cast<double>(a) > static_cast<double>(b);
+                } else if constexpr (std::is_same_v<T1, std::string>
+                                     && std::is_same_v<T2, std::string>) {
+                    return a > b;
+                } else {
+                    throw std::runtime_error("Incompatible types for greater than comparison");
+                }
+            },
+            value1,
+            value2);
+        break;
+    case GREATER_THAN_OR_EQUAL:
+        result = std::visit(
+            [](const auto &a, const auto &b) -> bool {
+                using T1 = std::decay_t<decltype(a)>;
+                using T2 = std::decay_t<decltype(b)>;
+                if constexpr (std::is_same_v<T1, T2> && std::is_convertible_v<T1, double>) {
+                    return static_cast<double>(a) >= static_cast<double>(b);
+                } else if constexpr (std::is_same_v<T1, std::string>
+                                     && std::is_same_v<T2, std::string>) {
+                    return a >= b;
+                } else {
+                    throw std::runtime_error(
+                        "Incompatible types for greater than or equal comparison");
+                }
+            },
+            value1,
+            value2);
+        break;
+    default:
+        std::cerr << "Error: Invalid comparison operation opcode" << std::endl;
         return;
     }
+
+    stack.push(result);
 }
 
 void StackBackend::handleLoadConst(const Value &constantValue) {
@@ -353,6 +379,22 @@ void StackBackend::handleStoreVariable(unsigned int variableIndex) {
     auto value = stack.top();
     variables[variableIndex] = value;
     stack.pop();
+}
+
+void StackBackend::handleInterpolateString(int partCount)
+{
+    int32_t partCnt = std::static_cast<int32_t>(partCount);
+    std::string result;
+    for (int i = 0; i < partCnt; ++i) {
+        if (stack.empty()) {
+                std::cerr << "Error: Stack underflow during string interpolation" << std::endl;
+                return;
+        }
+        auto part = stack.top();
+        stack.pop();
+        result = std::visit([](const auto &v) { return std::to_string(v); }, part) + result;
+    }
+    stack.push(result);
 }
 
 void StackBackend::handlePrint() {
