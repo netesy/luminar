@@ -1,106 +1,177 @@
 #pragma once
+#include "types.hh"
+
+#include "scope.hh" // Include the new ScopeManager header
 #include <atomic>
-#include <stack>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
-#include <vector>
-//using Scope = std::unordered_map<std::string, int32_t>;
 
-//     struct VariableInfo {
-//     uint32_t memoryLocation;
-//     VariableType type;
-//     bool isMutable;
-// };
+class TypeSystem; // Forward declaration
 
-struct VariableInfo {
+struct VariableInfo
+{
     int32_t memoryLocation;
     bool isMutable;
+    std::optional<ValuePtr> value;
+    TypePtr type;
 };
 
-using Scope = std::unordered_map<std::string, VariableInfo>;
-
-class Variables {
+class Variables
+{
 public:
-  Variables() {
-    // Add a global scope initially
-    enterScope();
-  }
+    Variables(std::shared_ptr<TypeSystem> typeSystem)
+        : typeSystem_(typeSystem)
+        , scopeManager_()
+    {}
 
-  // Add a new variable to the current scope (local or global)
-  int32_t addVariable(const std::string &name, bool isGlobal = true)
-  {
-    // Check if the variable already exists in the current scope
-    if (!isGlobal && currentScope().count(name) > 0) {
-        throw std::runtime_error("Variable already declared in this scope: " + name);
+    // Add a new variable to the current scope (local or global)
+    int32_t addVariable(const std::string &name,
+                        TypePtr type,
+                        bool isGlobal = false,
+                        std::optional<ValuePtr> defaultValue = std::nullopt)
+    {
+        static std::atomic<int32_t> nextMemoryLocation = 0;
+        int32_t memoryLocation = nextMemoryLocation++;
+
+        ValuePtr initialValue;
+        if (defaultValue.has_value()) {
+            if (!typeSystem_->isCompatibleType(*defaultValue.value(), type)) {
+                throw std::runtime_error(
+                    "Default value type does not match declared type for variable: " + name);
+            }
+            initialValue = defaultValue.value();
+        } else {
+            initialValue = createDefaultValueForType(type);
+        }
+
+        VariableInfo info{memoryLocation,
+                          true, // isMutable
+                          initialValue,
+                          type};
+
+        if (isGlobal) {
+            scopeManager_.addGlobal(name, info);
+        } else {
+            scopeManager_.add(name, info);
+        }
+
+        return memoryLocation;
     }
 
-    bool isMutable = true;
-    static std::atomic<int32_t> nextMemoryLocation = 0;
-    int32_t memoryLocation = nextMemoryLocation++;
+    // Check if a variable exists in any scope
+    bool hasVariable(const std::string &name) const { return scopeManager_.exists(name); }
 
-    if (isGlobal) {
-      // Add to the global scope (first element in the vector)
-      scopeStack_.front()[name] = {memoryLocation, isMutable};
-    } else {
-      // Add to the current local scope
-      currentScope()[name] = {memoryLocation, isMutable};
+    // Get the memory location of a variable
+    std::optional<int32_t> getVariableMemoryLocation(const std::string &name) const
+    {
+        auto info = scopeManager_.get(name);
+        if (info) {
+            return info->memoryLocation;
+        }
+        return std::nullopt;
     }
-    return memoryLocation;
-  }
 
-  // Check if a variable exists in any scope
-  bool hasVariable(const std::string& name) const {
-    for (const auto& scope : scopeStack_) {
-      if (scope.count(name) > 0) {
-        return true;
-      }
+    // Get the type of a variable
+    std::optional<TypePtr> getVariableType(const std::string &name) const
+    {
+        auto info = scopeManager_.get(name);
+        if (info) {
+            return info->type;
+        }
+        return std::nullopt;
     }
-    return false;
-  }
 
-  // Get the memory location of a variable
-  int32_t getVariableMemoryLocation(const std::string& name) const {
-    for (const auto& scope : scopeStack_) {
-      if (scope.count(name) > 0) {
-        return scope.at(name).memoryLocation;
-      }
+    // Get the value of a variable
+    std::optional<ValuePtr> getVariableValue(const std::string &name) const
+    {
+        auto info = scopeManager_.get(name);
+        if (info) {
+            return info->value;
+        }
+        return std::nullopt;
     }
-    return -1;
-    //throw std::runtime_error("Variable not found: " + name);
-  }
 
-  // Get the mutability of a variable
-  bool isVariableMutable(const std::string& name) const {
-    for (const auto& scope : scopeStack_) {
-      if (scope.count(name) > 0) {
-        return scope.at(name).isMutable;
-      }
+    // Set the value of a variable
+    bool setVariableValue(const std::string &name, ValuePtr newValue)
+    {
+        auto info = scopeManager_.get(name);
+        if (info) {
+            if (typeSystem_->isCompatibleType(*newValue, info->type)) {
+                info->value = newValue;
+                return scopeManager_.update(name, *info);
+            } else {
+                throw std::runtime_error("Type mismatch when setting value for variable: " + name);
+            }
+        }
+        return false;
     }
-    throw std::runtime_error("Variable for mutablitiy check not found: " + name);
-  }
 
-  // Enter a new local scope
-  void enterScope() {
-    scopeStack_.push_back(Scope());
-  }
+    // Enter a new local scope
+    void enterScope() { scopeManager_.enterScope(); }
 
-  // Exit the current scope
-  void exitScope() {
-    if (scopeStack_.size() <= 1) {
-      throw std::runtime_error("Mismatched scope exit (cannot exit global scope)");
-    }
-    scopeStack_.pop_back();
-  }
+    // Exit the current scope
+    void exitScope() { scopeManager_.exitScope(); }
 
 private:
-  std::vector<Scope> scopeStack_;  // Vector to store scopes (global first)
+    std::shared_ptr<TypeSystem> typeSystem_;
+    ScopeManager<VariableInfo> scopeManager_;
 
-  Scope& currentScope() {
-    return scopeStack_.back();
-  }
+    ValuePtr createDefaultValueForType(TypePtr type)
+    {
+        Value defaultValue;
+        defaultValue.type = type;
 
-  const Scope& currentScope() const {
-    return scopeStack_.back();
-  }
+        switch (type->tag) {
+        case TypeTag::Int:
+        case TypeTag::Int32:
+            defaultValue.data = 0;
+            break;
+        case TypeTag::Int8:
+            defaultValue.data = int8_t(0);
+            break;
+        case TypeTag::Int16:
+            defaultValue.data = int16_t(0);
+            break;
+        case TypeTag::Int64:
+            defaultValue.data = int64_t(0);
+            break;
+        case TypeTag::UInt:
+        case TypeTag::UInt32:
+            defaultValue.data = uint32_t(0);
+            break;
+        case TypeTag::UInt8:
+            defaultValue.data = uint8_t(0);
+            break;
+        case TypeTag::UInt16:
+            defaultValue.data = uint16_t(0);
+            break;
+        case TypeTag::UInt64:
+            defaultValue.data = uint64_t(0);
+            break;
+        case TypeTag::Float32:
+            defaultValue.data = 0.0f;
+            break;
+        case TypeTag::Float64:
+            defaultValue.data = 0.0;
+            break;
+        case TypeTag::String:
+            defaultValue.data = std::string();
+            break;
+        case TypeTag::List:
+            defaultValue.data = ListValue();
+            break;
+        case TypeTag::Dict:
+            defaultValue.data = DictValue();
+            break;
+        case TypeTag::UserDefined:
+            defaultValue.data = UserDefinedValue();
+            break;
+        default:
+            throw std::runtime_error("Unsupported type for default value initialization");
+        }
+
+        return std::make_shared<Value>(defaultValue);
+    }
 };
