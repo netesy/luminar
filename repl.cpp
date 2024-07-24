@@ -41,20 +41,20 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
 {
         // Tokenize input
     Scanner scanner(input, filename, filepath);
-    Parser parser(scanner);
-    debug(scanner, parser);
-    std::vector<Instruction> bytecode = parser.getBytecode();
-    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
-    VM vm(parser, std::move(backend));
+    //    Parser parser(scanner);
+    //    debug(scanner, parser);
+    //    std::vector<Instruction> bytecode = parser.getBytecode();
+    //    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
+    //    VM vm(parser, std::move(backend));
 
-    try {
-        vm.run();
-        vm.dumpRegisters();
+    //    try {
+    //        vm.run();
+    //        vm.dumpRegisters();
 
-    } catch (const std::exception &e) {
-        std::cerr << " Repl Error: " << e.what() << std::endl;
-        // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-    }
+    //    } catch (const std::exception &e) {
+    //        std::cerr << " Repl Error: " << e.what() << std::endl;
+    //        // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
+    //    }
 }
 
 void REPL::startDevMode(const std::string &filename = "")

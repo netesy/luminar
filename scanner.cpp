@@ -1,10 +1,12 @@
 // scanner.cpp
 #include "scanner.hh"
 #include "debugger.hh"
+#include <chrono>
 #include <string>
 
 std::vector<Token> Scanner::scanTokens()
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
     while (!isAtEnd()) {
         start = current;
         scanToken();
@@ -12,6 +14,9 @@ std::vector<Token> Scanner::scanTokens()
 
     tokens.push_back(
         {TokenType::EOF_TOKEN, "", filename, filepath, static_cast<int>(current), line});
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "Scanning completed in " << duration.count() << " microseconds." << std::endl;
     return tokens;
 }
 

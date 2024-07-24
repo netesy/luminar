@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -11,6 +10,8 @@
 #include <vector>
 
 enum class TypeTag {
+    Nil,
+    Bool,
     Int,
     Int8,
     Int16,
@@ -93,66 +94,13 @@ struct Type
     {}
 };
 
-struct Value;
-using ValuePtr = std::shared_ptr<Value>;
-
-struct ListValue
-{
-    std::vector<ValuePtr> elements;
-};
-
-struct DictValue
-{
-    std::map<ValuePtr, ValuePtr> elements;
-};
-
-struct UserDefinedValue
-{
-    std::map<std::string, ValuePtr> fields;
-};
-
-struct Value
-{
-    TypePtr type;
-    std::variant<int8_t,
-                 int16_t,
-                 int32_t,
-                 int64_t,
-                 uint8_t,
-                 uint16_t,
-                 uint32_t,
-                 uint64_t,
-                 double,
-                 float,
-                 std::string,
-                 ListValue,
-                 DictValue,
-                 UserDefinedValue>
-        data;
-};
-
-class OverflowException : public std::runtime_error
-{
-public:
-    OverflowException(const std::string &msg)
-        : std::runtime_error(msg)
-    {}
-};
-
-template<typename To, typename From>
-To safe_cast(From value)
-{
-    To result = static_cast<To>(value);
-    if (static_cast<From>(result) != value || (value > 0 && result < 0)
-        || (value < 0 && result > 0)) {
-        throw OverflowException("Overflow detected in integer conversion");
-    }
-    return result;
-}
-
 std::string typeTagToString(TypeTag tag)
 {
     switch (tag) {
+    case TypeTag::Nil:
+        return "Nil";
+    case TypeTag::Bool:
+        return "Bool";
     case TypeTag::Int:
         return "Int";
     case TypeTag::Int8:
@@ -216,8 +164,68 @@ int getSizeInBits(TypeTag tag)
     case TypeTag::Float64:
         return 64;
     default:
-        return 0; // Unknown size
+        return 0;
     }
+}
+
+struct Value;
+using ValuePtr = std::shared_ptr<Value>;
+
+struct ListValue
+{
+    std::vector<ValuePtr> elements;
+};
+
+struct DictValue
+{
+    std::map<ValuePtr, ValuePtr> elements;
+};
+
+struct UserDefinedValue
+{
+    std::map<std::string, ValuePtr> fields;
+};
+
+struct Value
+{
+    TypePtr type;
+    std::variant<std::monostate,
+                 bool,
+                 int8_t,
+                 int16_t,
+                 int32_t,
+                 int64_t,
+                 uint8_t,
+                 uint16_t,
+                 uint32_t,
+                 uint64_t,
+                 double,
+                 float,
+                 std::string,
+                 ListValue,
+                 DictValue,
+                 UserDefinedValue>
+        data;
+    friend std::ostream &operator<<(std::ostream &os, const Value &value);
+};
+
+class OverflowException : public std::runtime_error
+{
+public:
+    OverflowException(const std::string &msg)
+        : std::runtime_error(msg)
+    {}
+};
+
+template<typename To, typename From>
+To safe_cast(From value)
+{
+    To result = static_cast<To>(value);
+    if (static_cast<From>(result) != value || (value > 0 && result < 0)
+        || (value < 0 && result > 0)) {
+        throw OverflowException("Overflow detected in integer conversion");
+    }
+    return result;
 }
 
 class TypeSystem
@@ -225,61 +233,11 @@ class TypeSystem
 private:
     std::map<std::string, TypePtr> userDefinedTypes;
 
-    bool canConvert(TypePtr from, TypePtr to)
-    {
-        if (from == to)
-            return true;
-        if (to->tag == TypeTag::Any)
-            return true;
-
-        // Allow conversion between integer types, but warn about potential data loss
-        if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
-             || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
-             || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
-             || from->tag == TypeTag::UInt16 || from->tag == TypeTag::UInt32
-             || from->tag == TypeTag::UInt64)
-            && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
-                || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
-                || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16
-                || to->tag == TypeTag::UInt32 || to->tag == TypeTag::UInt64)) {
-            if (getSizeInBits(from->tag) > getSizeInBits(to->tag)) {
-                std::cout << "Warning: Potential data loss in conversion from "
-                          << typeTagToString(from->tag) << " to " << typeTagToString(to->tag)
-                          << std::endl;
-            }
-            return true;
-        }
-
-        // Allow conversion from any integer type to float
-        if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
-             || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
-             || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
-             || from->tag == TypeTag::UInt16 || from->tag == TypeTag::UInt32
-             || from->tag == TypeTag::UInt64)
-            && (to->tag == TypeTag::Float32 || to->tag == TypeTag::Float64))
-            return true;
-
-        // Allow conversion from any integer type to string
-        if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
-             || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
-             || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
-             || from->tag == TypeTag::UInt16 || from->tag == TypeTag::UInt32
-             || from->tag == TypeTag::UInt64)
-            && to->tag == TypeTag::String)
-            return true;
-
-        // Existing conversions
-        if ((from->tag == TypeTag::Float32 || from->tag == TypeTag::Float64)
-            && to->tag == TypeTag::Int)
-            return true;
-        if ((from->tag == TypeTag::Float32 || from->tag == TypeTag::Float64)
-            && to->tag == TypeTag::String)
-            return true;
-
-        return false;
-    }
+    bool canConvert(TypePtr from, TypePtr to);
 
 public:
+    const TypePtr NIL_TYPE = std::make_shared<Type>(TypeTag::Nil);
+    const TypePtr BOOL_TYPE = std::make_shared<Type>(TypeTag::Bool);
     const TypePtr INT_TYPE = std::make_shared<Type>(TypeTag::Int);
     const TypePtr INT8_TYPE = std::make_shared<Type>(TypeTag::Int8);
     const TypePtr INT16_TYPE = std::make_shared<Type>(TypeTag::Int16);
@@ -295,150 +253,214 @@ public:
     const TypePtr STRING_TYPE = std::make_shared<Type>(TypeTag::String);
     const TypePtr ANY_TYPE = std::make_shared<Type>(TypeTag::Any);
 
-    TypePtr makeListType(TypePtr elementType)
-    {
-        return std::make_shared<Type>(TypeTag::List, ListType{elementType});
-    }
-
-    TypePtr makeDictType(TypePtr keyType, TypePtr valueType)
-    {
-        return std::make_shared<Type>(TypeTag::Dict, DictType{keyType, valueType});
-    }
-
-    TypePtr makeEnumType(const std::vector<std::string> &values)
-    {
-        return std::make_shared<Type>(TypeTag::Enum, EnumType{values});
-    }
-
-    TypePtr makeFunctionType(const std::vector<TypePtr> &paramTypes, TypePtr returnType)
-    {
-        return std::make_shared<Type>(TypeTag::Function, FunctionType{paramTypes, returnType});
-    }
-
-    TypePtr makeUserDefinedType(const std::string &name,
-                                const std::map<std::string, TypePtr> &fields)
-    {
-        auto type = std::make_shared<Type>(TypeTag::UserDefined, UserDefinedType{name, fields});
-        userDefinedTypes[name] = type;
-        return type;
-    }
-
-    TypePtr getUserDefinedType(const std::string &name)
-    {
-        auto it = userDefinedTypes.find(name);
-        if (it != userDefinedTypes.end()) {
-            return it->second;
-        }
-        throw std::runtime_error("Undefined user type: " + name);
-    }
-
-    TypePtr inferType(const Value &value) { return value.type; }
-
-    bool isCompatibleType(const Value &value, TypePtr type) { return canConvert(value.type, type); }
-
-    ValuePtr convertValue(const Value &value, TypePtr targetType)
-    {
-        if (value.type == targetType) {
-            return std::make_shared<Value>(value);
-        }
-
-        auto convertedValue = std::make_shared<Value>();
-        convertedValue->type = targetType;
-
-        // Helper function to convert between integer types
-        auto convertInteger = [](auto fromValue, TypeTag toType)
-            -> std::variant<int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t> {
-            switch (toType) {
-            case TypeTag::Int8:
-                return safe_cast<int8_t>(fromValue);
-            case TypeTag::Int16:
-                return safe_cast<int16_t>(fromValue);
-            case TypeTag::Int32:
-                return safe_cast<int32_t>(fromValue);
-            case TypeTag::Int64:
-                return safe_cast<int64_t>(fromValue);
-            case TypeTag::UInt8:
-                return safe_cast<uint8_t>(fromValue);
-            case TypeTag::UInt16:
-                return safe_cast<uint16_t>(fromValue);
-            case TypeTag::UInt32:
-                return safe_cast<uint32_t>(fromValue);
-            case TypeTag::UInt64:
-                return safe_cast<uint64_t>(fromValue);
-            default:
-                throw std::runtime_error("Unsupported integer conversion");
-            }
-        };
-
-        // Convert between integer types
-        if ((value.type->tag == TypeTag::Int || value.type->tag == TypeTag::Int8
-             || value.type->tag == TypeTag::Int16 || value.type->tag == TypeTag::Int32
-             || value.type->tag == TypeTag::Int64 || value.type->tag == TypeTag::UInt
-             || value.type->tag == TypeTag::UInt8 || value.type->tag == TypeTag::UInt16
-             || value.type->tag == TypeTag::UInt32 || value.type->tag == TypeTag::UInt64)
-            && (targetType->tag == TypeTag::Int || targetType->tag == TypeTag::Int8
-                || targetType->tag == TypeTag::Int16 || targetType->tag == TypeTag::Int32
-                || targetType->tag == TypeTag::Int64 || targetType->tag == TypeTag::UInt
-                || targetType->tag == TypeTag::UInt8 || targetType->tag == TypeTag::UInt16
-                || targetType->tag == TypeTag::UInt32 || targetType->tag == TypeTag::UInt64)) {
-            try {
-                std::visit(
-                    [&](auto &&arg) { convertedValue->data = convertInteger(arg, targetType->tag); },
-                    value.data);
-            } catch (const OverflowException &e) {
-                throw std::runtime_error("Overflow detected: " + std::string(e.what())
-                                         + ". Conversion from " + typeTagToString(value.type->tag)
-                                         + " to " + typeTagToString(targetType->tag)
-                                         + " is not safe.");
-            }
-
-            // Check for potential data loss (e.g., converting from larger to smaller type)
-            if (getSizeInBits(value.type->tag) > getSizeInBits(targetType->tag)) {
-                std::cout << "Warning: Potential data loss in conversion from "
-                          << typeTagToString(value.type->tag) << " to "
-                          << typeTagToString(targetType->tag) << std::endl;
-            }
-
-            return convertedValue;
-        }
-
-        // Convert integer to float
-        if ((value.type->tag == TypeTag::Int || value.type->tag == TypeTag::Int8
-             || value.type->tag == TypeTag::Int16 || value.type->tag == TypeTag::Int32
-             || value.type->tag == TypeTag::Int64 || value.type->tag == TypeTag::UInt
-             || value.type->tag == TypeTag::UInt8 || value.type->tag == TypeTag::UInt16
-             || value.type->tag == TypeTag::UInt32 || value.type->tag == TypeTag::UInt64)
-            && (targetType->tag == TypeTag::Float32 || targetType->tag == TypeTag::Float64)) {
-            std::visit([&](auto &&arg) { convertedValue->data = static_cast<double>(arg); },
-                       value.data);
-            return convertedValue;
-        }
-
-        // Convert integer to string
-        if ((value.type->tag == TypeTag::Int || value.type->tag == TypeTag::Int8
-             || value.type->tag == TypeTag::Int16 || value.type->tag == TypeTag::Int32
-             || value.type->tag == TypeTag::Int64 || value.type->tag == TypeTag::UInt
-             || value.type->tag == TypeTag::UInt8 || value.type->tag == TypeTag::UInt16
-             || value.type->tag == TypeTag::UInt32 || value.type->tag == TypeTag::UInt64)
-            && targetType->tag == TypeTag::String) {
-            std::visit([&](auto &&arg) { convertedValue->data = std::to_string(arg); }, value.data);
-            return convertedValue;
-        }
-
-        // Existing conversions
-        if ((targetType->tag == TypeTag::Float32 || targetType->tag == TypeTag::Float64)
-            && value.type->tag == TypeTag::Int) {
-            convertedValue->data = static_cast<double>(std::get<int32_t>(value.data));
-        } else if (targetType->tag == TypeTag::String) {
-            if (value.type->tag == TypeTag::Float64 || value.type->tag == TypeTag::Float32) {
-                convertedValue->data = std::to_string(std::get<double>(value.data));
-            } else {
-                throw std::runtime_error("Cannot convert to String");
-            }
-        } else {
-            throw std::runtime_error("Unsupported type conversion");
-        }
-
-        return convertedValue;
-    }
+    TypePtr getUserDefinedType(const std::string &name);
+    void registerUserDefinedType(const std::string &name, TypePtr type);
+    ValuePtr convert(const ValuePtr &value, TypePtr targetType);
+    TypePtr inferType(const ValuePtr &value);
+    bool checkType(const ValuePtr &value, TypePtr expectedType);
 };
+
+bool TypeSystem::canConvert(TypePtr from, TypePtr to)
+{
+    if (from == to)
+        return true;
+    if (to->tag == TypeTag::Any)
+        return true;
+
+    if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
+         || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64 || from->tag == TypeTag::UInt
+         || from->tag == TypeTag::UInt8 || from->tag == TypeTag::UInt16
+         || from->tag == TypeTag::UInt32 || from->tag == TypeTag::UInt64)
+        && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
+            || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
+            || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16 || to->tag == TypeTag::UInt32
+            || to->tag == TypeTag::UInt64)) {
+        if (getSizeInBits(from->tag) > getSizeInBits(to->tag)) {
+            std::cout << "Warning: Potential data loss in conversion from "
+                      << typeTagToString(from->tag) << " to " << typeTagToString(to->tag)
+                      << std::endl;
+        }
+        return true;
+    }
+
+    if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
+         || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64 || from->tag == TypeTag::UInt
+         || from->tag == TypeTag::UInt8 || from->tag == TypeTag::UInt16
+         || from->tag == TypeTag::UInt32 || from->tag == TypeTag::UInt64)
+        && (to->tag == TypeTag::Float32 || to->tag == TypeTag::Float64))
+        return true;
+
+    if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
+         || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64 || from->tag == TypeTag::UInt
+         || from->tag == TypeTag::UInt8 || from->tag == TypeTag::UInt16
+         || from->tag == TypeTag::UInt32 || from->tag == TypeTag::UInt64)
+        && to->tag == TypeTag::String)
+        return true;
+
+    if ((from->tag == TypeTag::Float32 || from->tag == TypeTag::Float64) && to->tag == TypeTag::Int)
+        return true;
+
+    if ((from->tag == TypeTag::Float32 || from->tag == TypeTag::Float64)
+        && to->tag == TypeTag::String)
+        return true;
+
+    return false;
+}
+
+TypePtr TypeSystem::getUserDefinedType(const std::string &name)
+{
+    auto it = userDefinedTypes.find(name);
+    if (it != userDefinedTypes.end())
+        return it->second;
+    else
+        return nullptr;
+}
+
+void TypeSystem::registerUserDefinedType(const std::string &name, TypePtr type)
+{
+    userDefinedTypes[name] = type;
+}
+
+ValuePtr TypeSystem::convert(const ValuePtr &value, TypePtr targetType)
+{
+    if (value->type == targetType) {
+        return value;
+    }
+
+    if (!canConvert(value->type, targetType)) {
+        throw std::invalid_argument("Unsupported conversion");
+    }
+
+    ValuePtr newValue = std::make_shared<Value>();
+    newValue->type = targetType;
+
+    if (std::holds_alternative<int>(value->data)) {
+        int intValue = std::get<int>(value->data);
+        if (targetType == INT8_TYPE) {
+            newValue->data = safe_cast<int8_t>(intValue);
+        } else if (targetType == INT16_TYPE) {
+            newValue->data = safe_cast<int16_t>(intValue);
+        } else if (targetType == INT32_TYPE) {
+            newValue->data = safe_cast<int32_t>(intValue);
+        } else if (targetType == INT64_TYPE) {
+            newValue->data = static_cast<int64_t>(intValue);
+        } else if (targetType == UINT_TYPE) {
+            newValue->data = safe_cast<unsigned int>(intValue);
+        } else if (targetType == UINT8_TYPE) {
+            newValue->data = safe_cast<uint8_t>(intValue);
+        } else if (targetType == UINT16_TYPE) {
+            newValue->data = safe_cast<uint16_t>(intValue);
+        } else if (targetType == UINT32_TYPE) {
+            newValue->data = safe_cast<uint32_t>(intValue);
+        } else if (targetType == UINT64_TYPE) {
+            newValue->data = safe_cast<uint64_t>(intValue);
+        } else if (targetType == FLOAT32_TYPE) {
+            newValue->data = static_cast<float>(intValue);
+        } else if (targetType == FLOAT64_TYPE) {
+            newValue->data = static_cast<double>(intValue);
+        } else if (targetType == STRING_TYPE) {
+            newValue->data = std::to_string(intValue);
+        } else {
+            throw std::invalid_argument("Unsupported conversion");
+        }
+    } else if (std::holds_alternative<float>(value->data)) {
+        float floatValue = std::get<float>(value->data);
+        if (targetType == INT_TYPE) {
+            newValue->data = static_cast<int>(floatValue);
+        } else if (targetType == STRING_TYPE) {
+            newValue->data = std::to_string(floatValue);
+        } else {
+            throw std::invalid_argument("Unsupported conversion");
+        }
+    } else if (std::holds_alternative<double>(value->data)) {
+        double doubleValue = std::get<double>(value->data);
+        if (targetType == INT_TYPE) {
+            newValue->data = static_cast<int>(doubleValue);
+        } else if (targetType == STRING_TYPE) {
+            newValue->data = std::to_string(doubleValue);
+        } else {
+            throw std::invalid_argument("Unsupported conversion");
+        }
+    } else if (std::holds_alternative<std::string>(value->data)) {
+        std::string stringValue = std::get<std::string>(value->data);
+        if (targetType == INT_TYPE) {
+            newValue->data = std::stoi(stringValue);
+        } else if (targetType == FLOAT32_TYPE) {
+            newValue->data = std::stof(stringValue);
+        } else if (targetType == FLOAT64_TYPE) {
+            newValue->data = std::stod(stringValue);
+        } else {
+            throw std::invalid_argument("Unsupported conversion");
+        }
+    } else {
+        throw std::invalid_argument("Unsupported conversion");
+    }
+
+    return newValue;
+}
+
+TypePtr TypeSystem::inferType(const ValuePtr &value)
+{
+    return value->type;
+}
+
+bool TypeSystem::checkType(const ValuePtr &value, TypePtr expectedType)
+{
+    return value->type == expectedType;
+}
+
+// Custom operator<< for std::monostate
+std::ostream &operator<<(std::ostream &os, const std::monostate &)
+{
+    return os << "monostate";
+}
+
+// Custom operator<< for ListValue
+std::ostream &operator<<(std::ostream &os, const ListValue &lv)
+{
+    os << "[";
+    for (size_t i = 0; i < lv.elements.size(); ++i) {
+        if (i > 0)
+            os << ", ";
+        os << lv.elements[i];
+    }
+    os << "]";
+    return os;
+}
+
+// Custom operator<< for DictValue
+std::ostream &operator<<(std::ostream &os, const DictValue &dv)
+{
+    os << "{";
+    bool first = true;
+    for (const auto &kv : dv.elements) {
+        if (!first)
+            os << ", ";
+        first = false;
+        os << kv.first << ": " << kv.second;
+    }
+    os << "}";
+    return os;
+}
+std::ostream &operator<<(std::ostream &os, const Value &value)
+{
+    // Implement the output logic for Value
+    // Example: os << value.someMember;
+    return os;
+}
+
+// Custom operator<< for UserDefinedValue
+std::ostream &operator<<(std::ostream &os, const UserDefinedValue &udv)
+{
+    os << "{";
+    const auto &fields = udv.fields;
+    bool first = true;
+    for (const auto &field : fields) {
+        if (!first)
+            os << ", ";
+        first = false;
+        os << field.first << ": " << *(field.second);
+    }
+    os << "}";
+    return os;
+}

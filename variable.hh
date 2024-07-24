@@ -1,7 +1,6 @@
 #pragma once
+#include "scope.hh"
 #include "types.hh"
-
-#include "scope.hh" // Include the new ScopeManager header
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -14,7 +13,7 @@ struct VariableInfo
 {
     int32_t memoryLocation;
     bool isMutable;
-    std::optional<ValuePtr> value;
+    ValuePtr value;
     TypePtr type;
 };
 
@@ -26,7 +25,6 @@ public:
         , scopeManager_()
     {}
 
-    // Add a new variable to the current scope (local or global)
     int32_t addVariable(const std::string &name,
                         TypePtr type,
                         bool isGlobal = false,
@@ -37,7 +35,7 @@ public:
 
         ValuePtr initialValue;
         if (defaultValue.has_value()) {
-            if (!typeSystem_->isCompatibleType(*defaultValue.value(), type)) {
+            if (!typeSystem_->checkType(defaultValue.value(), type)) {
                 throw std::runtime_error(
                     "Default value type does not match declared type for variable: " + name);
             }
@@ -60,58 +58,53 @@ public:
         return memoryLocation;
     }
 
-    // Check if a variable exists in any scope
     bool hasVariable(const std::string &name) const { return scopeManager_.exists(name); }
 
-    // Get the memory location of a variable
-    std::optional<int32_t> getVariableMemoryLocation(const std::string &name) const
+    int32_t getVariableMemoryLocation(const std::string &name) const
     {
         auto info = scopeManager_.get(name);
         if (info) {
             return info->memoryLocation;
         }
-        return std::nullopt;
+        throw std::runtime_error("Variable not found: " + name);
     }
 
-    // Get the type of a variable
-    std::optional<TypePtr> getVariableType(const std::string &name) const
+    TypePtr getVariableType(const std::string &name) const
     {
         auto info = scopeManager_.get(name);
         if (info) {
             return info->type;
         }
-        return std::nullopt;
+        throw std::runtime_error("Variable not found: " + name);
     }
 
-    // Get the value of a variable
-    std::optional<ValuePtr> getVariableValue(const std::string &name) const
+    ValuePtr getVariableValue(const std::string &name) const
     {
         auto info = scopeManager_.get(name);
         if (info) {
             return info->value;
         }
-        return std::nullopt;
+        throw std::runtime_error("Variable not found: " + name);
     }
 
-    // Set the value of a variable
-    bool setVariableValue(const std::string &name, ValuePtr newValue)
+    void setVariableValue(const std::string &name, ValuePtr newValue)
     {
         auto info = scopeManager_.get(name);
         if (info) {
-            if (typeSystem_->isCompatibleType(*newValue, info->type)) {
+            if (typeSystem_->checkType(newValue, info->type)) {
                 info->value = newValue;
-                return scopeManager_.update(name, *info);
+                if (!scopeManager_.update(name, *info)) {
+                    throw std::runtime_error("Failed to update variable: " + name);
+                }
             } else {
                 throw std::runtime_error("Type mismatch when setting value for variable: " + name);
             }
+        } else {
+            throw std::runtime_error("Variable not found: " + name);
         }
-        return false;
     }
 
-    // Enter a new local scope
     void enterScope() { scopeManager_.enterScope(); }
-
-    // Exit the current scope
     void exitScope() { scopeManager_.exitScope(); }
 
 private:
@@ -120,58 +113,61 @@ private:
 
     ValuePtr createDefaultValueForType(TypePtr type)
     {
-        Value defaultValue;
-        defaultValue.type = type;
+        auto defaultValue = std::make_shared<Value>();
+        defaultValue->type = type;
 
         switch (type->tag) {
+        case TypeTag::Bool:
+            defaultValue->data = false;
+            break;
         case TypeTag::Int:
         case TypeTag::Int32:
-            defaultValue.data = 0;
+            defaultValue->data = int32_t(0);
             break;
         case TypeTag::Int8:
-            defaultValue.data = int8_t(0);
+            defaultValue->data = int8_t(0);
             break;
         case TypeTag::Int16:
-            defaultValue.data = int16_t(0);
+            defaultValue->data = int16_t(0);
             break;
         case TypeTag::Int64:
-            defaultValue.data = int64_t(0);
+            defaultValue->data = int64_t(0);
             break;
         case TypeTag::UInt:
         case TypeTag::UInt32:
-            defaultValue.data = uint32_t(0);
+            defaultValue->data = uint32_t(0);
             break;
         case TypeTag::UInt8:
-            defaultValue.data = uint8_t(0);
+            defaultValue->data = uint8_t(0);
             break;
         case TypeTag::UInt16:
-            defaultValue.data = uint16_t(0);
+            defaultValue->data = uint16_t(0);
             break;
         case TypeTag::UInt64:
-            defaultValue.data = uint64_t(0);
+            defaultValue->data = uint64_t(0);
             break;
         case TypeTag::Float32:
-            defaultValue.data = 0.0f;
+            defaultValue->data = float(0.0);
             break;
         case TypeTag::Float64:
-            defaultValue.data = 0.0;
+            defaultValue->data = double(0.0);
             break;
         case TypeTag::String:
-            defaultValue.data = std::string();
+            defaultValue->data = std::string();
             break;
         case TypeTag::List:
-            defaultValue.data = ListValue();
+            defaultValue->data = ListValue();
             break;
         case TypeTag::Dict:
-            defaultValue.data = DictValue();
+            defaultValue->data = DictValue();
             break;
         case TypeTag::UserDefined:
-            defaultValue.data = UserDefinedValue();
+            defaultValue->data = UserDefinedValue();
             break;
         default:
             throw std::runtime_error("Unsupported type for default value initialization");
         }
 
-        return std::make_shared<Value>(defaultValue);
+        return defaultValue;
     }
 };

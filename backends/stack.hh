@@ -1,6 +1,7 @@
 #ifndef STACK_HH
 #define STACK_HH
 
+#include "../types.hh"
 #include "backend.hh"
 #include <functional>
 #include <iostream>
@@ -12,63 +13,49 @@
 #include <variant>
 #include <vector>
 
-class StackBackend : public Backend {
+class StackBackend : public Backend
+{
 public:
     explicit StackBackend(std::vector<Instruction> &program)
-        : program(program) {}
+        : program(program)
+    {}
 
+    void run(const std::vector<Instruction> &program) override;
     void execute(const Instruction &instruction) override;
     void dumpRegisters() override;
-    void run(const std::vector<Instruction> &program) override;
 
 private:
+    std::stack<ValuePtr> stack;
+    std::vector<ValuePtr> constants;
+    std::vector<ValuePtr> variables;
     std::map<std::string, std::function<void()>> functions;
-    std::stack<Value> stack;        // Stack for storing data
-    std::vector<Value> constants;   // Constants for storing data
-    std::vector<Value> variables;   // Variables for storing data location
-    std::vector<Instruction> &program;
     std::vector<std::thread> threads;
-    std::mutex mtx; // Mutex for synchronization
-    unsigned int pc = 0;            // program counter
+    std::mutex mtx;
+    std::vector<Instruction> program;
+    size_t pc = 0;
+    TypeSystem typeSystem;
 
-    void performUnaryOperation(const Instruction& instruction);
-    void performBinaryOperation(const Instruction& instruction);
-    void performComparisonOperation(const Instruction& instruction);
+    void performUnaryOperation(const Instruction &instruction);
+    void performBinaryOperation(const Instruction &instruction);
+    void performComparisonOperation(const Instruction &instruction);
     void performLogicalOperation(const Instruction &instruction);
-
-    void handleLoadConst(const Value &constantValue);
-    void handleLoadStr(const std::string &constantValue);
-    void handleDeclareVariable(unsigned int variableIndex);
-    void handleLoadVariable(unsigned int variableIndex);
-    void handleStoreVariable(unsigned int variableIndex);
-    void handleInterpolateString(unsigned int partCount);
-    void handleDeclareFunction(const std::string& functionName);
-    void handleCallFunction(const std::string& functionName);
-    void handleParallel(unsigned int taskCount);
-    void handleConcurrent(unsigned int taskCount);
-    void handlePushArg(const Instruction &instruction);
+    void handleLoadConst(const ValuePtr &constantValue);
+    void handleInterpolateString(int32_t partCount);
     void handlePrint();
     void handleHalt();
+    void handleDeclareVariable(int32_t variableIndex);
+    void handleLoadVariable(int32_t variableIndex);
+    void handleStoreVariable(int32_t variableIndex);
+    void handleDeclareFunction(const std::string &functionName);
+    void handleCallFunction(const std::string &functionName);
+    void handlePushArg(const Instruction &instruction);
     void handleJump();
     void handleJumpZero();
-    void handleMatch();
-    void handleInput();
-    void handleOutput();
-
-    //helpers functions
+    void handleParallel(int32_t taskCount);
+    void handleConcurrent(int32_t taskCount);
     void concurrent(std::vector<std::function<void()>> tasks);
-    std::string getTypeName(const Value &value)
-    {
-        if (std::holds_alternative<int32_t>(value))
-            return "int32_t";
-        if (std::holds_alternative<double>(value))
-            return "double";
-        if (std::holds_alternative<bool>(value))
-            return "bool";
-        if (std::holds_alternative<std::string>(value))
-            return "string";
-        return "unknown";
-    }
+    void handleParallel(unsigned int taskCount);
+    void handleConcurrent(unsigned int taskCount);
 };
 
 #endif // STACK_BACKEND_HH

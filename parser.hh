@@ -1,9 +1,11 @@
 //parser.hh
 #include "instructions.hh"
 #include "precedence.hh"
-#include "variable.hh"
 #include "scanner.hh"
+#include "scope.hh"
+#include "variable.hh"
 #include <any>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -12,7 +14,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-enum ReturnType { VOID, INT, FLOAT, BOOL, STRING, DICT, LIST };
 // Define a vector type to hold bytecode instructions
 using Bytecode = std::vector<Instruction>;
 
@@ -34,6 +35,7 @@ public:
     std::vector<Instruction> getBytecode() const; //get the bytecode generated from the parser
 
 private:
+    std::vector<size_t> endJumps;
     std::vector<Token> tokens;
     bool hadError = false;
     size_t current = 0;                           // get the current index position
@@ -104,6 +106,10 @@ private:
     void parseBoolean();
     void parseUnary();
     void parseLiteral();
+    void parseString();
+    void parseIf();
+    void parseElseIf();
+    void parseElse();
     void parseIdentifier();
     void parseDecVariable();
     void parseLoadVariable();
@@ -117,13 +123,16 @@ private:
     void parseBlock();
     void parseParenthesis();
 
-    // Other helper functions (adapt from first parser or rewrite)
+    // Other helper functions
     void error(const std::string &message);
 
     //var methods
-    void declareVariable(const Token& name) {
+    void declareVariable(const Token &name,
+                         const TypePtr &type,
+                         std::optional<ValuePtr> defaultValue = std::nullopt)
+    {
         try {
-            int32_t memoryLocation = variable.addVariable(name.lexeme);
+            int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
             emit(Opcode::DECLARE_VARIABLE, name.line, memoryLocation);
         } catch (const std::runtime_error& e) {
             error(e.what());
@@ -146,6 +155,38 @@ private:
     void exitScope() { variable.exitScope(); }
 
     void synchronize();
+
+    // Structure to hold string - TypeTag pairs
+    struct TypeMapping
+    {
+        const char *str;
+        TypeTag tag;
+    };
+
+    // Array of type mappings
+    static constexpr std::array<TypeMapping, 23> typeMappings = {
+        {{"int", TypeTag::Int},     {"i8", TypeTag::Int8},       {"i16", TypeTag::Int16},
+         {"i32", TypeTag::Int32},   {"i64", TypeTag::Int64},     {"i128", TypeTag::Int64},
+         {"uint", TypeTag::UInt},   {"u8", TypeTag::UInt8},      {"u16", TypeTag::UInt16},
+         {"u32", TypeTag::UInt32},  {"u64", TypeTag::UInt64},    {"u128", TypeTag::UInt64},
+         {"f32", TypeTag::Float32}, {"f64", TypeTag::Float64},   {"float", TypeTag::Float64},
+         {"bool", TypeTag::Bool},   {"string", TypeTag::String}, {"dict", TypeTag::Dict},
+         {"list", TypeTag::List},   {"enum", TypeTag::Enum},     {"any", TypeTag::Any}}};
+
+    TypeTag stringToType(const std::string &typeStr)
+    {
+        auto it = std::find_if(typeMappings.begin(),
+                               typeMappings.end(),
+                               [&typeStr](const TypeMapping &mapping) {
+                                   return typeStr == mapping.str;
+                               });
+
+        if (it != typeMappings.end()) {
+            return it->tag;
+        }
+
+        return TypeTag::UserDefined;
+    }
 };
 
 //// Maybe consider using references for efficiency

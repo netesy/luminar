@@ -21,9 +21,9 @@ public:
 
 private:
     unsigned int pc = 0;            // program counter
-    std::vector<Value> registers;   // Registers for storing data
-    std::vector<Value> constants;   // Constants for storing data
-    std::vector<Value> variables;   // Variables for storing data location
+    std::vector<ValuePtr> registers; // Registers for storing data
+    std::vector<ValuePtr> constants; // Constants for storing data
+    std::vector<ValuePtr> variables; // Variables for storing data location
     std::vector<Instruction> &program;
     std::vector<std::thread> threads;
     std::mutex mtx; // Mutex for synchronization

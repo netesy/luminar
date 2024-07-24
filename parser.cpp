@@ -2,6 +2,7 @@
 #include "debugger.hh"
 #include "instructions.hh"
 #include "scanner.hh"
+#include <chrono>
 #include <fstream>
 #include <thread>
 
@@ -15,6 +16,7 @@ Parser::Parser(Scanner &scanner)
 
 Bytecode Parser::parse()
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
     scanner.current = 0;
     while (!isAtEnd()) {
         parseExpression();
@@ -24,6 +26,9 @@ Bytecode Parser::parse()
             hadError = false;
         }
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
     return bytecode;
 }
 
@@ -368,6 +373,7 @@ Precedence Parser::getTokenPrecedence(TokenType type)
 Instruction Parser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
+    // instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -410,6 +416,8 @@ void Parser::parseDeclaration()
 {
     if (check(TokenType::VAR)) {
         parseDecVariable();
+    } else if (match(TokenType::FN)) {
+        parseFnDeclaration();
     } else {
         parseStatement();
     }
@@ -501,11 +509,155 @@ void Parser::parseLiteral()
         emit(Opcode::LOAD_CONST, token.line, std::stod(token.lexeme));
         break;
     case TokenType::STRING:
-        emit(Opcode::LOAD_STR, token.line, token.lexeme);
+        parseString();
         break;
     default:
         error("Unexpected literal type");
     }
+}
+
+void Parser::parseString()
+{
+    std::string str = currentToken.lexeme;
+
+    // Check if the string contains any {} pairs
+    bool isInterpolated = (str.find('{') != std::string::npos)
+                          && (str.find('}') != std::string::npos);
+
+    if (!isInterpolated) {
+        // Regular string, just emit a LOAD_CONST
+        emit(Opcode::LOAD_STR, currentToken.line, str);
+        return;
+    }
+    std::string current;
+    bool inExpression = false;
+    int bracketCount = 0;
+    int partCount = 0;
+
+    for (size_t i = 0; i < str.length(); ++i) {
+        char c = str[i];
+        if (c == '{' && !inExpression) {
+            if (!current.empty()) {
+                emit(Opcode::LOAD_STR, currentToken.line, current);
+                partCount++;
+            }
+            current.clear();
+            inExpression = true;
+            bracketCount = 1;
+        } else if (c == '{' && inExpression) {
+            bracketCount++;
+            current += c;
+        } else if (c == '}' && inExpression) {
+            bracketCount--;
+            if (bracketCount == 0) {
+                // Parse the expression inside the brackets
+                parseExpression();
+                partCount++;
+                current.clear();
+                inExpression = false;
+            } else {
+                current += c;
+            }
+        } else if (c == '\\' && i + 1 < str.length()) {
+            // Handle escape sequences
+            char nextChar = str[i + 1];
+            if (nextChar == '{' || nextChar == '}') {
+                current += nextChar;
+                i++; // Skip the next character
+            } else {
+                current += c;
+            }
+        } else {
+            current += c;
+        }
+    }
+
+    if (!current.empty()) {
+        emit(Opcode::LOAD_STR, currentToken.line, current);
+        partCount++;
+    }
+
+    // Emit the INTERPOLATE_STRING instruction with the part count
+    emit(Opcode::INTERPOLATE_STRING, currentToken.line, partCount);
+}
+
+void Parser::parseIf()
+{
+    // consume(TokenType::IF, "Expected IF Token");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
+
+    // Emit JUMP_IF_FALSE with a placeholder for patching later
+    size_t thenJump = bytecode.size();
+    std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
+    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+
+    // Parse the 'then' block
+    std::cout << "Parsing 'then' block" << std::endl;
+    parseBlock();
+
+    // Emit JUMP with a placeholder to jump to end of else block
+    size_t elseJump = bytecode.size();
+    std::cout << "Emitting JUMP at " << elseJump << std::endl;
+    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+
+    // Patch thenJump to jump to the else block if condition is false
+    int32_t thenOffset = bytecode.size() - thenJump - 1;
+    std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
+              << std::endl;
+    bytecode[thenJump].value = thenOffset;
+
+    // Store elseJump for patching later
+    endJumps.push_back(elseJump);
+}
+
+void Parser::parseElseIf()
+{
+    consume(TokenType::ELIF, "Expected ELIF Token");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
+
+    // Emit JUMP_IF_FALSE with a placeholder for patching later
+    size_t thenJump = bytecode.size();
+    std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
+    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+
+    // Parse the 'elif' block
+    std::cout << "Parsing 'elif' block" << std::endl;
+    parseBlock();
+
+    // Emit JUMP with a placeholder to jump to end of else block
+    size_t elseJump = bytecode.size();
+    std::cout << "Emitting JUMP at " << elseJump << std::endl;
+    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+
+    // Patch thenJump to jump to the next block if condition is false
+    int32_t thenOffset = bytecode.size() - thenJump - 1;
+    std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
+              << std::endl;
+    bytecode[thenJump].value = thenOffset;
+
+    // Store elseJump for patching later
+    endJumps.push_back(elseJump);
+}
+
+void Parser::parseElse()
+{
+    consume(TokenType::ELSE, "Expected ELSE Token");
+    std::cout << "Parsing 'else' block" << std::endl;
+    parseBlock();
+
+    // Patch all endJumps to jump to the end of the 'else' block
+    for (size_t jump : endJumps) {
+        int32_t endOffset = bytecode.size() - jump - 1;
+        std::cout << "Patching JUMP at " << jump << " with offset " << endOffset << std::endl;
+        bytecode[jump].value = endOffset;
+    }
+
+    // Clear endJumps after patching
+    endJumps.clear();
 }
 
 void Parser::parseIdentifier()
@@ -578,53 +730,10 @@ void Parser::parseLoadVariable()
 
 void Parser::parseBlock()
 {
-    //    enterScope();
-    //    int openBraceCount = 1; // We start with one open brace
-
-    //    while (openBraceCount > 0 && !isAtEnd()) {
-    //        if (check(TokenType::LEFT_BRACE)) {
-    //            openBraceCount++;
-    //        } else if (check(TokenType::RIGHT_BRACE)) {
-    //            openBraceCount--;
-    //            if (openBraceCount == 0)
-    //                break;
-    //        }
-
-    //        if (!isAtEnd()) {
-    //            parseStatement();
-    //            std::cout << "===================================" << std::endl;
-    //            std::cout << "Inside Block. Previous token: " << previous().lexeme << std::endl;
-    //            std::cout << "Inside Block. Current token: " << peek().lexeme << std::endl;
-    //            std::cout << "Inside Block. Next token: " << peekNext().lexeme << std::endl;
-    //            std::cout << "===================================" << std::endl;
-    //        } else {
-    //            error("Unexpected end of file inside a block");
-    //            return;
-    //        }
-    //    }
-
-    //    if (openBraceCount > 0) {
-    //        if (previous().type == TokenType::RIGHT_BRACE) {
-    //            advance();
-    //            std::cout << "Exiting the block. Current token: " << peek().lexeme << std::endl;
-    //        } else {
-    //            consume(TokenType::RIGHT_BRACE, "Expected '}' after body.");
-    //            std::cout << "Exiting the block. Current token: " << peek().lexeme << std::endl;
-    //        }
-    //        // error("Expected '}' after body. Found " + previous().lexeme);
-    //    }
-    //    std::cout << "===================================" << std::endl;
-    //    std::cout << "Exiting Block. Previous token: " << previous().lexeme << std::endl;
-    //    std::cout << "Exiting Block. Current token: " << peek().lexeme << std::endl;
-    //    std::cout << "Exiting Block. Next token: " << peekNext().lexeme << std::endl;
-    //    std::cout << "===================================" << std::endl;
-    //    exitScope();
     enterScope();
-
     // consume(TokenType::LEFT_BRACE, "Expected '{' at the start of a block");
 
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        std::cout << "Current token in block: " << peek().lexeme << std::endl;
         if (match(TokenType::LEFT_BRACE)) {
             // Nested block
             parseBlock();
@@ -633,7 +742,9 @@ void Parser::parseBlock()
         }
     }
 
-    consume(TokenType::RIGHT_BRACE, "Expected '}' at the end of a block");
+    if (!isAtEnd()) {
+        consume(TokenType::RIGHT_BRACE, "Expected '}' at the end of a block");
+    }
 
     exitScope();
 }
@@ -735,210 +846,41 @@ void Parser::parsePrintStatement()
 
 void Parser::parseIfStatement()
 {
-    //    std::vector<size_t> endJumps;
-    //    size_t thenJump;
-    //    size_t elseJump;
-    //    int32_t thenOffset;
-
-    //    while (check(TokenType::IF)) {
-    //        // Parse 'if' condition
-    //        if (match(TokenType::IF)) {
-    //            consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-    //            parseExpression();
-    //            consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
-
-    //            thenJump = bytecode.size();
-    //            emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
-
-    //            parseBlock();
-
-    //            elseJump = bytecode.size();
-    //            endJumps.push_back(elseJump);
-    //            emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
-
-    //            // Patch thenJump
-    //            thenOffset = bytecode.size() - thenJump - 1;
-    //            bytecode[thenJump].value = thenOffset;
-    //        }
-    //    }
-
-    //    // Handle 'elif' and 'else'
-    //    std::cout << "before elif/else. Previous token: " << previous().lexeme << std::endl;
-    //    std::cout << "before elif/else. Current token: " << peek().lexeme << std::endl;
-    //    std::cout << "before elif/else. Next token: " << peekNext().lexeme << std::endl;
-    //    while (check(TokenType::ELIF) || check(TokenType::ELSE)) {
-    //        if (match(TokenType::ELIF)) {
-    //            //consume(TokenType::ELIF, "ELIF token before the expression");
-    //            std::cout << "entered elif. Previous token: " << previous().lexeme << std::endl;
-    //            std::cout << "before elif. Current token: " << peek().lexeme << std::endl;
-    //            std::cout << "before elif. Next token: " << peekNext().lexeme << std::endl;
-    //            consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
-    //            parseExpression();
-    //            consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
-
-    //            thenJump = bytecode.size();
-    //            emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
-
-    //            parseBlock();
-
-    //            elseJump = bytecode.size();
-    //            endJumps.push_back(elseJump);
-    //            emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
-
-    //            // Patch thenJump
-    //            thenOffset = bytecode.size() - thenJump - 1;
-    //            bytecode[thenJump].value = thenOffset;
-    //        } else if (match(TokenType::ELSE)) {
-    //            std::cout << "entered else. Previous token: " << previous().lexeme << std::endl;
-    //            std::cout << "before else. Current token: " << peek().lexeme << std::endl;
-    //            std::cout << "before else. Next token: " << peekNext().lexeme << std::endl;
-    //            parseBlock();
-    //            break; // 'else' is always the last block
-    //        }
-    //    }
-
-    //    // Patch all endJumps
-    //    for (size_t jump : endJumps) {
-    //        int32_t endOffset = bytecode.size() - jump - 1;
-    //        bytecode[jump].value = endOffset;
-    //    }
-
-    //    std::vector<size_t> endJumps;
-
-    //    //consume(TokenType::IF, "Expected 'if'");
-    //    //    std::cout << "entered if. Previous token: " << previous().lexeme << std::endl;
-    //    //    std::cout << "before if. Current token: " << peek().lexeme << std::endl;
-    //    //    std::cout << "before if. Next token: " << peekNext().lexeme << std::endl;
-    //    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-    //    parseExpression();
-    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
-
-    //    size_t thenJump = bytecode.size();
-    //    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
-
-    //    parseBlock();
-
-    //    size_t elseJump = bytecode.size();
-    //    endJumps.push_back(elseJump);
-    //    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
-
-    //    // Patch thenJump
-    //    int32_t thenOffset = bytecode.size() - thenJump - 1;
-    //    bytecode[thenJump].value = thenOffset;
-
-    //    std::cout << "entered elif. Previous token: " << previous().lexeme << std::endl;
-    //    std::cout << "before elif. Current token: " << peek().lexeme << std::endl;
-    //    std::cout << "before elif. Next token: " << peekNext().lexeme << std::endl;
-    //    while (match(TokenType::ELIF)) {
-    //        consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
-    //        parseExpression();
-    //        consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
-
-    //        thenJump = bytecode.size();
-    //        emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
-
-    //        parseBlock();
-
-    //        elseJump = bytecode.size();
-    //        endJumps.push_back(elseJump);
-    //        emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
-
-    //        // Patch thenJump
-    //        thenOffset = bytecode.size() - thenJump - 1;
-    //        bytecode[thenJump].value = thenOffset;
-    //    }
-
-    //    std::cout << "entered else. Previous token: " << previous().lexeme << std::endl;
-    //    std::cout << "before else. Current token: " << peek().lexeme << std::endl;
-    //    std::cout << "before else. Next token: " << peekNext().lexeme << std::endl;
-
-    //    if (match(TokenType::ELSE)) {
-    //        parseBlock();
-    //    }
-
-    //    // Patch all endJumps
-    //    for (size_t jump : endJumps) {
-    //        int32_t endOffset = bytecode.size() - jump - 1;
-    //        bytecode[jump].value = endOffset;
-    //    }
-
-    std::cout << "Parsing if statement" << std::endl;
-    size_t thenJump;
-    size_t elseJump = 0;
-    int32_t thenOffset;
-    //consume(TokenType::IF, "Expected 'if'");
+    // Handle 'if' condition and 'then' block
     if (previous().type == TokenType::IF) {
-        consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-        parseExpression();
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
-
-        thenJump = bytecode.size();
-        std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
-        emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
-
-        std::cout << "Parsing 'then' block" << std::endl;
-        parseBlock();
-
-        elseJump = bytecode.size();
-        std::cout << "Emitting JUMP at " << elseJump << std::endl;
-        emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
-
-        // Patch thenJump
-        thenOffset = bytecode.size() - thenJump - 1;
-        std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
-                  << std::endl;
-        bytecode[thenJump].value = thenOffset;
+        parseIf();
     }
 
+    // Handle 'elif' blocks if they exist
+    while (match(TokenType::ELIF)) {
+        parseElseIf();
+    }
+
+    // Handle 'else' block if it exists
     if (match(TokenType::ELSE)) {
-        std::cout << "Parsing 'else' block" << std::endl;
-        parseBlock();
+        parseElse();
     }
-
-    // Patch elseJump
-    int32_t elseOffset = bytecode.size() - elseJump - 1;
-    std::cout << "Patching JUMP at " << elseJump << " with offset " << elseOffset << std::endl;
-    bytecode[elseJump].value = elseOffset;
 
     std::cout << "Finished parsing if statement" << std::endl;
 }
 
 void Parser::parseWhileLoop()
 {
-    if (match(TokenType::WHILE)) {
-        Token op = previous();
-        size_t loopStart = bytecode.size(); // Start of the loop condition
-        consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
-        std::cout << "Parsing whileloop after ( : " << peek().lexeme
-                  << std::endl; // Debug statement
-        parseExpression();
-        std::cout << "Parsing whileloop before ) : " << peek().lexeme
-                  << std::endl; // Debug statement
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
-        std::cout << "Parsing whileloop after ) : " << peek().lexeme
-                  << std::endl; // Debug statement
+    size_t loopStart = bytecode.size(); // Start of the loop condition
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
+    parseExpression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
 
-        size_t conditionJump = bytecode.size();
-        emit(Opcode::JUMP_IF_FALSE, op.line, 0); // Placeholder for the jump out of the loop
-        std::cout << "Parsing whileloop: " << peek().lexeme << std::endl; // Debug statement
+    size_t conditionJump = bytecode.size();
+    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder for the jump out of the loop
 
-        parseBlock();
+    parseBlock();
 
-        //    //enterScope();
-        //    consume(TokenType::LEFT_BRACE, "Expected '{' before while loop body.");
-        //    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        //        parseStatement(); // Handles statements inside the block
-        //    }
-        //    consume(TokenType::RIGHT_BRACE, "Expected '}' at the end of the while loop body.");
-        //    //exitScope();
+    int32_t jmpLoc = loopStart - bytecode.size() - 1;
+    emit(Opcode::JUMP, peek().line, jmpLoc); // Jump back to the start of the loop condition
 
-        int32_t jmpLoc = loopStart - bytecode.size() - 1;
-        emit(Opcode::JUMP, op.line, jmpLoc); // Jump back to the start of the loop condition
-
-        int32_t conditionJumpOffset = bytecode.size() - conditionJump - 1;
-        bytecode[conditionJump].value
-            = conditionJumpOffset; // Update the jump condition to exit the loop
-    }
+    int32_t conditionJumpOffset = bytecode.size() - conditionJump - 1;
+    bytecode[conditionJump].value = conditionJumpOffset; // Update the jump condition to exit the loop
 }
 
 void Parser::parseForLoop()
@@ -1022,16 +964,24 @@ void Parser::parseFnDeclaration()
             consume(TokenType::IDENTIFIER, "Expected parameter name");
             std::optional<std::string> defaultValue;
             if (match(TokenType::COLON)) {
+                Token paramType = peek();
+                TypeTag types = stringToType(paramType.lexeme);
                 consume(TokenType::IDENTIFIER, "Expected type after ':' in parameter declaration");
                 if (match(TokenType::EQUAL)) {
                     defaultValue = peek().lexeme;
                     advance();
                 } else {
-                    error("Expected '=' after type in parameter declaration with default value");
+                    error("Expected '=' after type in parameter declaration with default "
+                          "value");
                 }
             }
+            //            Token paramName = consume(TokenType::IDENTIFIER, "Expect parameter name.");
+            //            Token paramType = consume(TokenType::IDENTIFIER, "Expect parameter type.");
+            //            ReturnType type = stringToReturnType(paramType.lexeme);
             parameters.push_back(std::make_pair(paramName.lexeme, defaultValue));
-            declareVariable(paramName); // Declare parameter as a variable in the function scope
+            declareVariable(paramName,
+                            types,
+                            defaultValue); // Declare parameter as a variable in the function scope
         } while (match(TokenType::COMMA));
     }
     consume(TokenType::RIGHT_PAREN, "Expected ')' after function parameters");

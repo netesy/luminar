@@ -15,7 +15,7 @@ add_executable(luminar main.cpp
     sample.lm sample_new.lm
     readme.md issues.md features.md
     ast.hh ast.cpp
-    vm.hh vm.cpp vm-old.cx
+    vm.hh vm.cpp
     main.cpp
     opcodes.hh
     types.hh
@@ -32,7 +32,9 @@ add_executable(luminar main.cpp
     test/tst_parser.cpp
     test/tst_scanner.cpp
     token.hh
-    backends/yasm.hh backends/yasm.cpp)
+    backends/yasm.hh backends/yasm.cpp
+    scope.hh
+    values.hh)
 
 include(GNUInstallDirs)
 install(TARGETS luminar

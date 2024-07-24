@@ -15,6 +15,8 @@ enum class TokenType {
     COLON,         // :
     SEMICOLON,     // ;
     QUESTION,      // ?
+    ELVIS,         // ?:
+    SAFE,          // ?.
     ARROW,         // ->
 
     // Group: Operators
