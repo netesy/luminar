@@ -295,12 +295,15 @@ public:
     TypePtr createADT(
         const std::string &name,
         const std::vector<std::pair<std::string, std::map<std::string, TypePtr>>> &variants);
+    TypePtr createFunctionType(const std::vector<TypePtr> &paramTypes, TypePtr returnType);
 
     bool checkListType(const ValuePtr &value, TypePtr elementType);
     bool checkDictType(const ValuePtr &value, TypePtr keyType, TypePtr valueType);
     bool checkSumType(const ValuePtr &value, const std::vector<TypePtr> &variants);
     bool checkADT(const ValuePtr &value, const UserDefinedType &adtType);
-
+    bool checkFunctionType(const ValuePtr &value,
+                           const std::vector<TypePtr> &paramTypes,
+                           TypePtr returnType);
     TypeTag stringToType(const std::string &typeStr);
     std::string typeToString(const TypePtr &type) const;
 
@@ -371,6 +374,12 @@ inline TypePtr TypeSystem::createADT(
     return std::make_shared<Type>(TypeTag::UserDefined, UserDefinedType{name, variants});
 }
 
+inline TypePtr TypeSystem::createFunctionType(const std::vector<TypePtr> &paramTypes,
+                                              TypePtr returnType)
+{
+    return std::make_shared<Type>(TypeTag::Function, FunctionType{paramTypes, returnType});
+}
+
 bool TypeSystem::checkListType(const ValuePtr &value, TypePtr elementType)
 {
     if (!isListType(value->type))
@@ -423,6 +432,16 @@ inline bool TypeSystem::checkADT(const ValuePtr &value, const UserDefinedType &a
         }
     }
     return true;
+}
+
+inline bool TypeSystem::checkFunctionType(const ValuePtr &value,
+                                          const std::vector<TypePtr> &paramTypes,
+                                          TypePtr returnType)
+{
+    if (value->type->tag != TypeTag::Function)
+        return false;
+    const auto &funcType = std::get<FunctionType>(value->type->extra);
+    return funcType.paramTypes == paramTypes && funcType.returnType == returnType;
 }
 
 TypePtr TypeSystem::inferType(const ValuePtr &value)
