@@ -691,6 +691,7 @@ enum class TypeTag {
     Enum,
     Function,
     Any,
+    Sum,
     UserDefined
 };
 
@@ -725,17 +726,25 @@ struct UserDefinedType
     std::map<std::string, TypePtr> fields;
 };
 
+// Add a structure to represent sum types
+struct SumType
+{
+    std::vector<TypePtr> variants;
+};
+
 struct Type
 {
     TypeTag tag;
-    std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, UserDefinedType> extra;
+    std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UserDefinedType>
+        extra;
 
     Type(TypeTag t)
         : tag(t)
     {}
     Type(TypeTag t,
-         const std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, UserDefinedType>
-             &ex)
+         const std::
+             variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UserDefinedType>
+                 &ex)
         : tag(t)
         , extra(ex)
     {}
@@ -783,6 +792,8 @@ struct Type
             return "Function";
         case TypeTag::Any:
             return "Any";
+        case TypeTag::Sum:
+            return "Sum";
         case TypeTag::UserDefined:
             return "UserDefined";
         default:
@@ -841,6 +852,13 @@ struct UserDefinedValue
     std::map<std::string, ValuePtr> fields;
 };
 
+// Add a new variant to the Value struct for sum types
+struct SumValue
+{
+    size_t activeVariant;
+    ValuePtr value;
+};
+
 struct Value
 {
     TypePtr type;
@@ -859,6 +877,7 @@ struct Value
                  std::string,
                  ListValue,
                  DictValue,
+                 SumValue,
                  UserDefinedValue>
         data;
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
@@ -899,6 +918,8 @@ private:
     bool canConvert(TypePtr from, TypePtr to);
     bool isListType(TypePtr type) const { return type->tag == TypeTag::List; }
     bool isDictType(TypePtr type) const { return type->tag == TypeTag::Dict; }
+    ValuePtr stringToNumber(const std::string &str, TypePtr targetType);
+    ValuePtr numberToString(const ValuePtr &value);
 
 public:
     const TypePtr NIL_TYPE = std::make_shared<Type>(TypeTag::Nil);
@@ -926,9 +947,14 @@ public:
 
     TypePtr createListType(TypePtr elementType);
     TypePtr createDictType(TypePtr keyType, TypePtr valueType);
+    TypePtr createSumType(const std::vector<TypePtr> &variants);
+
     bool checkListType(const ValuePtr &value, TypePtr elementType);
     bool checkDictType(const ValuePtr &value, TypePtr keyType, TypePtr valueType);
+    bool checkSumType(const ValuePtr &value, const std::vector<TypePtr> &variants);
+
     TypeTag stringToType(const std::string &typeStr);
+    std::string typeToString(const TypePtr &type) const;
 
     struct TypeMapping
     {
@@ -985,6 +1011,11 @@ TypePtr TypeSystem::createDictType(TypePtr keyType, TypePtr valueType)
     return std::make_shared<Type>(TypeTag::Dict, DictType{keyType, valueType});
 }
 
+inline TypePtr TypeSystem::createSumType(const std::vector<TypePtr> &variants)
+{
+    return std::make_shared<Type>(TypeTag::Sum, SumType{variants});
+}
+
 bool TypeSystem::checkListType(const ValuePtr &value, TypePtr elementType)
 {
     if (!isListType(value->type))
@@ -1005,6 +1036,15 @@ bool TypeSystem::checkDictType(const ValuePtr &value, TypePtr keyType, TypePtr v
     });
 }
 
+inline bool TypeSystem::checkSumType(const ValuePtr &value, const std::vector<TypePtr> &variants)
+{
+    if (value->type->tag != TypeTag::Sum)
+        return false;
+    const auto &sumValue = std::get<SumValue>(value->data);
+    return sumValue.activeVariant < variants.size()
+           && checkType(sumValue.value, variants[sumValue.activeVariant]);
+}
+
 TypePtr TypeSystem::inferType(const ValuePtr &value)
 {
     return value->type;
@@ -1023,6 +1063,19 @@ bool TypeSystem::checkType(const ValuePtr &value, TypePtr expectedType)
     if (expectedType->tag == TypeTag::Dict) {
         const auto &expectedDictType = std::get<DictType>(expectedType->extra);
         return checkDictType(value, expectedDictType.keyType, expectedDictType.valueType);
+    }
+    if (expectedType->tag == TypeTag::UserDefined) {
+        const auto &expectedUserType = std::get<UserDefinedType>(expectedType->extra);
+        const auto &actualUserType = std::get<UserDefinedValue>(value->data);
+
+        // Check if all expected fields are present and of the correct type
+        for (const auto &[fieldName, fieldType] : expectedUserType.fields) {
+            auto it = actualUserType.fields.find(fieldName);
+            if (it == actualUserType.fields.end() || !checkType(it->second, fieldType)) {
+                return false;
+            }
+        }
+        return true;
     }
     return false;
 }
@@ -1062,9 +1115,64 @@ TypeTag TypeSystem::stringToType(const std::string &typeStr)
     }
     throw std::invalid_argument("Unknown type string: " + typeStr);
 }
+ValuePtr TypeSystem::stringToNumber(const std::string &str, TypePtr targetType)
+{
+    ValuePtr result = std::make_shared<Value>();
+    result->type = targetType;
 
+    try {
+        if (targetType->tag == TypeTag::Int) {
+            result->data = std::stoll(str);
+        } else if (targetType->tag == TypeTag::Float32) {
+            result->data = std::stof(str);
+        } else if (targetType->tag == TypeTag::Float64) {
+            result->data = std::stod(str);
+        }
+    } catch (const std::exception &e) {
+        throw std::runtime_error("Failed to convert string to number: " + std::string(e.what()));
+    }
+
+    return result;
+}
+
+ValuePtr TypeSystem::numberToString(const ValuePtr &value)
+{
+    ValuePtr result = std::make_shared<Value>();
+    result->type = STRING_TYPE;
+
+    std::visit(overloaded{[&](int64_t v) { result->data = std::to_string(v); },
+                          [&](double v) { result->data = std::to_string(v); },
+                          [&](auto) {
+                              throw std::runtime_error("Unexpected type in numberToString");
+                          }},
+               value->data);
+
+    return result;
+}
+
+std::string TypeSystem::typeToString(const TypePtr &type) const
+{
+    std::string result = type->toString();
+
+    if (type->tag == TypeTag::List) {
+        const auto &listType = std::get<ListType>(type->extra);
+        result += "<" + typeToString(listType.elementType) + ">";
+    } else if (type->tag == TypeTag::Dict) {
+        const auto &dictType = std::get<DictType>(type->extra);
+        result += "<" + typeToString(dictType.keyType) + ", " + typeToString(dictType.valueType)
+                  + ">";
+    } else if (type->tag == TypeTag::UserDefined) {
+        const auto &userType = std::get<UserDefinedType>(type->extra);
+        result += " " + userType.name;
+    }
+
+    return result;
+}
+
+// Modify the existing operator<< for Value to use the new typeToString function
 std::ostream &operator<<(std::ostream &os, const Value &value)
 {
+    os << value.type->toString() << "(";
     std::visit(overloaded{[&](std::monostate) { os << "Nil"; },
                           [&](bool v) { os << (v ? "true" : "false"); },
                           [&](int8_t v) { os << static_cast<int32_t>(v); },
@@ -1077,28 +1185,94 @@ std::ostream &operator<<(std::ostream &os, const Value &value)
                           [&](uint64_t v) { os << v; },
                           [&](float v) { os << v; },
                           [&](double v) { os << v; },
-                          [&](const std::string &v) { os << v; },
+                          [&](const std::string &v) { os << '"' << v << '"'; },
                           [&](const ListValue &v) {
                               os << "[";
-                              for (const auto &elem : v.elements) {
-                                  os << *elem << ", ";
+                              for (size_t i = 0; i < v.elements.size(); ++i) {
+                                  os << *v.elements[i];
+                                  if (i < v.elements.size() - 1)
+                                      os << ", ";
                               }
                               os << "]";
                           },
                           [&](const DictValue &v) {
                               os << "{";
+                              size_t i = 0;
                               for (const auto &[key, val] : v.elements) {
-                                  os << *key << ": " << *val << ", ";
+                                  os << *key << ": " << *val;
+                                  if (++i < v.elements.size())
+                                      os << ", ";
                               }
                               os << "}";
                           },
                           [&](const UserDefinedValue &v) {
                               os << "{";
+                              size_t i = 0;
                               for (const auto &[field, val] : v.fields) {
-                                  os << field << ": " << *val << ", ";
+                                  os << field << ": " << *val;
+                                  if (++i < v.fields.size())
+                                      os << ", ";
                               }
                               os << "}";
                           }},
                value.data);
+    os << ")";
+    return os;
+}
+// Add an operator<< for Type
+
+std::ostream &operator<<(std::ostream &os, const Type &type)
+{
+    os << TypeSystem().typeToString(std::make_shared<Type>(type));
+    return os;
+}
+
+// Custom operator<< for std::monostate
+std::ostream &operator<<(std::ostream &os, const std::monostate &)
+{
+    return os << "monostate";
+}
+
+// Custom operator<< for ListValue
+std::ostream &operator<<(std::ostream &os, const ListValue &lv)
+{
+    os << "[";
+    for (size_t i = 0; i < lv.elements.size(); ++i) {
+        if (i > 0)
+            os << ", ";
+        os << lv.elements[i];
+    }
+    os << "]";
+    return os;
+}
+
+// Custom operator<< for DictValue
+std::ostream &operator<<(std::ostream &os, const DictValue &dv)
+{
+    os << "{";
+    bool first = true;
+    for (const auto &kv : dv.elements) {
+        if (!first)
+            os << ", ";
+        first = false;
+        os << kv.first << ": " << kv.second;
+    }
+    os << "}";
+    return os;
+}
+
+// Custom operator<< for UserDefinedValue
+std::ostream &operator<<(std::ostream &os, const UserDefinedValue &udv)
+{
+    os << "{";
+    const auto &fields = udv.fields;
+    bool first = true;
+    for (const auto &field : fields) {
+        if (!first)
+            os << ", ";
+        first = false;
+        os << field.first << ": " << *(field.second);
+    }
+    os << "}";
     return os;
 }
