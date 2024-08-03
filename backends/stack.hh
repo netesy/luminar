@@ -54,8 +54,6 @@ private:
     void handleParallel(int32_t taskCount);
     void handleConcurrent(int32_t taskCount);
     void concurrent(std::vector<std::function<void()>> tasks);
-    void handleParallel(unsigned int taskCount);
-    void handleConcurrent(unsigned int taskCount);
 };
 
 #endif // STACK_BACKEND_HH

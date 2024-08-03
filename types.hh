@@ -34,6 +34,7 @@ enum class TypeTag {
     Function,
     Any,
     Sum,
+    Union,
     UserDefined
 };
 
@@ -68,25 +69,34 @@ struct UserDefinedType
     std::vector<std::pair<std::string, std::map<std::string, TypePtr>>> fields;
 };
 
-// Add a structure to represent sum types
 struct SumType
 {
     std::vector<TypePtr> variants;
 };
 
+struct UnionType
+{
+    std::vector<TypePtr> types;
+};
+
 struct Type
 {
     TypeTag tag;
-    std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UserDefinedType>
+    std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UnionType, UserDefinedType>
         extra;
 
     Type(TypeTag t)
         : tag(t)
     {}
     Type(TypeTag t,
-         const std::
-             variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UserDefinedType>
-                 &ex)
+         const std::variant<std::monostate,
+                            ListType,
+                            DictType,
+                            EnumType,
+                            FunctionType,
+                            SumType,
+                            UnionType,
+                            UserDefinedType> &ex)
         : tag(t)
         , extra(ex)
     {}
@@ -136,6 +146,8 @@ struct Type
             return "Any";
         case TypeTag::Sum:
             return "Sum";
+        case TypeTag::Union:
+            return "Union";
         case TypeTag::UserDefined:
             return "UserDefined";
         default:
@@ -146,11 +158,6 @@ struct Type
     bool operator==(const Type &other) const { return tag == other.tag; }
     bool operator!=(const Type &other) const { return !(*this == other); }
 };
-
-std::string typeTagToString(TypeTag tag)
-{
-    return Type(tag).toString();
-}
 
 constexpr int getSizeInBits(TypeTag tag)
 {
@@ -176,6 +183,33 @@ constexpr int getSizeInBits(TypeTag tag)
     }
 }
 
+class OverflowException : public std::runtime_error
+{
+public:
+    OverflowException(const std::string &msg)
+        : std::runtime_error(msg)
+    {}
+};
+
+template<typename To, typename From>
+To safe_cast(From value)
+{
+    To result = static_cast<To>(value);
+    if (static_cast<From>(result) != value || (value > 0 && result < 0)
+        || (value < 0 && result > 0)) {
+        throw OverflowException("Overflow detected in integer conversion");
+    }
+    return result;
+}
+
+template<class... Ts>
+struct overloaded : Ts...
+{
+    using Ts::operator()...;
+};
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
 struct Value;
 using ValuePtr = std::shared_ptr<Value>;
 
@@ -189,14 +223,12 @@ struct DictValue
     std::map<ValuePtr, ValuePtr> elements;
 };
 
-// Modify the UserDefinedValue to support tagged variants
 struct UserDefinedValue
 {
     std::string variantName;
     std::map<std::string, ValuePtr> fields;
 };
 
-// Add a new variant to the Value struct for sum types
 struct SumValue
 {
     size_t activeVariant;
@@ -227,43 +259,65 @@ struct Value
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
 };
 
-class OverflowException : public std::runtime_error
-{
-public:
-    OverflowException(const std::string &msg)
-        : std::runtime_error(msg)
-    {}
-};
-
-template<typename To, typename From>
-To safe_cast(From value)
-{
-    To result = static_cast<To>(value);
-    if (static_cast<From>(result) != value || (value > 0 && result < 0)
-        || (value < 0 && result > 0)) {
-        throw OverflowException("Overflow detected in integer conversion");
-    }
-    return result;
-}
-
-template<class... Ts>
-struct overloaded : Ts...
-{
-    using Ts::operator()...;
-};
-template<class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
-
 class TypeSystem
 {
 private:
     std::map<std::string, TypePtr> userDefinedTypes;
+    std::map<std::string, TypePtr> typeAliases;
 
-    bool canConvert(TypePtr from, TypePtr to);
+    bool canConvert(TypePtr from, TypePtr to)
+    {
+        if (from == to || to->tag == TypeTag::Any)
+            return true;
+
+        if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
+             || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
+             || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
+             || from->tag == TypeTag::UInt16 || from->tag == TypeTag::UInt32
+             || from->tag == TypeTag::UInt64)
+            && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
+                || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
+                || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16
+                || to->tag == TypeTag::UInt32 || to->tag == TypeTag::UInt64))
+            return true;
+
+        return false;
+    }
     bool isListType(TypePtr type) const { return type->tag == TypeTag::List; }
     bool isDictType(TypePtr type) const { return type->tag == TypeTag::Dict; }
-    ValuePtr stringToNumber(const std::string &str, TypePtr targetType);
-    ValuePtr numberToString(const ValuePtr &value);
+    ValuePtr stringToNumber(const std::string &str, TypePtr targetType)
+    {
+        ValuePtr result = std::make_shared<Value>();
+        result->type = targetType;
+
+        try {
+            if (targetType->tag == TypeTag::Int) {
+                result->data = std::stoll(str);
+            } else if (targetType->tag == TypeTag::Float32) {
+                result->data = std::stof(str);
+            } else if (targetType->tag == TypeTag::Float64) {
+                result->data = std::stod(str);
+            }
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Failed to convert string to number: " + std::string(e.what()));
+        }
+
+        return result;
+    }
+    ValuePtr numberToString(const ValuePtr &value)
+    {
+        ValuePtr result = std::make_shared<Value>();
+        result->type = STRING_TYPE;
+
+        std::visit(overloaded{[&](int64_t v) { result->data = std::to_string(v); },
+                              [&](double v) { result->data = std::to_string(v); },
+                              [&](auto) {
+                                  throw std::runtime_error("Unexpected type in numberToString");
+                              }},
+                   value->data);
+
+        return result;
+    }
 
 public:
     const TypePtr NIL_TYPE = std::make_shared<Type>(TypeTag::Nil);
@@ -283,358 +337,449 @@ public:
     const TypePtr STRING_TYPE = std::make_shared<Type>(TypeTag::String);
     const TypePtr ANY_TYPE = std::make_shared<Type>(TypeTag::Any);
 
-    TypePtr getUserDefinedType(const std::string &name);
-    void registerUserDefinedType(const std::string &name, TypePtr type);
-    ValuePtr convert(const ValuePtr &value, TypePtr targetType);
-    TypePtr inferType(const ValuePtr &value);
-    bool checkType(const ValuePtr &value, TypePtr expectedType);
-
-    TypePtr createListType(TypePtr elementType);
-    TypePtr createDictType(TypePtr keyType, TypePtr valueType);
-    TypePtr createSumType(const std::vector<TypePtr> &variants);
-    TypePtr createADT(
-        const std::string &name,
-        const std::vector<std::pair<std::string, std::map<std::string, TypePtr>>> &variants);
-    TypePtr createFunctionType(const std::vector<TypePtr> &paramTypes, TypePtr returnType);
-
-    bool checkListType(const ValuePtr &value, TypePtr elementType);
-    bool checkDictType(const ValuePtr &value, TypePtr keyType, TypePtr valueType);
-    bool checkSumType(const ValuePtr &value, const std::vector<TypePtr> &variants);
-    bool checkADT(const ValuePtr &value, const UserDefinedType &adtType);
-    bool checkFunctionType(const ValuePtr &value,
-                           const std::vector<TypePtr> &paramTypes,
-                           TypePtr returnType);
-    TypeTag stringToType(const std::string &typeStr);
-    std::string typeToString(const TypePtr &type) const;
-
-    struct TypeMapping
+    ValuePtr createValue(TypePtr type)
     {
-        const char *str;
-        TypeTag tag;
-    };
+        ValuePtr value = std::make_shared<Value>();
+        value->type = type;
 
-    static constexpr std::array<TypeMapping, 23> typeMappings = {
-        {{"int", TypeTag::Int},     {"i8", TypeTag::Int8},       {"i16", TypeTag::Int16},
-         {"i32", TypeTag::Int32},   {"i64", TypeTag::Int64},     {"i128", TypeTag::Int64},
-         {"uint", TypeTag::UInt},   {"u8", TypeTag::UInt8},      {"u16", TypeTag::UInt16},
-         {"u32", TypeTag::UInt32},  {"u64", TypeTag::UInt64},    {"u128", TypeTag::UInt64},
-         {"f32", TypeTag::Float32}, {"f64", TypeTag::Float64},   {"float", TypeTag::Float64},
-         {"bool", TypeTag::Bool},   {"string", TypeTag::String}, {"dict", TypeTag::Dict},
-         {"list", TypeTag::List},   {"enum", TypeTag::Enum},     {"any", TypeTag::Any}}};
-};
+        if (type->tag == TypeTag::Bool) {
+            value->data = false;
+        } else if (type->tag == TypeTag::Int || type->tag == TypeTag::Int8
+                   || type->tag == TypeTag::Int16 || type->tag == TypeTag::Int32
+                   || type->tag == TypeTag::Int64) {
+            value->data = int64_t(0);
+        } else if (type->tag == TypeTag::UInt || type->tag == TypeTag::UInt8
+                   || type->tag == TypeTag::UInt16 || type->tag == TypeTag::UInt32
+                   || type->tag == TypeTag::UInt64) {
+            value->data = uint64_t(0);
+        } else if (type->tag == TypeTag::Float32) {
+            value->data = float(0.0);
+        } else if (type->tag == TypeTag::Float64) {
+            value->data = double(0.0);
+        } else if (type->tag == TypeTag::String) {
+            value->data = std::string("");
+        } else if (type->tag == TypeTag::List) {
+            value->data = ListValue{};
+        } else if (type->tag == TypeTag::Dict) {
+            value->data = DictValue{};
+        } else if (type->tag == TypeTag::Sum) {
+            value->data = SumValue{};
+        } else if (type->tag == TypeTag::UserDefined) {
+            value->data = UserDefinedValue{};
+        }
 
-bool TypeSystem::canConvert(TypePtr from, TypePtr to)
-{
-    if (from == to || to->tag == TypeTag::Any)
-        return true;
+        return value;
+    }
 
-    if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
-         || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64 || from->tag == TypeTag::UInt
-         || from->tag == TypeTag::UInt8 || from->tag == TypeTag::UInt16
-         || from->tag == TypeTag::UInt32 || from->tag == TypeTag::UInt64)
-        && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
-            || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
-            || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16 || to->tag == TypeTag::UInt32
-            || to->tag == TypeTag::UInt64))
-        return true;
+    bool isCompatible(TypePtr source, TypePtr target) { return canConvert(source, target); }
 
-    return false;
-}
+    TypePtr getCommonType(TypePtr a, TypePtr b)
+    {
+        if (a == b) {
+            return a;
+        }
+        if (canConvert(a, b)) {
+            return b;
+        }
+        if (canConvert(b, a)) {
+            return a;
+        }
+        throw std::runtime_error("Incompatible types: " + a->toString() + " and " + b->toString());
+    }
 
-TypePtr TypeSystem::getUserDefinedType(const std::string &name)
-{
-    auto it = userDefinedTypes.find(name);
-    return it != userDefinedTypes.end() ? it->second : nullptr;
-}
+    void addUserDefinedType(const std::string &name, TypePtr type)
+    {
+        userDefinedTypes[name] = type;
+    }
 
-void TypeSystem::registerUserDefinedType(const std::string &name, TypePtr type)
-{
-    userDefinedTypes[name] = type;
-}
+    TypePtr getUserDefinedType(const std::string &name)
+    {
+        if (userDefinedTypes.find(name) != userDefinedTypes.end()) {
+            return userDefinedTypes[name];
+        }
+        throw std::runtime_error("User-defined type not found: " + name);
+    }
 
-TypePtr TypeSystem::createListType(TypePtr elementType)
-{
-    return std::make_shared<Type>(TypeTag::List, ListType{elementType});
-}
+    void addTypeAlias(const std::string &alias, TypePtr type) { typeAliases[alias] = type; }
 
-TypePtr TypeSystem::createDictType(TypePtr keyType, TypePtr valueType)
-{
-    return std::make_shared<Type>(TypeTag::Dict, DictType{keyType, valueType});
-}
+    TypePtr getTypeAlias(const std::string &alias)
+    {
+        if (typeAliases.find(alias) != typeAliases.end()) {
+            return typeAliases[alias];
+        }
+        throw std::runtime_error("Type alias not found: " + alias);
+    }
 
-inline TypePtr TypeSystem::createSumType(const std::vector<TypePtr> &variants)
-{
-    return std::make_shared<Type>(TypeTag::Sum, SumType{variants});
-}
+    TypePtr inferType(const ValuePtr &value) { return value->type; }
 
-inline TypePtr TypeSystem::createADT(
-    const std::string &name,
-    const std::vector<std::pair<std::string, std::map<std::string, TypePtr>>> &variants)
-{
-    return std::make_shared<Type>(TypeTag::UserDefined, UserDefinedType{name, variants});
-}
-
-inline TypePtr TypeSystem::createFunctionType(const std::vector<TypePtr> &paramTypes,
-                                              TypePtr returnType)
-{
-    return std::make_shared<Type>(TypeTag::Function, FunctionType{paramTypes, returnType});
-}
-
-bool TypeSystem::checkListType(const ValuePtr &value, TypePtr elementType)
-{
-    if (!isListType(value->type))
-        return false;
-    const auto &listValue = std::get<ListValue>(value->data);
-    return std::all_of(listValue.elements.begin(),
-                       listValue.elements.end(),
-                       [&](const ValuePtr &elem) { return checkType(elem, elementType); });
-}
-
-bool TypeSystem::checkDictType(const ValuePtr &value, TypePtr keyType, TypePtr valueType)
-{
-    if (!isDictType(value->type))
-        return false;
-    const auto &dictValue = std::get<DictValue>(value->data);
-    return std::all_of(dictValue.elements.begin(), dictValue.elements.end(), [&](const auto &kv) {
-        return checkType(kv.first, keyType) && checkType(kv.second, valueType);
-    });
-}
-
-inline bool TypeSystem::checkSumType(const ValuePtr &value, const std::vector<TypePtr> &variants)
-{
-    if (value->type->tag != TypeTag::Sum)
-        return false;
-    const auto &sumValue = std::get<SumValue>(value->data);
-    return sumValue.activeVariant < variants.size()
-           && checkType(sumValue.value, variants[sumValue.activeVariant]);
-}
-
-inline bool TypeSystem::checkADT(const ValuePtr &value, const UserDefinedType &adtType)
-{
-    if (value->type->tag != TypeTag::UserDefined)
-        return false;
-    const auto &udValue = std::get<UserDefinedValue>(value->data);
-
-    auto variantIt = std::find_if(adtType.fields.begin(),
-                                  adtType.fields.end(),
-                                  [&](const auto &variant) {
-                                      return variant.first == udValue.variantName;
-                                  });
-
-    if (variantIt == adtType.fields.end())
-        return false;
-
-    const auto &expectedFields = variantIt->second;
-    for (const auto &[fieldName, fieldType] : expectedFields) {
-        auto it = udValue.fields.find(fieldName);
-        if (it == udValue.fields.end() || !checkType(it->second, fieldType)) {
+    bool checkType(const ValuePtr &value, const TypePtr &expectedType)
+    {
+        if (value->type->tag != expectedType->tag) {
             return false;
         }
-    }
-    return true;
-}
 
-inline bool TypeSystem::checkFunctionType(const ValuePtr &value,
-                                          const std::vector<TypePtr> &paramTypes,
-                                          TypePtr returnType)
-{
-    if (value->type->tag != TypeTag::Function)
-        return false;
-    const auto &funcType = std::get<FunctionType>(value->type->extra);
-    return funcType.paramTypes == paramTypes && funcType.returnType == returnType;
-}
+        switch (expectedType->tag) {
+        case TypeTag::Int:
+        case TypeTag::Int8:
+        case TypeTag::Int16:
+        case TypeTag::Int32:
+        case TypeTag::Int64:
+        case TypeTag::UInt:
+        case TypeTag::UInt8:
+        case TypeTag::UInt16:
+        case TypeTag::UInt32:
+        case TypeTag::UInt64:
+        case TypeTag::Float32:
+        case TypeTag::Float64:
+        case TypeTag::Bool:
+        case TypeTag::String:
+        case TypeTag::Nil:
+            return true; // Simple types match by tag alone
 
-TypePtr TypeSystem::inferType(const ValuePtr &value)
-{
-    return value->type;
-}
-
-bool TypeSystem::checkType(const ValuePtr &value, TypePtr expectedType)
-{
-    if (expectedType->tag == TypeTag::Any)
-        return true;
-    if (value->type == expectedType)
-        return true;
-
-    switch (expectedType->tag) {
-    case TypeTag::List: {
-        const auto &expectedListType = std::get<ListType>(expectedType->extra);
-        return checkListType(value, expectedListType.elementType);
-    }
-    case TypeTag::Dict: {
-        const auto &expectedDictType = std::get<DictType>(expectedType->extra);
-        return checkDictType(value, expectedDictType.keyType, expectedDictType.valueType);
-    }
-    case TypeTag::Sum: {
-        const auto &expectedSumType = std::get<SumType>(expectedType->extra);
-        return checkSumType(value, expectedSumType.variants);
-    }
-    case TypeTag::UserDefined: {
-        const auto &expectedUserType = std::get<UserDefinedType>(expectedType->extra);
-        return checkADT(value, expectedUserType);
-    }
-    default:
-        // For primitive types, we've already checked equality above
-        return false;
-    }
-}
-
-ValuePtr TypeSystem::convert(const ValuePtr &value, TypePtr targetType)
-{
-    if (!canConvert(value->type, targetType)) {
-        throw std::runtime_error("Cannot convert type " + value->type->toString() + " to "
-                                 + targetType->toString());
-    }
-
-    ValuePtr result = std::make_shared<Value>();
-    result->type = targetType;
-    std::visit(overloaded{[&](auto arg) { result->data = arg; },
-                          [&](int8_t arg) { result->data = safe_cast<int64_t>(arg); },
-                          [&](int16_t arg) { result->data = safe_cast<int64_t>(arg); },
-                          [&](int32_t arg) { result->data = safe_cast<int64_t>(arg); },
-                          [&](int64_t arg) { result->data = arg; },
-                          [&](uint8_t arg) { result->data = safe_cast<uint64_t>(arg); },
-                          [&](uint16_t arg) { result->data = safe_cast<uint64_t>(arg); },
-                          [&](uint32_t arg) { result->data = safe_cast<uint64_t>(arg); },
-                          [&](uint64_t arg) { result->data = arg; },
-                          [&](float arg) { result->data = static_cast<double>(arg); },
-                          [&](double arg) { result->data = arg; }},
-               value->data);
-
-    return result;
-}
-
-TypeTag TypeSystem::stringToType(const std::string &typeStr)
-{
-    auto it = std::find_if(typeMappings.begin(), typeMappings.end(), [&](const TypeMapping &tm) {
-        return tm.str == typeStr;
-    });
-    if (it != typeMappings.end()) {
-        return it->tag;
-    }
-    throw std::invalid_argument("Unknown type string: " + typeStr);
-}
-
-ValuePtr TypeSystem::stringToNumber(const std::string &str, TypePtr targetType)
-{
-    ValuePtr result = std::make_shared<Value>();
-    result->type = targetType;
-
-    try {
-        if (targetType->tag == TypeTag::Int) {
-            result->data = std::stoll(str);
-        } else if (targetType->tag == TypeTag::Float32) {
-            result->data = std::stof(str);
-        } else if (targetType->tag == TypeTag::Float64) {
-            result->data = std::stod(str);
+        case TypeTag::List: {
+            const auto &listType = std::get<ListType>(expectedType->extra);
+            if (const auto *listValue = std::get_if<ListValue>(&value->data)) {
+                for (const auto &element : listValue->elements) {
+                    if (!checkType(element, listType.elementType)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            break;
         }
-    } catch (const std::exception &e) {
-        throw std::runtime_error("Failed to convert string to number: " + std::string(e.what()));
+
+        case TypeTag::Dict: {
+            const auto &dictType = std::get<DictType>(expectedType->extra);
+            if (const auto *dictValue = std::get_if<DictValue>(&value->data)) {
+                for (const auto &[key, val] : dictValue->elements) {
+                    if (!checkType(key, dictType.keyType) || !checkType(val, dictType.valueType)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            break;
+        }
+
+        case TypeTag::Sum: {
+            const auto &sumType = std::get<SumType>(expectedType->extra);
+            if (const auto *sumValue = std::get_if<SumValue>(&value->data)) {
+                if (sumValue->activeVariant >= sumType.variants.size()) {
+                    return false;
+                }
+                const auto &variantType = sumType.variants[sumValue->activeVariant];
+                return checkType(sumValue->value, variantType);
+            }
+            break;
+        }
+
+            //        case TypeTag::UserDefined: {
+            //            const auto &userType = std::get<UserDefinedType>(expectedType->extra);
+            //            if (const auto *userValue = std::get_if<UserDefinedValue>(&value->data)) {
+            //                if (userType.name != userValue->variantName) {
+            //                    return false;
+            //                }
+            //                for (const auto &[fieldName, fieldType] : userType.fields) {
+            //                    auto it = userValue->fields.find(fieldName);
+            //                    if (it == userValue->fields.end() || !checkType(it->second, fieldType)) {
+            //                        return false;
+            //                    }
+            //                }
+            //                return true;
+            //            }
+            //            break;
+            //        }
+
+        case TypeTag::Enum: {
+            const auto &enumType = std::get<EnumType>(expectedType->extra);
+            if (const auto *intValue = std::get_if<int64_t>(&value->data)) {
+                // C++ style enum (integer-based)
+                return *intValue >= 0 && static_cast<size_t>(*intValue) < enumType.values.size();
+            } else if (const auto *strValue = std::get_if<std::string>(&value->data)) {
+                // Python style enum (string-based)
+                return std::find(enumType.values.begin(), enumType.values.end(), *strValue)
+                       != enumType.values.end();
+            }
+            break;
+        }
+
+        case TypeTag::Function:
+            // Function type checking might involve checking the signature
+            // This is a placeholder and might need more complex logic
+            return true;
+
+        case TypeTag::Any:
+            // Any type always matches
+            return true;
+
+            //default:
+            //    throw std::runtime_error("Unsupported type tag: "
+            //                             + std::to_string(static_cast<int>(expectedType->tag)));
+        }
+
+        // Handle Union type separately, as it can match multiple types
+        if (expectedType->tag == TypeTag::Union) {
+            const auto &unionType = std::get<UnionType>(expectedType->extra);
+            for (const auto &type : unionType.types) {
+                if (checkType(value, type)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return false; // Fallback for non-matching types
     }
 
-    return result;
-}
+    ValuePtr convert(const ValuePtr &value, TypePtr targetType)
+    {
+        if (!isCompatible(value->type, targetType)) {
+            throw std::runtime_error("Incompatible types: " + value->type->toString() + " and "
+                                     + targetType->toString());
+        }
 
-ValuePtr TypeSystem::numberToString(const ValuePtr &value)
-{
-    ValuePtr result = std::make_shared<Value>();
-    result->type = STRING_TYPE;
+        ValuePtr result = std::make_shared<Value>();
+        result->type = targetType;
 
-    std::visit(overloaded{[&](int64_t v) { result->data = std::to_string(v); },
-                          [&](double v) { result->data = std::to_string(v); },
-                          [&](auto) {
-                              throw std::runtime_error("Unexpected type in numberToString");
-                          }},
-               value->data);
+        std::visit(
+            overloaded{[&](int64_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = v;
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from int64_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](uint64_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = v;
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from uint64_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](double v) {
+                           switch (targetType->tag) {
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = v;
+                               break;
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from double to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](const std::string &v) {
+                           if (targetType->tag == TypeTag::String) {
+                               result->data = v;
+                           } else {
+                               result = stringToNumber(v, targetType);
+                           }
+                       },
+                       [&](bool v) {
+                           if (targetType->tag == TypeTag::Bool) {
+                               result->data = v;
+                           } else if (targetType->tag == TypeTag::String) {
+                               result->data = v ? "true" : "false";
+                           } else {
+                               throw std::runtime_error("Unsupported conversion from bool to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](const ListValue &lv) {
+                           if (targetType->tag == TypeTag::List) {
+                               result->data = lv;
+                           } else {
+                               throw std::runtime_error("Unsupported conversion from List to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](const DictValue &dv) {
+                           if (targetType->tag == TypeTag::Dict) {
+                               result->data = dv;
+                           } else {
+                               throw std::runtime_error("Unsupported conversion from Dict to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](const SumValue &sv) {
+                           if (targetType->tag == TypeTag::Sum) {
+                               result->data = sv;
+                           } else {
+                               throw std::runtime_error("Unsupported conversion from Sum to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](const UserDefinedValue &uv) {
+                           if (targetType->tag == TypeTag::UserDefined) {
+                               result->data = uv;
+                           } else {
+                               throw std::runtime_error(
+                                   "Unsupported conversion from UserDefined to "
+                                   + targetType->toString());
+                           }
+                       },
+                       [&](std::monostate) {
+                           if (targetType->tag == TypeTag::Nil) {
+                               result->data = std::monostate{};
+                           } else {
+                               throw std::runtime_error("Unsupported conversion from Nil to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](auto) {
+                           throw std::runtime_error("Unsupported conversion from type "
+                                                    + value->type->toString() + " to "
+                                                    + targetType->toString());
+                       }},
+            value->data);
 
-    return result;
-}
-
-std::string TypeSystem::typeToString(const TypePtr &type) const
-{
-    std::string result = type->toString();
-
-    if (type->tag == TypeTag::List) {
-        const auto &listType = std::get<ListType>(type->extra);
-        result += "<" + typeToString(listType.elementType) + ">";
-    } else if (type->tag == TypeTag::Dict) {
-        const auto &dictType = std::get<DictType>(type->extra);
-        result += "<" + typeToString(dictType.keyType) + ", " + typeToString(dictType.valueType)
-                  + ">";
-    } else if (type->tag == TypeTag::UserDefined) {
-        const auto &userType = std::get<UserDefinedType>(type->extra);
-        result += " " + userType.name;
+        return result;
     }
+};
 
-    return result;
-}
-
-// Modify the existing operator<< for Value to use the new typeToString function
-std::ostream &operator<<(std::ostream &os, const Value &value)
+inline std::ostream &operator<<(std::ostream &os, const Value &value)
 {
-    os << value.type->toString() << "(";
-    std::visit(overloaded{[&](std::monostate) { os << "Nil"; },
-                          [&](bool v) { os << (v ? "true" : "false"); },
-                          [&](int8_t v) { os << static_cast<int32_t>(v); },
-                          [&](int16_t v) { os << v; },
-                          [&](int32_t v) { os << v; },
-                          [&](int64_t v) { os << v; },
-                          [&](uint8_t v) { os << static_cast<uint32_t>(v); },
-                          [&](uint16_t v) { os << v; },
-                          [&](uint32_t v) { os << v; },
-                          [&](uint64_t v) { os << v; },
-                          [&](float v) { os << v; },
-                          [&](double v) { os << v; },
-                          [&](const std::string &v) { os << '"' << v << '"'; },
-                          [&](const ListValue &v) {
+    os << "Value(" << value.type->toString() << "): ";
+
+    std::visit(overloaded{[&](const std::monostate &) { os << "nil"; },
+                          [&](bool b) { os << (b ? "true" : "false"); },
+                          [&](int8_t i) { os << static_cast<int>(i); },
+                          [&](int16_t i) { os << i; },
+                          [&](int32_t i) { os << i; },
+                          [&](int64_t i) { os << i; },
+                          [&](uint8_t u) { os << static_cast<unsigned>(u); },
+                          [&](uint16_t u) { os << u; },
+                          [&](uint32_t u) { os << u; },
+                          [&](uint64_t u) { os << u; },
+                          [&](float f) { os << f; },
+                          [&](double d) { os << d; },
+                          [&](const std::string &s) { os << s; },
+                          [&](const ListValue &lv) {
                               os << "[";
-                              for (size_t i = 0; i < v.elements.size(); ++i) {
-                                  os << *v.elements[i];
-                                  if (i < v.elements.size() - 1)
-                                      os << ", ";
+                              for (const auto &elem : lv.elements) {
+                                  os << *elem << ", ";
                               }
                               os << "]";
                           },
-                          [&](const DictValue &v) {
+                          [&](const DictValue &dv) {
                               os << "{";
-                              size_t i = 0;
-                              for (const auto &[key, val] : v.elements) {
-                                  os << *key << ": " << *val;
-                                  if (++i < v.elements.size())
-                                      os << ", ";
+                              for (const auto &[key, val] : dv.elements) {
+                                  os << *key << ": " << *val << ", ";
                               }
                               os << "}";
                           },
-                          [&](const UserDefinedValue &v) {
-                              os << "{";
-                              size_t i = 0;
-                              for (const auto &[field, val] : v.fields) {
-                                  os << field << ": " << *val;
-                                  if (++i < v.fields.size())
-                                      os << ", ";
-                              }
-                              os << "}";
-                          }},
+                          [&](const SumValue &sv) { os << "Sum(" << sv.activeVariant << ")"; },
+                          [&](const UserDefinedValue &uv) {
+                              os << "UserDefined(" << uv.variantName << ")";
+                          },
+                          [&](const auto &) { os << "unknown"; }},
                value.data);
-    os << ")";
-    return os;
-}
-// Add an operator<< for Type
 
-std::ostream &operator<<(std::ostream &os, const Type &type)
-{
-    os << TypeSystem().typeToString(std::make_shared<Type>(type));
     return os;
 }
 
-// Custom operator<< for std::monostate
-std::ostream &operator<<(std::ostream &os, const std::monostate &)
-{
-    return os << "monostate";
-}
-
-// Custom operator<< for ListValue
-std::ostream &operator<<(std::ostream &os, const ListValue &lv)
+// Define the operator<< for ListValue
+inline std::ostream &operator<<(std::ostream &os, const ListValue &lv)
 {
     os << "[";
     for (size_t i = 0; i < lv.elements.size(); ++i) {
@@ -646,33 +791,57 @@ std::ostream &operator<<(std::ostream &os, const ListValue &lv)
     return os;
 }
 
-// Custom operator<< for DictValue
-std::ostream &operator<<(std::ostream &os, const DictValue &dv)
+// Define the operator<< for DictValue
+inline std::ostream &operator<<(std::ostream &os, const DictValue &dv)
 {
     os << "{";
     bool first = true;
-    for (const auto &kv : dv.elements) {
+    for (const auto &[key, value] : dv.elements) {
         if (!first)
             os << ", ";
         first = false;
-        os << kv.first << ": " << kv.second;
+        os << key << ": " << value;
     }
     os << "}";
     return os;
 }
 
-// Custom operator<< for UserDefinedValue
-std::ostream &operator<<(std::ostream &os, const UserDefinedValue &udv)
+// Define the operator<< for UserDefinedValue
+inline std::ostream &operator<<(std::ostream &os, const UserDefinedValue &udv)
 {
-    os << "{";
-    const auto &fields = udv.fields;
+    os << udv.variantName << "{";
     bool first = true;
-    for (const auto &field : fields) {
+    for (const auto &[field, value] : udv.fields) {
         if (!first)
             os << ", ";
         first = false;
-        os << field.first << ": " << *(field.second);
+        os << field << ": " << value;
     }
     os << "}";
+    return os;
+}
+
+// Define the operator<< for SumValue
+inline std::ostream &operator<<(std::ostream &os, const SumValue &udv)
+{
+    os << "Variant" << udv.activeVariant << "(";
+    os << *udv.value;
+    os << ")";
+    return os;
+}
+
+inline std::ostream &operator<<(std::ostream &os, const std::monostate &)
+{
+    return os << "Nil";
+}
+
+// Define the operator<< for ValuePtr
+inline std::ostream &operator<<(std::ostream &os, const ValuePtr &valuePtr)
+{
+    if (valuePtr) {
+        os << *valuePtr;
+    } else {
+        os << "nullptr";
+    }
     return os;
 }

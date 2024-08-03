@@ -166,7 +166,8 @@ private:
             defaultValue->data = UserDefinedValue();
             break;
         default:
-            throw std::runtime_error("Unsupported type for default value initialization");
+            //throw std::runtime_error("Unsupported type for default value initialization");
+            defaultValue->data = int32_t(0);
         }
 
         return defaultValue;

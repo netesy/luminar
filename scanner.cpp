@@ -430,8 +430,8 @@ TokenType Scanner::checkKeyword(size_t begin,
         return TokenType::FN;
     if (rest == "if")
         return TokenType::IF;
-    if (rest == "nil")
-        return TokenType::NIL;
+    if (rest == "in")
+        return TokenType::IN;
     if (rest == "or")
         return TokenType::OR;
     if (rest == "print")
@@ -465,8 +465,34 @@ TokenType Scanner::checkKeyword(size_t begin,
     // Check if the identifier matches a type keyword
     if (rest == "int")
         return TokenType::INT_TYPE;
+    if (rest == "i8")
+        return TokenType::INT8_TYPE;
+    if (rest == "i16")
+        return TokenType::INT16_TYPE;
+    if (rest == "i32")
+        return TokenType::INT32_TYPE;
+    if (rest == "i64")
+        return TokenType::INT64_TYPE;
+    if (rest == "uint")
+        return TokenType::UINT_TYPE;
+    if (rest == "u8")
+        return TokenType::UINT8_TYPE;
+    if (rest == "u16")
+        return TokenType::UINT16_TYPE;
+    if (rest == "u32")
+        return TokenType::UINT32_TYPE;
+    if (rest == "u64")
+        return TokenType::UINT64_TYPE;
+    if (rest == "any")
+        return TokenType::ANY_TYPE;
+    if (rest == "nil")
+        return TokenType::NIL_TYPE;
     if (rest == "float")
         return TokenType::FLOAT_TYPE;
+    if (rest == "f32")
+        return TokenType::FLOAT32_TYPE;
+    if (rest == "f64")
+        return TokenType::FLOAT64_TYPE;
     if (rest == "str")
         return TokenType::STR_TYPE;
     if (rest == "bool")
@@ -479,6 +505,10 @@ TokenType Scanner::checkKeyword(size_t begin,
         return TokenType::DICT_TYPE;
     if (rest == "enum")
         return TokenType::ENUM_TYPE;
+    if (rest == "sum")
+        return TokenType::SUM_TYPE;
+    if (rest == "union")
+        return TokenType::UNION_TYPE;
 
     return type;
 }
@@ -558,7 +588,7 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
         return "FN";
     case TokenType::IF:
         return "IF";
-    case TokenType::NIL:
+    case TokenType::NIL_TYPE:
         return "NIL";
     case TokenType::OR:
         return "OR";

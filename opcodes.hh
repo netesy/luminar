@@ -1,6 +1,5 @@
 //opcodes.hh
 #pragma once
-/// @brief
 
 enum Opcode {
     // Arithmetic operations

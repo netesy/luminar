@@ -43,7 +43,18 @@ enum class TokenType {
 
     // Group: Types
     INT_TYPE,      // int
+    INT8_TYPE,     // i8
+    INT16_TYPE,    // i16
+    INT32_TYPE,    // i32
+    INT64_TYPE,    // i64
+    UINT_TYPE,     // uint
+    UINT8_TYPE,    // u8
+    UINT16_TYPE,   // u16
+    UINT32_TYPE,   // u32
+    UINT64_TYPE,   // u64
     FLOAT_TYPE,    // float
+    FLOAT32_TYPE,  // f32
+    FLOAT64_TYPE,  // f64
     STR_TYPE,      // str
     BOOL_TYPE,     // bool
     USER_TYPE,     // user-defined types
@@ -51,21 +62,24 @@ enum class TokenType {
     DICT_TYPE,     // dictionary
     ARRAY_TYPE,    // array
     ENUM_TYPE,     // enum
+    SUM_TYPE,      //sum type
+    UNION_TYPE,    //union type
     FUNCTION_TYPE, // function
+    ANY_TYPE,      //any type
+    NIL_TYPE,      //nil type
 
     // Group: Keywords
     FN,         // fn
     IF,         // if
     IN,         // in
     OR,         // or
-    NIL,        // nil
     AND,        // and
     FOR,        // for
     VAR,        // var
     MUT,        // mut
     THIS,       // this
     TRUE,       // true
-    ELIF,       //elif
+    ELIF,       // elif
     ELSE,       // else
     ENUM,       // enum
     ASYNC,      // async

@@ -19,7 +19,7 @@ struct Instruction
     // Additional fields for operands, labels, etc.
     // Add any other metadata needed for debugging or bytecode generation
 
-    // Use Value from type system to hold any type of valueS
+    // Use Value from type system to hold any type of values
     ValuePtr value;
 
     // Constructor for instructions with string value
@@ -43,54 +43,84 @@ struct Instruction
         std::cout << "Line Number: " << lineNumber << std::endl;
         if (value) {
             std::cout << "Value: ";
-            switch (value->type->tag) {
-            case TypeTag::Bool:
-                std::cout << "bool: " << std::boolalpha << std::get<bool>(value->data) << std::endl;
-                break;
-            case TypeTag::Int:
-            case TypeTag::Int32:
-                std::cout << "int: " << std::get<int32_t>(value->data) << std::endl;
-                break;
-            case TypeTag::Int8:
-                std::cout << "int8: " << static_cast<int>(std::get<int8_t>(value->data))
-                          << std::endl;
-                break;
-            case TypeTag::Int16:
-                std::cout << "int16: " << std::get<int16_t>(value->data) << std::endl;
-                break;
-            case TypeTag::Int64:
-                std::cout << "int64: " << std::get<int64_t>(value->data) << std::endl;
-                break;
-            case TypeTag::UInt:
-            case TypeTag::UInt32:
-                std::cout << "uint: " << std::get<uint32_t>(value->data) << std::endl;
-                break;
-            case TypeTag::UInt8:
-                std::cout << "uint8: " << static_cast<unsigned int>(std::get<uint8_t>(value->data))
-                          << std::endl;
-                break;
-            case TypeTag::UInt16:
-                std::cout << "uint16: " << std::get<uint16_t>(value->data) << std::endl;
-                break;
-            case TypeTag::UInt64:
-                std::cout << "uint64: " << std::get<uint64_t>(value->data) << std::endl;
-                break;
-            case TypeTag::Float32:
-                std::cout << "float: " << std::get<float>(value->data) << std::endl;
-                break;
-            case TypeTag::Float64:
-                std::cout << "double: " << std::get<double>(value->data) << std::endl;
-                break;
-            case TypeTag::String:
-                std::cout << "string: " << std::get<std::string>(value->data) << std::endl;
-                break;
-            default:
-                std::cout << "complex type" << std::endl;
-                break;
-            }
+            std::visit(
+                [](const auto &v) {
+                    using T = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<T, std::monostate>)
+                        std::cout << "None" << std::endl;
+                    else if constexpr (std::is_same_v<T, bool>)
+                        std::cout << "bool: " << std::boolalpha << v << std::endl;
+                    else if constexpr (std::is_integral_v<T>)
+                        std::cout << "int: " << v << std::endl;
+                    else if constexpr (std::is_floating_point_v<T>)
+                        std::cout << "float: " << v << std::endl;
+                    else if constexpr (std::is_same_v<T, std::string>)
+                        std::cout << "string: " << v << std::endl;
+                    else if constexpr (std::is_same_v<T, ListValue>)
+                        std::cout << "ListValue: " << v << std::endl;
+                    else if constexpr (std::is_same_v<T, DictValue>)
+                        std::cout << "DictValue: " << v << std::endl;
+                    else if constexpr (std::is_same_v<T, SumValue>)
+                        std::cout << "SumValue: " << v << std::endl;
+                    else if constexpr (std::is_same_v<T, UserDefinedValue>)
+                        std::cout << "UserDefinedValue: " << v << std::endl;
+                    else
+                        std::cout << "complex type" << std::endl;
+                },
+                value->data);
         } else {
             std::cout << "Value: None" << std::endl;
         }
+        //        if (value) {
+        //            std::cout << "Value: ";
+        //            switch (value->type->tag) {
+        //            case TypeTag::Bool:
+        //                std::cout << "bool: " << std::boolalpha << std::get<bool>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::Int:
+        //            case TypeTag::Int32:
+        //                std::cout << "int: " << std::get<int32_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::Int8:
+        //                std::cout << "int8: " << static_cast<int>(std::get<int8_t>(value->data))
+        //                          << std::endl;
+        //                break;
+        //            case TypeTag::Int16:
+        //                std::cout << "int16: " << std::get<int16_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::Int64:
+        //                std::cout << "int64: " << std::get<int64_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::UInt:
+        //            case TypeTag::UInt32:
+        //                std::cout << "uint: " << std::get<uint32_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::UInt8:
+        //                std::cout << "uint8: " << static_cast<unsigned int>(std::get<uint8_t>(value->data))
+        //                          << std::endl;
+        //                break;
+        //            case TypeTag::UInt16:
+        //                std::cout << "uint16: " << std::get<uint16_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::UInt64:
+        //                std::cout << "uint64: " << std::get<uint64_t>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::Float32:
+        //                std::cout << "float32: " << std::get<float>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::Float64:
+        //                std::cout << "float64: " << std::get<double>(value->data) << std::endl;
+        //                break;
+        //            case TypeTag::String:
+        //                std::cout << "string: " << std::get<std::string>(value->data) << std::endl;
+        //                break;
+        //            default:
+        //                std::cout << "complex type" << std::endl;
+        //                break;
+        //            }
+        //        } else {
+        //            std::cout << "Value: None" << std::endl;
+        //        }
     }
 
     std::string opcodeToString(Opcode op) const

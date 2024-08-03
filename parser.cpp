@@ -6,9 +6,10 @@
 #include <fstream>
 #include <thread>
 
-Parser::Parser(Scanner &scanner)
+Parser::Parser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
     : bytecode(Bytecode{})
     , scanner(scanner)
+    , variable(typeSystem)
 {
     tokens = scanner.scanTokens();
     parse();
@@ -35,21 +36,21 @@ Bytecode Parser::parse()
 std::string Parser::toString() const
 {
     std::string result;
-    for (const auto &instruction : bytecode) {
-        result += "Instruction: " + instruction.opcodeToString(instruction.opcode)
-                  + " | Line: " + std::to_string(instruction.lineNumber) + "\n";
-        std::string valueStr;
-        std::visit(
-            [&valueStr](auto const &val) {
-                std::stringstream ss;
-                ss << val;
-                valueStr = ss.str();
-            },
-            instruction.value);
+    //    for (const auto &instruction : bytecode) {
+    //        result += "Instruction: " + instruction.opcodeToString(instruction.opcode)
+    //                  + " | Line: " + std::to_string(instruction.lineNumber) + "\n";
+    //        std::string valueStr;
+    //        std::visit(
+    //            [&valueStr](const auto &val) {
+    //                std::stringstream ss;
+    //                ss << val;
+    //                valueStr = ss.str();
+    //            },
+    //            instruction.value.data);
 
-        result += " | Value: " + valueStr;
-        result += "\n";
-    }
+    //        result += " | Value: " + valueStr;
+    //        result += "\n";
+    //    }
     return result;
 }
 
@@ -128,9 +129,23 @@ ParseFn Parser::getParseFn(TokenType type)
     case TokenType::ARRAY_TYPE:
     case TokenType::ENUM_TYPE:
     case TokenType::FUNCTION_TYPE:
+    case TokenType::NIL_TYPE:
+    case TokenType::INT8_TYPE:
+    case TokenType::INT16_TYPE:
+    case TokenType::INT32_TYPE:
+    case TokenType::INT64_TYPE:
+    case TokenType::UINT_TYPE:
+    case TokenType::UINT8_TYPE:
+    case TokenType::UINT16_TYPE:
+    case TokenType::UINT32_TYPE:
+    case TokenType::UINT64_TYPE:
+    case TokenType::FLOAT32_TYPE:
+    case TokenType::FLOAT64_TYPE:
+    case TokenType::SUM_TYPE:
+    case TokenType::ANY_TYPE:
+    case TokenType::UNION_TYPE:
         return &Parser::parseTypes; // Add parsing function for types if needed
     case TokenType::IN:
-    case TokenType::NIL:
     case TokenType::THIS:
     case TokenType::ENUM:
     case TokenType::ASYNC:
@@ -373,16 +388,16 @@ Precedence Parser::getTokenPrecedence(TokenType type)
 Instruction Parser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-    // instruction.debug();
+    instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
 
-Instruction Parser::emit(Opcode opcode,
-                         uint32_t lineNumber,
-                         std::variant<int32_t, double, bool, std::string> value)
+Instruction Parser::emit(Opcode opcode, uint32_t lineNumber, Value &&value)
 {
-    Instruction instruction(opcode, lineNumber, value);
+    ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
+    Instruction instruction(opcode, lineNumber, valuePtr);
+    instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -473,6 +488,18 @@ void Parser::parseUnary()
     }
 }
 
+void Parser::parseBoolean()
+{
+    Token token = previous();
+    if (token.type == TokenType::TRUE) {
+        emit(Opcode::LOAD_CONST, token.line, Value{std::make_shared<Type>(TypeTag::Bool), true});
+    } else if (token.type == TokenType::FALSE) {
+        emit(Opcode::LOAD_CONST, token.line, Value{std::make_shared<Type>(TypeTag::Bool), false});
+    } else {
+        error("Unexpected boolean value");
+    }
+}
+
 void Parser::parseBinary()
 {
     Token op = previous();
@@ -504,10 +531,12 @@ void Parser::parseBinary()
 void Parser::parseLiteral()
 {
     Token token = previous();
+    TypePtr typePtr = std::make_shared<Type>(inferType(token));
     switch (token.type) {
-    case TokenType::NUMBER:
-        emit(Opcode::LOAD_CONST, token.line, std::stod(token.lexeme));
-        break;
+    case TokenType::NUMBER: {
+        Value value = setValue(typePtr, token.lexeme);
+        emit(Opcode::LOAD_CONST, token.line, std::move(value));
+    } break;
     case TokenType::STRING:
         parseString();
         break;
@@ -518,7 +547,8 @@ void Parser::parseLiteral()
 
 void Parser::parseString()
 {
-    std::string str = currentToken.lexeme;
+    std::string str = previous().lexeme;
+    TypePtr typePtr = std::make_shared<Type>(inferType(previous()));
 
     // Check if the string contains any {} pairs
     bool isInterpolated = (str.find('{') != std::string::npos)
@@ -526,9 +556,10 @@ void Parser::parseString()
 
     if (!isInterpolated) {
         // Regular string, just emit a LOAD_CONST
-        emit(Opcode::LOAD_STR, currentToken.line, str);
+        emit(Opcode::LOAD_STR, currentToken.line, setValue(typePtr, str));
         return;
     }
+
     std::string current;
     bool inExpression = false;
     int bracketCount = 0;
@@ -538,7 +569,7 @@ void Parser::parseString()
         char c = str[i];
         if (c == '{' && !inExpression) {
             if (!current.empty()) {
-                emit(Opcode::LOAD_STR, currentToken.line, current);
+                emit(Opcode::LOAD_STR, currentToken.line, setValue(typePtr, current));
                 partCount++;
             }
             current.clear();
@@ -573,12 +604,14 @@ void Parser::parseString()
     }
 
     if (!current.empty()) {
-        emit(Opcode::LOAD_STR, currentToken.line, current);
+        emit(Opcode::LOAD_STR, currentToken.line, setValue(typePtr, current));
         partCount++;
     }
 
     // Emit the INTERPOLATE_STRING instruction with the part count
-    emit(Opcode::INTERPOLATE_STRING, currentToken.line, partCount);
+    emit(Opcode::INTERPOLATE_STRING,
+         currentToken.line,
+         Value{std::make_shared<Type>(TypeTag::Int), partCount});
 }
 
 void Parser::parseIf()
@@ -591,7 +624,9 @@ void Parser::parseIf()
     // Emit JUMP_IF_FALSE with a placeholder for patching later
     size_t thenJump = bytecode.size();
     std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
-    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+    emit(Opcode::JUMP_IF_FALSE,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Placeholder
 
     // Parse the 'then' block
     std::cout << "Parsing 'then' block" << std::endl;
@@ -600,13 +635,16 @@ void Parser::parseIf()
     // Emit JUMP with a placeholder to jump to end of else block
     size_t elseJump = bytecode.size();
     std::cout << "Emitting JUMP at " << elseJump << std::endl;
-    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+    emit(Opcode::JUMP,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Jump to end (placeholder)
 
     // Patch thenJump to jump to the else block if condition is false
     int32_t thenOffset = bytecode.size() - thenJump - 1;
     std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
               << std::endl;
-    bytecode[thenJump].value = thenOffset;
+    bytecode[thenJump].value = std::make_shared<Value>(
+        Value{std::make_shared<Type>(TypeTag::Int32), thenOffset});
 
     // Store elseJump for patching later
     endJumps.push_back(elseJump);
@@ -622,7 +660,9 @@ void Parser::parseElseIf()
     // Emit JUMP_IF_FALSE with a placeholder for patching later
     size_t thenJump = bytecode.size();
     std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
-    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder
+    emit(Opcode::JUMP_IF_FALSE,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Placeholder
 
     // Parse the 'elif' block
     std::cout << "Parsing 'elif' block" << std::endl;
@@ -631,13 +671,16 @@ void Parser::parseElseIf()
     // Emit JUMP with a placeholder to jump to end of else block
     size_t elseJump = bytecode.size();
     std::cout << "Emitting JUMP at " << elseJump << std::endl;
-    emit(Opcode::JUMP, peek().line, 0); // Jump to end (placeholder)
+    emit(Opcode::JUMP,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Jump to end (placeholder)
 
     // Patch thenJump to jump to the next block if condition is false
     int32_t thenOffset = bytecode.size() - thenJump - 1;
     std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
               << std::endl;
-    bytecode[thenJump].value = thenOffset;
+    bytecode[thenJump].value = std::make_shared<Value>(
+        Value{std::make_shared<Type>(TypeTag::Int32), thenOffset});
 
     // Store elseJump for patching later
     endJumps.push_back(elseJump);
@@ -653,7 +696,8 @@ void Parser::parseElse()
     for (size_t jump : endJumps) {
         int32_t endOffset = bytecode.size() - jump - 1;
         std::cout << "Patching JUMP at " << jump << " with offset " << endOffset << std::endl;
-        bytecode[jump].value = endOffset;
+        bytecode[jump].value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(TypeTag::Int32), endOffset});
     }
 
     // Clear endJumps after patching
@@ -677,27 +721,18 @@ void Parser::parseIdentifier()
     }
 }
 
-void Parser::parseBoolean()
-{
-    Token token = previous();
-    if (token.type == TokenType::TRUE) {
-        emit(Opcode::LOAD_CONST, token.line, true);
-    } else if (token.type == TokenType::FALSE) {
-        emit(Opcode::LOAD_CONST, token.line, false);
-    } else {
-        error("Unexpected boolean value");
-    }
-}
-
 void Parser::parseDecVariable()
 {
     // Parse variable declaration with type
     // consume(TokenType::VAR, "Expected 'var' before variable name");
     Token name = peek();
+    TypeTag type = TypeTag::Any;
     consume(TokenType::IDENTIFIER, "Expected variable name after 'var' token");
     if (check(TokenType::COLON)) {
         consume(TokenType::COLON, "Expected ':' after variable name");
         Token typeToken = peek();
+        type = stringToType(typeToken.lexeme);
+        std::cout << "Type: " << typeToken.lexeme << std::endl;
         advance();
         //consume(TokenType::IDENTIFIER, "Expected type after ':'"); // edit this to get every type of type
     }
@@ -709,9 +744,12 @@ void Parser::parseDecVariable()
         advance();
     }
 
-    declareVariable(name);
+    // Value value{std::make_shared<Type>(inferType())
+    declareVariable(name, std::make_shared<Type>(type));
     int32_t memoryLocation = getVariableMemoryLocation(name);
-    emit(Opcode::STORE_VARIABLE, name.line, memoryLocation);
+    emit(Opcode::STORE_VARIABLE,
+         name.line,
+         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
 }
 
 void Parser::parseLoadVariable()
@@ -723,9 +761,11 @@ void Parser::parseLoadVariable()
     }
 
     // consume(TokenType::SEMICOLON, "Expected ';' after var load.");
-
+    std::cout << name.lexeme << std::endl;
     int32_t memoryLocation = getVariableMemoryLocation(name);
-    emit(Opcode::LOAD_VARIABLE, name.line, memoryLocation);
+    emit(Opcode::LOAD_VARIABLE,
+         name.line,
+         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
 }
 
 void Parser::parseBlock()
@@ -776,7 +816,9 @@ void Parser::parseAssignment()
 
     // Get the memory location of the variable (assumes variable is now declared)
     int32_t memoryLocation = variable.getVariableMemoryLocation(varName);
-    emit(Opcode::STORE_VARIABLE, token.line, memoryLocation);
+    emit(Opcode::STORE_VARIABLE,
+         token.line,
+         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
 }
 
 void Parser::parseAnd()
@@ -836,7 +878,7 @@ void Parser::parseComparison()
 void Parser::parsePrintStatement()
 {
     Token op = peek();
-    consume(TokenType::PRINT, "Expected 'print' before print expression.");
+    //consume(TokenType::PRINT, "Expected 'print' before print expression.");
     parseExpression();
     emit(Opcode::PRINT, op.line);
     if (!check(TokenType::RIGHT_BRACE)) {
@@ -872,15 +914,23 @@ void Parser::parseWhileLoop()
     consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
 
     size_t conditionJump = bytecode.size();
-    emit(Opcode::JUMP_IF_FALSE, peek().line, 0); // Placeholder for the jump out of the loop
+    emit(Opcode::JUMP_IF_FALSE,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32),
+               0}); // Placeholder for the jump out of the loop
 
     parseBlock();
 
     int32_t jmpLoc = loopStart - bytecode.size() - 1;
-    emit(Opcode::JUMP, peek().line, jmpLoc); // Jump back to the start of the loop condition
+    emit(Opcode::JUMP,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32),
+               jmpLoc}); // Jump back to the start of the loop condition
 
     int32_t conditionJumpOffset = bytecode.size() - conditionJump - 1;
-    bytecode[conditionJump].value = conditionJumpOffset; // Update the jump condition to exit the loop
+    bytecode[conditionJump].value = std::make_shared<Value>(
+        Value{std::make_shared<Type>(TypeTag::Int),
+              conditionJumpOffset}); // Update the jump condition to exit the loop
 }
 
 void Parser::parseForLoop()
@@ -951,81 +1001,85 @@ void Parser::parseParallelStatement()
 
 void Parser::parseFnDeclaration()
 {
-    //consume(TokenType::FN, "Expected 'fn' keyword to start function definition");
-    Token name = previous();
-    // consume(TokenType::IDENTIFIER, "Expected function name");
+    //    //consume(TokenType::FN, "Expected 'fn' keyword to start function definition");
+    //    Token name = previous();
+    //    // consume(TokenType::IDENTIFIER, "Expected function name");
 
-    // Parse optional parameters
-    std::vector<std::pair<std::string, std::optional<std::string>>> parameters;
-    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
-    if (peek().type != TokenType::RIGHT_PAREN) {
-        do {
-            Token paramName = peek();
-            consume(TokenType::IDENTIFIER, "Expected parameter name");
-            std::optional<std::string> defaultValue;
-            if (match(TokenType::COLON)) {
-                Token paramType = peek();
-                TypeTag types = stringToType(paramType.lexeme);
-                consume(TokenType::IDENTIFIER, "Expected type after ':' in parameter declaration");
-                if (match(TokenType::EQUAL)) {
-                    defaultValue = peek().lexeme;
-                    advance();
-                } else {
-                    error("Expected '=' after type in parameter declaration with default "
-                          "value");
-                }
-            }
-            //            Token paramName = consume(TokenType::IDENTIFIER, "Expect parameter name.");
-            //            Token paramType = consume(TokenType::IDENTIFIER, "Expect parameter type.");
-            //            ReturnType type = stringToReturnType(paramType.lexeme);
-            parameters.push_back(std::make_pair(paramName.lexeme, defaultValue));
-            declareVariable(paramName,
-                            types,
-                            defaultValue); // Declare parameter as a variable in the function scope
-        } while (match(TokenType::COMMA));
-    }
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after function parameters");
+    //    // Parse optional parameters
+    //    std::vector<std::pair<std::string, std::optional<std::string>>> parameters;
+    //    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
+    //    if (peek().type != TokenType::RIGHT_PAREN) {
+    //        do {
+    //            Token paramName = peek();
+    //            consume(TokenType::IDENTIFIER, "Expected parameter name");
+    //            std::optional<std::string> defaultValue;
+    //            if (match(TokenType::COLON)) {
+    //                Token paramType = peek();
+    //                TypeTag types = stringToType(paramType.lexeme);
+    //                consume(TokenType::IDENTIFIER, "Expected type after ':' in parameter declaration");
+    //                if (match(TokenType::EQUAL)) {
+    //                    defaultValue = peek().lexeme;
+    //                    advance();
+    //                } else {
+    //                    error("Expected '=' after type in parameter declaration with default "
+    //                          "value");
+    //                }
+    //            }
+    //            //            Token paramName = consume(TokenType::IDENTIFIER, "Expect parameter name.");
+    //            //            Token paramType = consume(TokenType::IDENTIFIER, "Expect parameter type.");
+    //            //            ReturnType type = stringToReturnType(paramType.lexeme);
+    //            parameters.push_back(std::make_pair(paramName.lexeme, defaultValue));
+    //            declareVariable(paramName,
+    //                            types,
+    //                            defaultValue); // Declare parameter as a variable in the function scope
+    //        } while (match(TokenType::COMMA));
+    //    }
+    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after function parameters");
 
-    // Parse expected return type (optional)
-    std::optional<std::string> returnType;
-    if (match(TokenType::COLON)) {
-        consume(TokenType::IDENTIFIER, "Expected return type after ':'");
-        returnType = peek().lexeme;
-        advance();
-    }
+    //    // Parse expected return type (optional)
+    //    std::optional<std::string> returnType;
+    //    if (match(TokenType::COLON)) {
+    //        consume(TokenType::IDENTIFIER, "Expected return type after ':'");
+    //        returnType = peek().lexeme;
+    //        advance();
+    //    }
 
-    // Function body parsing logic goes here
-    parseBlock();
-    //    consume(TokenType::LEFT_BRACE, "Expected '{' before function body");
-    //    parseDeclaration();
-    //    consume(TokenType::RIGHT_BRACE, "Expected '}' after function body");
+    //    // Function body parsing logic goes here
+    //    parseBlock();
+    //    //    consume(TokenType::LEFT_BRACE, "Expected '{' before function body");
+    //    //    parseDeclaration();
+    //    //    consume(TokenType::RIGHT_BRACE, "Expected '}' after function body");
 
-    // Emit bytecode for function declaration
-    emit(Opcode::DEFINE_FUNCTION, name.line, name.lexeme);
+    //    // Emit bytecode for function declaration
+    //    emit(Opcode::DEFINE_FUNCTION,
+    //         name.line,
+    //         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
 }
 
 void Parser::parseFnCall()
 {
-    Token name = previous();
-    //consume(TokenType::IDENTIFIER, "Expected function name for call");
-    consume(TokenType::LEFT_PAREN, "Expected '(' after function name in call");
+    //    Token name = previous();
+    //    //consume(TokenType::IDENTIFIER, "Expected function name for call");
+    //    consume(TokenType::LEFT_PAREN, "Expected '(' after function name in call");
 
-    // Parse arguments (optional)
-    std::vector<std::variant<int32_t, double, bool, std::string>> arguments;
-    if (peek().type != TokenType::RIGHT_PAREN) {
-        do {
-            parseExpression();
-            arguments.push_back(previous().lexeme);
-        } while (match(TokenType::COMMA));
-    }
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after function call arguments");
-    // Emit bytecode for function call with arguments
-    for (const auto &arg : arguments) {
-        emit(Opcode::PUSH_ARGS, name.line, arg);
-    }
+    //    // Parse arguments (optional)
+    //    Value arguments;
+    //    if (peek().type != TokenType::RIGHT_PAREN) {
+    //        do {
+    //            parseExpression();
+    //            arguments.push_back(previous().lexeme);
+    //        } while (match(TokenType::COMMA));
+    //    }
+    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after function call arguments");
+    //    // Emit bytecode for function call with arguments
+    //    for (const auto &arg : arguments) {
+    //        emit(Opcode::PUSH_ARGS, name.line, Value{std::make_shared<Type>(TypeTag::String), arg});
+    //    }
 
-    // Emit bytecode for function call with arguments
-    emit(Opcode::INVOKE_FUNCTION, name.line, name.lexeme);
+    //    // Emit bytecode for function call with arguments
+    //    emit(Opcode::INVOKE_FUNCTION,
+    //         name.line,
+    //         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
 }
 
 void Parser::parseImport()
@@ -1104,42 +1158,7 @@ void Parser::parseModules()
 
 void Parser::parseTypes()
 {
-    TokenType type = peek().type;
-    switch (type) {
-    case TokenType::INT_TYPE:
-        std::cout << "Parsing int type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::FLOAT_TYPE:
-        std::cout << "Parsing float type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::STR_TYPE:
-        std::cout << "Parsing str type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::BOOL_TYPE:
-        std::cout << "Parsing bool type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::USER_TYPE:
-        std::cout << "Parsing user type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::LIST_TYPE:
-        std::cout << "Parsing list type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::DICT_TYPE:
-        std::cout << "Parsing dict type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::ARRAY_TYPE:
-        std::cout << "Parsing array type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::ENUM_TYPE:
-        std::cout << "Parsing enum type : " << peek().lexeme << std::endl;
-        break;
-    case TokenType::FUNCTION_TYPE:
-        std::cout << "Parsing function type : " << peek().lexeme << std::endl;
-        break;
-    default:
-        std::cout << "Parsing unknown type : " << peek().lexeme << std::endl;
-        break;
-    }
+    inferType(peek());
 }
 
 std::vector<Instruction> Parser::getBytecode() const

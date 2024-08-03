@@ -8,6 +8,7 @@
 void StackBackend::run(const std::vector<Instruction> &program)
 {
     this->program = program;
+    auto start_time = std::chrono::high_resolution_clock::now();
     try {
         pc = 0;
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -23,6 +24,9 @@ void StackBackend::run(const std::vector<Instruction> &program)
     } catch (const std::exception &ex) {
         std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    std::cout << "VM ran for a total of  " << duration.count() << " microseconds." << std::endl;
 }
 
 void StackBackend::execute(const Instruction &instruction)
@@ -52,6 +56,7 @@ void StackBackend::execute(const Instruction &instruction)
         performLogicalOperation(instruction);
         break;
     case LOAD_CONST:
+    case LOAD_STR:
         handleLoadConst(instruction.value);
         break;
     case INTERPOLATE_STRING:
@@ -94,7 +99,8 @@ void StackBackend::execute(const Instruction &instruction)
         handleConcurrent(std::get<int32_t>(instruction.value->data));
         break;
     default:
-        std::cerr << "Unknown opcode." << std::endl;
+        std::cerr << "Unknown opcode.: " << instruction.opcodeToString(instruction.opcode)
+                  << std::endl;
     }
 }
 
@@ -144,7 +150,7 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
 
     if (instruction.opcode == NEGATE) {
         if (value->type->tag == TypeTag::Int) {
-            result->data = -std::get<int32_t>(value->data);
+            result->data = -std::get<int64_t>(value->data);
         } else if (value->type->tag == TypeTag::Float64) {
             result->data = -std::get<double>(value->data);
         } else {
@@ -181,8 +187,8 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
     ValuePtr result = std::make_shared<Value>();
 
     if (value1->type->tag == TypeTag::Int && value2->type->tag == TypeTag::Int) {
-        int32_t v1 = std::get<int32_t>(value1->data);
-        int32_t v2 = std::get<int32_t>(value2->data);
+        int32_t v1 = std::get<int64_t>(value1->data);
+        int32_t v2 = std::get<int64_t>(value2->data);
         result->type = typeSystem.INT_TYPE;
 
         switch (instruction.opcode) {
@@ -333,7 +339,7 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
     if (value1->type->tag == value2->type->tag) {
         switch (value1->type->tag) {
         case TypeTag::Int:
-            if (!compareValues(std::get<int32_t>(value1->data), std::get<int32_t>(value2->data)))
+            if (!compareValues(std::get<int64_t>(value1->data), std::get<int64_t>(value2->data)))
                 return;
             break;
         case TypeTag::Float64:
@@ -445,135 +451,137 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
     stack.pop();
 }
 
-//void StackBackend::handleDeclareFunction(const std::string &functionName)
-//{
-//    if (functions.find(functionName) != functions.end()) {
-//        std::cerr << "Error: Function " << functionName << " already declared" << std::endl;
-//        return;
-//    }
-//    functions[functionName] = [this, functionName]() {
-//        auto it = std::find_if(program.begin(),
-//                               program.end(),
-//                               [functionName](const Instruction &instr) {
-//                                   return instr.opcode == Opcode::DEFINE_FUNCTION
-//                                          && std::get<std::string>(instr.value) == functionName;
-//                               });
+void StackBackend::handleDeclareFunction(const std::string &functionName)
+{
+    if (functions.find(functionName) != functions.end()) {
+        std::cerr << "Error: Function " << functionName << " already declared" << std::endl;
+        return;
+    }
+    functions[functionName] = [this, functionName]() {
+        auto it = std::find_if(program.begin(),
+                               program.end(),
+                               [functionName](const Instruction &instr) {
+                                   return instr.opcode == Opcode::DEFINE_FUNCTION
+                                          && std::get<std::string>(instr.value->data)
+                                                 == functionName;
+                               });
 
-//        if (it != program.end()) {
-//            size_t index = std::distance(program.begin(), it);
-//            std::stack<Value> localStack;
-//            std::swap(stack, localStack); // Save current stack state
-//            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT;
-//                 ++i) {
-//                execute(program[i]);
-//            }
-//            std::swap(stack, localStack); // Restore previous stack state
-//        } else {
-//            std::cerr << "Error: Function not found" << std::endl;
-//        }
-//    };
-//}
+        if (it != program.end()) {
+            size_t index = std::distance(program.begin(), it);
+            std::stack<ValuePtr> localStack;
+            std::swap(stack, localStack); // Save current stack state
+            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT;
+                 ++i) {
+                execute(program[i]);
+            }
+            std::swap(stack, localStack); // Restore previous stack state
+        } else {
+            std::cerr << "Error: Function not found" << std::endl;
+        }
+    };
+}
 
-//void StackBackend::handleCallFunction(const std::string &functionName)
-//{
-//    if (functions.find(functionName) == functions.end()) {
-//        std::cerr << "Error: Function not declared" << std::endl;
-//        return;
-//    }
-//    functions[functionName]();
-//}
+void StackBackend::handleCallFunction(const std::string &functionName)
+{
+    if (functions.find(functionName) == functions.end()) {
+        std::cerr << "Error: Function not declared" << std::endl;
+        return;
+    }
+    functions[functionName]();
+}
 
-//void StackBackend::handlePushArg(const Instruction &instruction)
-//{
-//    stack.push(instruction.value);
-//}
+void StackBackend::handlePushArg(const Instruction &instruction)
+{
+    stack.push(instruction.value);
+}
 
-//void StackBackend::handleJump()
-//{
-//    auto offset = program[this->pc].value;
+void StackBackend::handleJump()
+{
+    auto offset = program[this->pc].value;
 
-//    if (!std::holds_alternative<int32_t>(offset)) {
-//        std::cerr << "Error: Invalid jump offset type" << std::endl;
-//        return;
-//    }
+    if (!std::holds_alternative<int32_t>(offset->data)) {
+        std::cerr << "Error: Invalid jump offset type" << std::endl;
+        return;
+    }
 
-//    pc += std::get<int32_t>(offset);
-//}
+    pc += std::get<int32_t>(offset->data);
+}
 
-//void StackBackend::handleJumpZero()
-//{
-//    auto offset = program[this->pc].value;
+void StackBackend::handleJumpZero()
+{
+    auto offset = program[this->pc].value;
 
-//    auto condition = stack.top();
-//    stack.pop();
+    auto condition = stack.top();
+    stack.pop();
 
-//    if (!std::holds_alternative<bool>(condition)) {
-//        std::cerr << "Error: JUMP_IF_FALSE requires a boolean condition" << std::endl;
-//        return;
-//    }
+    if (!std::holds_alternative<bool>(condition->data)) {
+        std::cerr << "Error: JUMP_IF_FALSE requires a boolean condition" << std::endl;
+        return;
+    }
 
-//    if (!std::get<bool>(condition)) {
-//        pc += std::get<int32_t>(offset);
-//    }
-//}
+    if (!std::holds_alternative<int32_t>(offset->data)) {
+        std::cerr << "Error: Invalid jump offset type" << std::endl;
+        return;
+    }
 
-//void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
-//{
-//    // Start threads for each task
-//    for (auto &task : tasks) {
-//        threads.emplace_back(task);
-//    }
+    if (!std::get<bool>(condition->data)) {
+        pc += std::get<int32_t>(offset->data);
+    }
+}
 
-//    // Join all threads
-//    for (auto &thread : threads) {
-//        if (thread.joinable()) {
-//            thread.join();
-//        }
-//    }
+void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
+{
+    // Start threads for each task
+    for (auto &task : tasks) {
+        threads.emplace_back(task);
+    }
 
-//    threads.clear();
-//}
+    // Join all threads
+    for (auto &thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 
-//void StackBackend::handleParallel(unsigned int taskCount)
-//{
-//    std::vector<std::function<void()>> tasks;
-//    unsigned int instructionsPerTask = program.size() / taskCount;
+    threads.clear();
+}
 
-//    for (unsigned int i = 0; i < taskCount; ++i) {
-//        tasks.push_back([this, i, instructionsPerTask]() {
-//            unsigned int start = i * instructionsPerTask;
-//            unsigned int end
-//                = (i + 1)
-//                  * instructionsPerTask; //(i == taskCount - 1) ? program.size() : (i + 1) * instructionsPerTask;
-//            for (unsigned int j = start; j < end; ++j) {
-//                execute(program[j]);
-//            }
-//        });
-//    }
+void StackBackend::handleParallel(int32_t taskCount)
+{
+    std::vector<std::function<void()>> tasks;
+    unsigned int instructionsPerTask = program.size() / taskCount;
 
-//    concurrent(tasks);
-//}
+    for (int32_t i = 0; i < taskCount; ++i) {
+        tasks.push_back([this, i, instructionsPerTask]() {
+            unsigned int start = i * instructionsPerTask;
+            unsigned int end = (i + 1) * instructionsPerTask;
+            for (unsigned int j = start; j < end; ++j) {
+                execute(program[j]);
+            }
+        });
+    }
 
-//void StackBackend::handleConcurrent(unsigned int taskCount)
-//{
-//    std::vector<std::function<void()>> tasks;
+    concurrent(tasks);
+}
 
-//    // Calculate the number of instructions per task
-//    unsigned int instructionsPerTask = program.size() / taskCount;
+void StackBackend::handleConcurrent(int32_t taskCount)
+{
+    std::vector<std::function<void()>> tasks;
 
-//    // Create tasks for each part of the program
-//    for (unsigned int i = 0; i < taskCount; ++i) {
-//        tasks.push_back([this, i, instructionsPerTask]() {
-//            unsigned int start = i * instructionsPerTask;
-//            unsigned int end
-//                = (i + 1)
-//                  * instructionsPerTask; //(i == taskCount - 1) ? program.size() : (i + 1) * instructionsPerTask;
-//            for (unsigned int j = start; j < end; ++j) {
-//                std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
-//                execute(program[j]);
-//            }
-//        });
-//    }
+    // Calculate the number of instructions per task
+    unsigned int instructionsPerTask = program.size() / taskCount;
 
-//    concurrent(tasks);
-//}
+    // Create tasks for each part of the program
+    for (int32_t i = 0; i < taskCount; ++i) {
+        tasks.push_back([this, i, instructionsPerTask]() {
+            int32_t start = i * instructionsPerTask;
+            int32_t end = (i + 1) * instructionsPerTask;
+            for (int32_t j = start; j < end; ++j) {
+                std::lock_guard<std::mutex> lock(this->mtx); // Lock for the duration of task
+                execute(program[j]);
+            }
+        });
+    }
+
+    concurrent(tasks);
+}

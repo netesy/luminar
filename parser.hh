@@ -2,7 +2,7 @@
 #include "instructions.hh"
 #include "precedence.hh"
 #include "scanner.hh"
-#include "scope.hh"
+#include "types.hh"
 #include "variable.hh"
 #include <any>
 #include <cstdint>
@@ -10,6 +10,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -27,7 +28,7 @@ class Parser
 {
 public:
     // Constructor
-    Parser(Scanner &scanner);
+    Parser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem);
 
     // Main parsing function
     Bytecode parse();
@@ -38,17 +39,18 @@ private:
     std::vector<size_t> endJumps;
     std::vector<Token> tokens;
     bool hadError = false;
-    size_t current = 0;                           // get the current index position
-    std::vector<Instruction> bytecode;            // Declare bytecode as a local variable
+    size_t current = 0;                // get the current index position
+    std::vector<Instruction> bytecode; // Declare bytecode as a local variable
     bool isNewExpression = true;
     // Scanner instance
     Scanner &scanner;
 
-    //variables 
+    //variables
     Variables variable; // Instance of Variables class
     //    std::unordered_set<std::string> variableMap;
     std::unordered_map<std::string, int> variableMap; // Use unordered_map to track variable indices
     int variableCounter = 0;                          // Initialize variable counter
+    std::shared_ptr<TypeSystem> typeSystem;
 
     // Token variables
     Token currentToken;
@@ -60,12 +62,12 @@ private:
     void parseWhileLoop();           // while loop
     void parseForLoop();             //Python like forloop
     void parseMatchStatement();      // python like match and case
-    void parseConcurrentStatement();      // Concurrent Operations
-    void parseParallelStatement();      // Parallel Operations
+    void parseConcurrentStatement(); // Concurrent Operations
+    void parseParallelStatement();   // Parallel Operations
     void parseFnDeclaration();       // Adapt from first parser (if supported)
     void parseFnCall();
-    void parseClassDeclaration();    // Adapt from first parser (if supported)
-    void parseReturnStatement();     // Adapt from first parser
+    void parseClassDeclaration(); // Adapt from first parser (if supported)
+    void parseReturnStatement();  // Adapt from first parser
     //To be implemented
     void parseImport();
     void parseModules();
@@ -89,9 +91,7 @@ private:
     bool isExpression(TokenType type);
 
     Instruction emit(Opcode opcode, uint32_t lineNumber);
-    Instruction emit(Opcode opcode,
-                                uint32_t lineNumber,
-                                std::variant<int32_t, double, bool, std::string> value);
+    Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
 
     // Parse expression functions
     void parsePrimary();
@@ -133,28 +133,186 @@ private:
     {
         try {
             int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
-            emit(Opcode::DECLARE_VARIABLE, name.line, memoryLocation);
-        } catch (const std::runtime_error& e) {
+            emit(Opcode::DECLARE_VARIABLE,
+                 name.line,
+                 Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+        } catch (const std::runtime_error &e) {
             error(e.what());
         }
     }
 
-    int32_t getVariableMemoryLocation(const Token& name) {
+    int32_t getVariableMemoryLocation(const Token &name)
+    {
         try {
             return variable.getVariableMemoryLocation(name.lexeme);
-        } catch (const std::runtime_error& e) {
+        } catch (const std::runtime_error &e) {
             error(e.what());
             return -1; // Error case
         }
     }
 
-    void enterScope() {
-        variable.enterScope();
-    }
+    void enterScope() { variable.enterScope(); }
 
     void exitScope() { variable.exitScope(); }
 
     void synchronize();
+    Value setValue(TypePtr type, const std::string &input)
+    {
+        try {
+            Value value;
+            value.type = type;
+
+            switch (type->tag) {
+            case TypeTag::Bool:
+                if (input == "true")
+                    value.data = true;
+                else if (input == "false")
+                    value.data = false;
+                else
+                    throw std::runtime_error("Invalid boolean value: " + input);
+                break;
+            case TypeTag::Int:
+            case TypeTag::Int64:
+                value.data = static_cast<int64_t>(std::stoll(input));
+                break;
+            case TypeTag::Int8:
+                value.data = static_cast<int8_t>(std::stol(input));
+                break;
+            case TypeTag::Int16:
+                value.data = static_cast<int16_t>(std::stol(input));
+                break;
+            case TypeTag::Int32:
+                value.data = static_cast<int32_t>(std::stol(input));
+                break;
+                //            case TypeTag::Int64:
+                //                value.data = std::stoll(input);
+                //                break;
+            case TypeTag::UInt:
+            case TypeTag::UInt64:
+                value.data = static_cast<uint64_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt8:
+                value.data = static_cast<uint8_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt16:
+                value.data = static_cast<uint16_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt32:
+                value.data = static_cast<uint32_t>(std::stoull(input));
+                break;
+            case TypeTag::Float32:
+                value.data = std::stof(input);
+                break;
+            case TypeTag::Float64:
+                value.data = std::stod(input);
+                break;
+            case TypeTag::String:
+                value.data = input;
+                break;
+            case TypeTag::List:
+                // Assuming input is a comma-separated list of values
+                {
+                    //                    ListValue listValue;
+                    //                    std::istringstream iss(input);
+                    //                    std::string item;
+                    //                    while (std::getline(iss, item, ',')) {
+                    //                        listValue.elements.push_back(setValue(type->elementType, item));
+                    //                    }
+                    //                    value.data = listValue;
+                }
+                break;
+            case TypeTag::Dict:
+                // Assuming input is in the format "key1:value1,key2:value2"
+                {
+                    //                    DictValue dictValue;
+                    //                    std::istringstream iss(input);
+                    //                    std::string pair;
+                    //                    while (std::getline(iss, pair, ',')) {
+                    //                        size_t colonPos = pair.find(':');
+                    //                        if (colonPos != std::string::npos) {
+                    //                            std::string key = pair.substr(0, colonPos);
+                    //                            std::string val = pair.substr(colonPos + 1);
+                    //                            dictValue.elements[setValue(type->tag, key)] = setValue(type->tag, val);
+                    //                        }
+                    //                    }
+                    //                    value.data = dictValue;
+                }
+                break;
+            case TypeTag::Sum:
+            case TypeTag::UserDefined:
+                // These types might require more complex parsing logic
+                throw std::runtime_error(
+                    "Sum and UserDefined types are not supported in this setValue function");
+            default:
+                throw std::runtime_error("Unsupported type for value setting: " + type->toString());
+            }
+
+            return value;
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Failed to set value: " + std::string(e.what()));
+        }
+    }
+
+    TypeTag inferType(const Token &token)
+    {
+        //std::cout << "Current token: " << scanner.tokenTypeToString(token.type, token.lexeme)
+        //<< std::endl;
+        switch (token.type) {
+        case TokenType::NUMBER:
+            // Check if the number contains a decimal point
+            if (token.lexeme.find('.') != std::string::npos) {
+                return TypeTag::Float64;
+            } else {
+                return TypeTag::Int;
+            }
+        case TokenType::STRING:
+            return TypeTag::String;
+        case TokenType::TRUE:
+        case TokenType::FALSE:
+            return TypeTag::Bool;
+        case TokenType::NIL_TYPE:
+            return TypeTag::Nil; // or create a Null type if needed
+        case TokenType::INT_TYPE:
+            return TypeTag::Int;
+        case TokenType::INT8_TYPE:
+            return TypeTag::Int8;
+        case TokenType::INT16_TYPE:
+            return TypeTag::Int16;
+        case TokenType::INT32_TYPE:
+            return TypeTag::Int32;
+        case TokenType::INT64_TYPE:
+            return TypeTag::Int64;
+        case TokenType::UINT_TYPE:
+            return TypeTag::UInt;
+        case TokenType::UINT8_TYPE:
+            return TypeTag::UInt8;
+        case TokenType::UINT16_TYPE:
+            return TypeTag::UInt16;
+        case TokenType::UINT32_TYPE:
+            return TypeTag::UInt32;
+        case TokenType::UINT64_TYPE:
+            return TypeTag::UInt64;
+        case TokenType::FLOAT32_TYPE:
+            return TypeTag::Float32;
+        case TokenType::FLOAT_TYPE:
+        case TokenType::FLOAT64_TYPE:
+            return TypeTag::Float64;
+        case TokenType::SUM_TYPE:
+            return TypeTag::Sum;
+        case TokenType::ANY_TYPE:
+            return TypeTag::Any;
+        case TokenType::UNION_TYPE:
+            return TypeTag::Union;
+        case TokenType::USER_TYPE:
+            return TypeTag::UserDefined;
+        case TokenType::BOOL_TYPE:
+            return TypeTag::Bool;
+        case TokenType::FUNCTION_TYPE:
+            return TypeTag::Function;
+        default:
+            return TypeTag::Any; // Default to Any for unknown types
+        }
+    }
 
     // Structure to hold string - TypeTag pairs
     struct TypeMapping
@@ -188,39 +346,3 @@ private:
         return TypeTag::UserDefined;
     }
 };
-
-//// Maybe consider using references for efficiency
-//class Variable
-//{
-//public:
-//  Type type;
-//  int index;
-
-//  Variable(Type type, int index)
-//      : type(type), index(index) {}
-//};
-
-//// Maybe consider using references for efficiency
-//class Function
-//{
-//public:
-//  Type returnType;
-//  std::vector<Variable> parameters;
-
-//  Function(Type returnType, const std::vector<Variable> &parameters)
-//      : returnType(returnType), parameters(parameters) {}
-//};
-
-//// Maybe consider using references for efficiency
-//class Class
-//{
-//public:
-//  std::string className;
-//  std::vector<Variable> fields;
-//  FunctionTable methods;
-
-//  Class(const std::string &className,
-//        const std::vector<Variable> &fields,
-//        const FunctionTable &methods)
-//      : className(className), fields(fields), methods(methods) {}
-//};
