@@ -34,7 +34,8 @@ add_executable(luminar main.cpp
     token.hh
     backends/yasm.hh backends/yasm.cpp
     scope.hh
-    values.hh)
+    function.hh
+    zen.md)
 
 include(GNUInstallDirs)
 install(TARGETS luminar
