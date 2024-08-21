@@ -13,7 +13,7 @@ add_executable(luminar main.cpp
     scanner.cpp scanner.hh
     syntax.cpp syntax.hh
     sample.lm sample_new.lm
-    readme.md issues.md features.md
+    readme.md issues.md features.md design.md implementation.md
     ast.hh ast.cpp
     vm.hh vm.cpp
     main.cpp
@@ -35,7 +35,11 @@ add_executable(luminar main.cpp
     backends/yasm.hh backends/yasm.cpp
     scope.hh
     function.hh
-    zen.md)
+    zen.md
+    parser/packrat.hh parser/packrat.cpp
+    parser/pratt.hh parser/pratt.cpp
+    parser/algorithm.hh
+    memory.hh memory.cpp)
 
 include(GNUInstallDirs)
 install(TARGETS luminar

@@ -1,6 +1,10 @@
+Here is the updated README for the Luminar programming language, incorporating the new memory management system:
+
+---
+
 # Luminar Programming Language
 
-Luminar is a statically typed programming language designed for readability, efficiency, and modern features. It is intended to be interpreted for development and compiled for release. This README provides a structured overview to help you learn Luminar effectively.
+Luminar is a statically typed programming language designed for readability, efficiency, and modern features. It is intended to be interpreted for development and compiled for release. This README provides a structured overview to help you learn Luminar effectively, with a focus on its advanced memory management system.
 
 ## Table of Contents
 
@@ -162,7 +166,7 @@ fn factorial(n: int): int? {
 
 // Function to sum elements of a list with dependent type checking
 fn sum(list: list<int?>): int {
-  var mut total: int = 0;
+  var total: int = 0;
   for (item in list) {
     match (item) {
       Some(value) => total += value,  // Handle Some cases (values present)
@@ -204,7 +208,7 @@ fn add(a: i32, b: i32) -> i32 {
 }
 
 // Function taking a string reference (pointer) and returning nil
-fn greet(name: *string) -> nil {
+fn greet(ref name: string) -> nil {
     print("Hello, " + *name);
 }
 ```
@@ -315,219 +319,83 @@ concurrent(tasks, cores=Auto, on_error=Auto) {
 
 Luminar also supports parallel execution of tasks. Here's an example of defining a function for parallel execution:
 
+
+
 ```luminar
 // Define a function for parallel execution
-fn parallel_task(id: int) {
+fn parallel_task(id: int): None {
     print("Executing parallel task {id}");
-
-
     // Simulate some computation or I/O operation
     sleep(randint(1, 3));  // Sleep for a random duration between 1 and 3 seconds
     print("Parallel task {id} completed");
 }
 
 // Execute multiple tasks in parallel
-parallel(tasks, cores=Auto, on_error=Auto) {
-    for (var i = 1; i <= 5; i++) {
-        run_task(i);
+parallel(tasks) {
+    for (var i = 1; i <= 3; i++) {
+        spawn_task(i);
     }
 }
 ```
 
 ## Memory Management
 
-### **Introduction**
+Luminar's memory management is designed to be robust and efficient, combining linear-first and reference-first approaches along with manual management in unsafe code.
 
-Luminar provides two memory management modes:
-1. **Safe Mode:** Uses automatic memory management with implicit handling of `new`, `move`, and `borrow`.
-2. **Unsafe Mode:** Provides fine-grained control over memory with explicit allocation and deallocation using raw pointers.
+### Linear-First Approach
 
----
+- **Regions**: Memory is managed within defined regions, ensuring automatic deallocation when regions go out of scope. This provides predictable and safe memory usage.
+- **Automatic Management**: Regions and variables are automatically managed, reducing the risk of memory leaks and dangling pointers.
 
-### **1. Safe Mode (Normal Mode)**
+### Reference-First Approach
 
-In Safe Mode, memory management is handled automatically. Luminar’s compiler takes care of allocation, reference counting, and deallocation behind the scenes. The syntax is simplified to avoid manual memory management tasks.
+- **References (`ref`)**: All references are mutable by default, simplifying reference handling.
+- **Linear Conversion (`lin`)**: Linear conversion from references to linear types is explicit using the `lin` keyword, allowing optimization of critical sections.
 
-#### **Safe Mode: Image Struct Definition**
+### Unsafe Mode
 
-```luminar
-struct Image {
-    data: Array<u8>,
-    width: u32,
-    height: u32,
-}
+- **Manual Management**: In `unsafe` blocks, memory management can be performed manually using raw pointers (`*u8`). This is suitable for performance-critical tasks and low-level operations.
 
-impl Image {
-    // Constructor to create a new Image
-    fn new(width: u32, height: u32) -> Image {
-        var data = Array::new(width * height); // Allocate memory for image data
-        Image {
-            data: data,
-            width: width,
-            height: height,
-        }
-    }
-
-    // Method to set a pixel value
-    fn set_pixel(&mut self, x: u32, y: u32, value: u8) {
-        let index = y * self.width + x;
-        self.data[index] = value;
-    }
-
-    // Method to get a pixel value
-    fn get_pixel(&self, x: u32, y: u32) -> u8 {
-        let index = y * self.width + x;
-        self.data[index]
-    }
-}
-```
-
-**Explanation:**
-
-- **`Array::new(width * height)`**: Allocates memory for image data. The memory is managed automatically.
-- **`fn new(width: u32, height: u32) -> Image`**: Creates a new `Image` instance with allocated memory.
-- **`fn set_pixel` and `fn get_pixel`**: Methods for modifying and accessing pixel values. No need to manually manage memory.
-
-#### **Safe Mode: Usage Example**
+#### Example of Unsafe Mode
 
 ```luminar
-fn main() {
-    var img = Image::new(100, 100);  // Create a new image of 100x100 pixels
-
-    img.set_pixel(10, 10, 255);  // Set pixel at (10, 10) to value 255
-    print(img.get_pixel(10, 10));  // Output: 255
-
-    // No explicit deallocation needed; memory is managed automatically
+unsafe {
+  var buffer: *u8 = allocate(1024);  // Allocate 1024 bytes of memory
+  // Perform manual memory operations
+  deallocate(buffer);  // Deallocate memory when done
 }
 ```
-
-**Explanation:**
-
-- **`var img = Image::new(100, 100)`**: Creates an `Image` with automatic memory management.
-- **`img.set_pixel` and `print(img.get_pixel)`**: Methods to interact with the image.
-
----
-
-### **2. Unsafe Mode (Manual Allocation)**
-
-In Unsafe Mode, you have explicit control over memory. You are responsible for allocating and deallocating memory using raw pointers. This mode is useful for performance-critical sections where fine-grained control is needed.
-
-#### **Unsafe Mode: Image Struct Definition**
-
-```luminar
-struct Image {
-    data: *u8,    // Raw pointer for image data
-    width: u32,
-    height: u32,
-}
-
-impl Image {
-    // Constructor to create a new Image
-    fn new(width: u32, height: u32) -> Image {
-        unsafe {
-            var size = width * height;
-            var data = new u8 * size;  // Allocate memory for image data
-            if data == 0 {
-                // Handle memory allocation failure
-                panic("Failed to allocate memory for image data");
-            }
-            }
-            Image {
-                data: data,
-                width: width,
-                height: height,
-            }
-        }
-    }
-
-    // Method to set a pixel value
-    fn set_pixel(&mut self, x: u32, y: u32, value: u8) {
-        unsafe {
-            let index = y * self.width + x;
-            *(self.data + index) = value;
-        }
-    }
-
-    // Method to get a pixel value
-    fn get_pixel(&self, x: u32, y: u32) -> u8 {
-        unsafe {
-            let index = y * self.width + x;
-            *(self.data + index)
-        }
-    }
-    
-// Destructor to deallocate memory
-fn free(&mut self) {
-    unsafe {
-        if self.data != 0 {
-            deallocate(self.data);  // Manually free the allocated memory
-            self.data = 0;         // Set pointer to zero after deallocation
-        }
-    }
-}
-}
-```
-
-**Explanation:**
-
-- **`unsafe { var data = new u8 * size; }`**: Manually allocates memory for image data.
-- **`fn set_pixel` and `fn get_pixel`**: Use raw pointers and pointer arithmetic to access and modify memory.
-
-#### **Unsafe Mode: Usage Example**
-
-```luminar
-fn main() {
-    unsafe {
-        var img = Image::new(100, 100);  // Create a new image of 100x100 pixels
-
-        img.set_pixel(10, 10, 255);  // Set pixel at (10, 10) to value 255
-        print(img.get_pixel(10, 10));  // Output: 255
-
-        img.free();  // Manually free the allocated memory
-    }
-}
-```
-
-**Explanation:**
-
-- **`unsafe { var img = Image::new(100, 100); }`**: Allocates memory manually.
-- **`img.free();`**: Frees the allocated memory, which is done manually in Unsafe Mode.
-
----
-
-### **Comparing Safe and Unsafe Modes**
-
-**Safe Mode:**
-- **Advantages:** 
-  - Simplifies memory management.
-  - Reduces risk of memory leaks and undefined behavior.
-  - Automatic memory deallocation.
-- **When to Use:** 
-  - For most general-purpose programming where safety and simplicity are important.
-  - When you prefer automatic management and safety over manual control.
-
-**Unsafe Mode:**
-- **Advantages:**
-  - Provides fine-grained control over memory allocation and deallocation.
-  - Potential for performance optimization.
-- **When to Use:**
-  - For performance-critical sections where manual control is needed.
-  - When dealing with low-level operations or interfacing with hardware.
-- **Best Practices::**
-  - Check for allocation failures.
-  - Avoid dangling pointers.
-  - Minimize unsafe code.
-
----
-
-### **Conclusion**
-
-Luminar’s approach to memory management offers flexibility through its safe and unsafe modes. Safe Mode provides automatic memory management with simplified syntax, while Unsafe Mode allows explicit control for performance optimizations. Understanding when and how to use each mode can help you effectively manage resources in your Luminar applications.
 
 ## Example Code Snippets
 
-Refer to the provided code examples throughout the document for demonstrations of various functionalities.
+### Example 1: Basic Memory Management
+
+```luminar
+var x: int = 10;
+{
+  var y: int = 20;
+  print(x + y);  // Output: 30
+}  // y goes out of scope here
+```
+
+### Example 2: Using `ref` and `lin`
+
+```luminar
+fn manipulate_data(ref data: list<int>) -> int {
+  // Convert reference to linear type for modification
+  var linear_data: lin list<int> = data;
+  linear_data.push(42);
+  return linear_data.sum();
+}
+
+var my_list: list<int> = (1, 2, 3);
+print(manipulate_data(ref my_list));  // Output: 6 (1+2+3+42)
+```
 
 ## Contributing
 
-Luminar is an open-source project. Contributions to its development are welcome. Stay tuned for updates and additional documentation as the language evolves.
+Contributions are welcome! Please submit issues, feature requests, or pull requests to the project's repository. For more detailed contribution guidelines, refer to the CONTRIBUTING.md file in the repository.
+
+---
+
+Feel free to adapt the README based on additional details or changes specific to your Luminar project.

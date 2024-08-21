@@ -1,3 +1,5 @@
+#pragma once
+
 enum Precedence {
     PREC_NONE,         // The lowest precedence, used for non-operators
     PREC_ASSIGNMENT,   // Assignment operators: =, +=, -=, *=, /=
