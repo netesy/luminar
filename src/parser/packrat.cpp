@@ -14,11 +14,32 @@ PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeS
 
 Bytecode PackratParser::parse()
 {
-    program();
-    if (pos < tokens.size()) {
-        throw std::runtime_error("Unexpected input at position " + std::to_string(pos));
+    //    auto start_time = std::chrono::high_resolution_clock::now();
+    //    scanner.current = 0;
+    //    program();
+    //    if (pos < tokens.size()) {
+    //        throw std::runtime_error("Unexpected input at position " + std::to_string(pos));
+    //    }
+    //    auto end_time = std::chrono::high_resolution_clock::now();
+    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    //    std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
+    //    return bytecode;
+    try {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        scanner.current = 0;
+        program();
+        if (pos > tokens.size()) {
+            error("Unexpected input at position " + std::to_string(pos));
+            throw std::runtime_error("Unexpected input at position " + std::to_string(pos));
+        }
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
+        return bytecode;
+    } catch (const std::exception &e) {
+        std::cerr << "Parsing error: " << e.what() << std::endl;
+        throw;
     }
-    return bytecode;
 }
 
 void PackratParser::program()
@@ -152,9 +173,11 @@ void PackratParser::for_statement()
 
 void PackratParser::print_statement()
 {
+    consume(TokenType::LEFT_PAREN, "Expected '(' before print expression.");
     expression();
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after print expression.");
+    consume(TokenType::SEMICOLON, "Expected ';' after the print function.");
     emit(Opcode::PRINT, peek().line);
-    consume(TokenType::SEMICOLON, "Expected ';' after value.");
 }
 
 void PackratParser::block()
@@ -394,7 +417,7 @@ void PackratParser::unary_expression()
 
 void PackratParser::primary_expression()
 {
-    Token token = previous();
+    Token token = peek();
     TypePtr typePtr = std::make_shared<Type>(inferType(token));
     Value value = setValue(typePtr, token.lexeme);
     if (match(TokenType::FALSE)) {
@@ -416,6 +439,7 @@ void PackratParser::primary_expression()
         expression();
         consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
     } else {
+        error("Expected expression.");
         throw std::runtime_error("Expected expression.");
     }
 }
@@ -512,6 +536,9 @@ Value PackratParser::setValue(TypePtr type, const std::string &input)
     case TypeTag::String:
         value.data = input;
         break;
+    case TypeTag::Any:
+        value.data = input;
+        break;
     case TypeTag::List:
         // Assuming input is a comma-separated list of values
         {
@@ -543,10 +570,12 @@ Value PackratParser::setValue(TypePtr type, const std::string &input)
         break;
     case TypeTag::Sum:
     case TypeTag::UserDefined:
+        error("Sum and UserDefined types are not supported in this setValue function");
         // These types might require more complex parsing logic
         throw std::runtime_error(
             "Sum and UserDefined types are not supported in this setValue function");
     default:
+        error("Unsupported type for value setting: " + type->toString());
         throw std::runtime_error("Unsupported type for value setting: " + type->toString());
     }
 
@@ -642,7 +671,10 @@ Token PackratParser::peekNext()
 
 Token PackratParser::previous()
 {
-    return tokens[pos - 1];
+    if (pos > 0) {
+        return tokens[pos - 1];
+    }
+    return tokens[0]; // Return the first token if there is no previous one
 }
 
 void PackratParser::advance()
@@ -657,6 +689,7 @@ void PackratParser::consume(TokenType type, const std::string &message)
     if (check(type)) {
         advance();
     } else {
+        error(message);
         throw std::runtime_error(message);
     }
 }

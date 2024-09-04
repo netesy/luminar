@@ -1,6 +1,8 @@
 // debugger.cpp
 
 #include "debugger.hh"
+#include <string>
+#include <vector>
 
 std::vector<std::string> Debugger::sourceCodez;
 

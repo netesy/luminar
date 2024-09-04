@@ -88,5 +88,23 @@
   "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\backends\\yasm.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\yasm.cpp",
   "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\backends\\yasm.cpp",
   "output": "CMakeFiles\\luminar.dir\\backends\\yasm.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\parser\\packrat.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser\\packrat.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser\\packrat.cpp",
+  "output": "CMakeFiles\\luminar.dir\\parser\\packrat.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\parser\\pratt.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser\\pratt.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\parser\\pratt.cpp",
+  "output": "CMakeFiles\\luminar.dir\\parser\\pratt.cpp.obj"
+},
+{
+  "directory": "C:/Users/Fablur/Desktop/Projects/luminar/build",
+  "command": "C:\\PROGRA~1\\CodeBlocks\\mingw32\\bin\\c++.exe -g -std=gnu++17 -o CMakeFiles\\luminar.dir\\memory.cpp.obj -c C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\memory.cpp",
+  "file": "C:\\Users\\Fablur\\Desktop\\Projects\\luminar\\memory.cpp",
+  "output": "CMakeFiles\\luminar.dir\\memory.cpp.obj"
 }
 ]

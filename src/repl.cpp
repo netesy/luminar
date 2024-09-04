@@ -1,13 +1,15 @@
 #include "repl.hh"
+#include "parser/packrat.hh"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <variant>
 
-REPL::REPL()
+REPL::REPL(std::unique_ptr<Algorithm> parser)
     : backend(std::make_unique<StackBackend>(bytecode))
     , vm(nullptr)
+    , parser(std::move(parser))
 {}
 
 void REPL::start(const std::string &filename = "test.lm")
@@ -42,11 +44,16 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
         // Tokenize input
     Scanner scanner(input, filename, filepath);
     std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
-    Parser parser(scanner, typeSystem);
-    debug(scanner, parser);
-    std::vector<Instruction> bytecode = parser.getBytecode();
+
+    // Create the parser inside the run method
+    std::unique_ptr<Algorithm> parser = std::make_unique<PackratParser>(scanner, typeSystem);
+
+    parser->parse();
+    //debug(scanner, parser);
+    std::vector<Instruction> bytecode = parser->getBytecode();
+    // std::vector<Instruction> bytecode = parser.getBytecode();
     auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
-    VM vm(parser, std::move(backend));
+    VM vm(*parser, std::move(backend));
 
     try {
         vm.run();
@@ -103,7 +110,7 @@ std::string REPL::readFile(const std::string &filename)
     return content;
 }
 
-void REPL::debug(Scanner scanner, Parser parser)
+void REPL::debug(Scanner scanner, Algorithm &parser)
 {
     std::ofstream debugfile("debug_file.log",
                             std::ios_base::app); // Open debug log file for appending
