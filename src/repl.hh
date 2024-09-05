@@ -22,5 +22,5 @@ private:
     std::vector<Instruction> bytecode;
     static std::string readInput();
     static std::string readFile(const std::string& filename);
-    static void debug(Scanner scanner, Algorithm &parser);
+    static void debug(const Scanner &scanner, const Algorithm &parser);
 };

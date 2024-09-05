@@ -57,6 +57,7 @@ void StackBackend::execute(const Instruction &instruction)
         break;
     case LOAD_CONST:
     case LOAD_STR:
+    case BOOLEAN:
         handleLoadConst(instruction.value);
         break;
     case INTERPOLATE_STRING:
@@ -498,13 +499,27 @@ void StackBackend::handlePushArg(const Instruction &instruction)
 void StackBackend::handleJump()
 {
     auto offset = program[this->pc].value;
-
-    if (!std::holds_alternative<int32_t>(offset->data)) {
-        std::cerr << "Error: Invalid jump offset type" << std::endl;
-        return;
+    // Ensure offset is of type Int64 and convert if necessary
+    if (!typeSystem.checkType(offset, typeSystem.INT64_TYPE)) {
+        if (typeSystem.isCompatible(offset->type, typeSystem.INT64_TYPE)) {
+            offset = typeSystem.convert(offset, typeSystem.INT64_TYPE);
+            if (!typeSystem.checkType(offset, typeSystem.INT64_TYPE)) {
+                std::cerr << "Error: Conversion to Int64 failed" << std::endl;
+                return;
+            }
+        } else {
+            std::cerr << "Error: Invalid jump offset type, expected Int64" << std::endl;
+            return;
+        }
     }
 
-    pc += std::get<int32_t>(offset->data);
+    // Perform the jump
+    if (std::holds_alternative<int64_t>(offset->data)) {
+        auto offsetValue = std::get<int64_t>(offset->data);
+        pc += offsetValue;
+    } else {
+        std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
+    }
 }
 
 void StackBackend::handleJumpZero()
@@ -519,13 +534,24 @@ void StackBackend::handleJumpZero()
         return;
     }
 
-    if (!std::holds_alternative<int32_t>(offset->data)) {
-        std::cerr << "Error: Invalid jump offset type" << std::endl;
-        return;
+    // Ensure offset is of type Int64 and convert if necessary
+    if (!typeSystem.checkType(offset, typeSystem.INT64_TYPE)) {
+        if (typeSystem.isCompatible(offset->type, typeSystem.INT64_TYPE)) {
+            offset = typeSystem.convert(offset, typeSystem.INT64_TYPE);
+        } else {
+            std::cerr << "Error: Invalid jump zero offset type, expected Int64" << std::endl;
+            return;
+        }
     }
 
     if (!std::get<bool>(condition->data)) {
-        pc += std::get<int32_t>(offset->data);
+        // Perform the jump
+        if (std::holds_alternative<int64_t>(offset->data)) {
+            auto offsetValue = std::get<int64_t>(offset->data);
+            pc += offsetValue;
+        } else {
+            std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
+        }
     }
 }
 

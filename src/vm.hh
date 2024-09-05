@@ -11,6 +11,7 @@ public:
         : parser(parser)
         , backend(std::move(backend))
     {
+        //std::cout << "======= Parser Debug =======\n"<< parser.toString() << "\n======= End Parser Debug =======\n\n";
         program = parser.getBytecode();
     }
 

@@ -14,23 +14,12 @@ PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeS
 
 Bytecode PackratParser::parse()
 {
-    //    auto start_time = std::chrono::high_resolution_clock::now();
-    //    scanner.current = 0;
-    //    program();
-    //    if (pos < tokens.size()) {
-    //        throw std::runtime_error("Unexpected input at position " + std::to_string(pos));
-    //    }
-    //    auto end_time = std::chrono::high_resolution_clock::now();
-    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-    //    std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
-    //    return bytecode;
     try {
         auto start_time = std::chrono::high_resolution_clock::now();
         scanner.current = 0;
         program();
-        if (pos > tokens.size()) {
-            error("Unexpected input at position " + std::to_string(pos));
-            throw std::runtime_error("Unexpected input at position " + std::to_string(pos));
+        if (pos >= tokens.size()) {
+            error("Unexpected input at position " + std::to_string(pos + 1));
         }
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -77,16 +66,20 @@ void PackratParser::statement()
 void PackratParser::if_statement()
 {
     expression(); // condition
-    emit(Opcode::JUMP_IF_FALSE, peek().line);
+    emit(Opcode::JUMP_IF_FALSE,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
     size_t jumpIfFalsePos = bytecode.size() - 1;
 
     consume(TokenType::LEFT_BRACE, "Expected '{' after if condition.");
     block();
 
-    emit(Opcode::JUMP, peek().line);
+    emit(Opcode::JUMP,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
     size_t jumpPos = bytecode.size() - 1;
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+        Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
 
     if (match(TokenType::ELIF)) {
         do {
@@ -100,7 +93,7 @@ void PackratParser::if_statement()
             emit(Opcode::JUMP, peek().line);
             size_t jumpPos = bytecode.size() - 1;
             bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-                Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+                Value{std::make_shared<Type>(TypeTag::Int), bytecode.size()});
         } while (match(TokenType::ELIF));
 
         if (match(TokenType::ELSE)) {
@@ -113,14 +106,14 @@ void PackratParser::if_statement()
     }
 
     bytecode[jumpPos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+        Value{std::make_shared<Type>(TypeTag::Int), bytecode.size()});
 }
 
 void PackratParser::while_statement()
 {
     size_t loopStart = bytecode.size();
     expression(); // condition
-    emit(Opcode::JUMP_IF_FALSE, peek().line);
+    emit(Opcode::JUMP_IF_FALSE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
     size_t jumpIfFalsePos = bytecode.size() - 1;
 
     consume(TokenType::LEFT_BRACE, "Expected '{' after while condition.");
@@ -128,7 +121,7 @@ void PackratParser::while_statement()
 
     emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+        Value{std::make_shared<Type>(TypeTag::Int), bytecode.size() - 1});
 }
 
 void PackratParser::for_statement()
@@ -156,14 +149,14 @@ void PackratParser::for_statement()
         size_t incrementStart = bytecode.size();
         expression();
         //emit(Opcode::POP, peek().line);
-        emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
+        emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int32), loopStart});
         bytecode[bodyJump].value = std::make_shared<Value>(
             Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
         consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses.");
     }
 
     block();
-    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
+    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int32), loopStart});
 
     if (exitJump != 0) {
         bytecode[exitJump].value = std::make_shared<Value>(
@@ -191,13 +184,17 @@ void PackratParser::block()
 
 void PackratParser::var_declaration()
 {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::cout << "Starting variable declaration" << std::endl;
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected variable name.");
 
     TypePtr type = nullptr;
     if (match(TokenType::COLON)) {
+        std::cout << "Variable initialization found for " << name.lexeme << std::endl;
         Token typeToken = peek();
-        consume(TokenType::IDENTIFIER, "Expected type name.");
+        advance(); //This should check against all the types
+        //consume(TokenType::IDENTIFIER, "Expected type name.");
         type = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
@@ -209,19 +206,30 @@ void PackratParser::var_declaration()
 
     consume(TokenType::SEMICOLON, "Expected ';' after variable declaration.");
 
+    std::cout << "declaration of variables initiated" << std::endl;
     declareVariable(name, type);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
 }
 
 void PackratParser::assignment()
 {
+    auto start = std::chrono::high_resolution_clock::now();
     Token name = peek();
+    std::cout << "Starting assignment" << std::endl;
     consume(TokenType::IDENTIFIER, "Expected variable name.");
     consume(TokenType::EQUAL, "Expected '=' after variable name.");
+    std::cout << "Variable " << name.lexeme << " assigned" << std::endl;
     expression();
     consume(TokenType::SEMICOLON, "Expected ';' after assignment.");
 
     int32_t location = getVariableMemoryLocation(name);
     emit(Opcode::STORE_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << "Time taken by <assignment>: " << duration << " microseconds\n";
 }
 
 void PackratParser::function_declaration()
@@ -440,7 +448,6 @@ void PackratParser::primary_expression()
         consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
     } else {
         error("Expected expression.");
-        throw std::runtime_error("Expected expression.");
     }
 }
 
@@ -465,10 +472,15 @@ void PackratParser::declareVariable(const Token &name,
                                     const TypePtr &type,
                                     std::optional<ValuePtr> defaultValue)
 {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::cout << "Declaring variable " << name.lexeme << std::endl;
     int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
     emit(Opcode::DECLARE_VARIABLE,
          name.line,
          Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << "Time taken by <declareVar>: " << duration << " microseconds\n";
 }
 
 int32_t PackratParser::getVariableMemoryLocation(const Token &name)
@@ -572,11 +584,8 @@ Value PackratParser::setValue(TypePtr type, const std::string &input)
     case TypeTag::UserDefined:
         error("Sum and UserDefined types are not supported in this setValue function");
         // These types might require more complex parsing logic
-        throw std::runtime_error(
-            "Sum and UserDefined types are not supported in this setValue function");
     default:
         error("Unsupported type for value setting: " + type->toString());
-        throw std::runtime_error("Unsupported type for value setting: " + type->toString());
     }
 
     return value;
@@ -690,7 +699,6 @@ void PackratParser::consume(TokenType type, const std::string &message)
         advance();
     } else {
         error(message);
-        throw std::runtime_error(message);
     }
 }
 

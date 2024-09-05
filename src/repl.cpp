@@ -32,6 +32,11 @@ void REPL::start(const std::string &filename = "test.lm")
         std::string input = readInput();
         if (input == "exit" || input == "quit") {
             break;
+        } else if (input == "debug") {
+            // Placeholder: implement logic to debug current state, if applicable
+            std::cout << "Debugging current state...\n";
+            //debug(scanner, *parser); // Adjust as necessary
+            continue;
         }
         run(input, "", "");
     }
@@ -49,9 +54,8 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
     std::unique_ptr<Algorithm> parser = std::make_unique<PackratParser>(scanner, typeSystem);
 
     parser->parse();
-    //debug(scanner, parser);
+    // debug(scanner, *parser);
     std::vector<Instruction> bytecode = parser->getBytecode();
-    // std::vector<Instruction> bytecode = parser.getBytecode();
     auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
     VM vm(*parser, std::move(backend));
 
@@ -110,7 +114,7 @@ std::string REPL::readFile(const std::string &filename)
     return content;
 }
 
-void REPL::debug(Scanner scanner, Algorithm &parser)
+void REPL::debug(const Scanner &scanner, const Algorithm &parser)
 {
     std::ofstream debugfile("debug_file.log",
                             std::ios_base::app); // Open debug log file for appending
@@ -118,13 +122,14 @@ void REPL::debug(Scanner scanner, Algorithm &parser)
         std::cerr << "Failed to open debug log file." << std::endl;
         return;
     }
-    //Now parse the tokens using scanner methods directly
-    debugfile << "======= Scanner Debug =======\n"
-              << scanner.toString() << "======= End Debug =======\n"
-              << std::endl;
 
-    debugfile << "======= parse Debug =======\n"
-              << parser.toString() << "======= End Debug =======\n"
-              << std::endl;
+    // Log the scanner's current state
+    debugfile << "======= Scanner Debug =======\n"
+              << scanner.toString() << "\n======= End Scanner Debug =======\n\n";
+
+    // Log the parser's current state
+    debugfile << "======= Parser Debug =======\n"
+              << parser.toString() << "\n======= End Parser Debug =======\n\n";
+
     debugfile.close(); // Close the log file
 }

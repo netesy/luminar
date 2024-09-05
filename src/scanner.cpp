@@ -377,140 +377,119 @@ void Scanner::number()
 
 void Scanner::identifier()
 {
-    TokenType type = TokenType::IDENTIFIER;
-    // Check if the identifier is preceded by certain keywords or ':'
-    if (source[start - 1] == ':') {
-        type = TokenType::USER_TYPE; // Preceded by ':', so it's a USER_TYPE
-    } else if (start >= 4 && source.substr(start - 4, 4) == "var ") {
-        type = TokenType::IDENTIFIER; // Preceded by "var ", so it's a VAR
-    } else if (start >= 3 && source.substr(start - 3, 3) == "fn ") {
-        type = TokenType::FN; // Preceded by "fn ", so it's a FN
-    } else if (start >= 6 && source.substr(start - 6, 6) == "class ") {
-        type = TokenType::CLASS; // Preceded by "class ", so it's a CLASS
-    }                            /* else {
-        type = TokenType::UNDEFINED;
-        error("Invalid characters");
-    }*/
-
-    while (isAlphaNumeric(peek()))
+    // Consume the entire identifier
+    while (isAlphaNumeric(peek())) {
         advance();
+    }
 
-    addToken(checkKeyword(start, current - start, source.substr(start, current - start), type));
+    std::string identifier = source.substr(start, current + 1 - start - 1);
+    std::cout << "Identifying token: " << identifier << std::endl;
+    TokenType type = checkKeyword(identifier);
+    std::cout << "Token type: " << tokenTypeToString(type, identifier) << std::endl;
+    addToken(type, identifier);
 }
 
-TokenType Scanner::checkKeyword(size_t begin,
-                                size_t length,
-                                const std::string &rest,
-                                TokenType type) const
+TokenType Scanner::checkKeyword(const std::string &identifier) const
 {
-    //    std::string keyword = source.substr(this->start + begin, length);
-    //    std::string target(rest);
-    //    if (length == target.length() && keyword == target) {
-    //        return type;
-    //    }
-    //    return TokenType::IDENTIFIER;
-    //    // Check if the identifier matches a reserved keyword.
-    //    //    std::cout << start;
-    //    //    std::cout << length;
-    if (rest == "and")
+    if (identifier == "and")
         return TokenType::AND;
-    if (rest == "default")
+    if (identifier == "default")
         return TokenType::DEFAULT;
-    if (rest == "class")
+    if (identifier == "class")
         return TokenType::CLASS;
-    if (rest == "else")
+    if (identifier == "else")
         return TokenType::ELSE;
-    if (rest == "elif")
+    if (identifier == "elif")
         return TokenType::ELIF;
-    if (rest == "false")
+    if (identifier == "false")
         return TokenType::FALSE;
-    if (rest == "for")
+    if (identifier == "for")
         return TokenType::FOR;
-    if (rest == "fn")
+    if (identifier == "fn")
         return TokenType::FN;
-    if (rest == "if")
+    if (identifier == "if")
         return TokenType::IF;
-    if (rest == "in")
+    if (identifier == "in")
         return TokenType::IN;
-    if (rest == "or")
+    if (identifier == "or")
         return TokenType::OR;
-    if (rest == "print")
+    if (identifier == "print")
         return TokenType::PRINT;
-    if (rest == "return")
+    if (identifier == "return")
         return TokenType::RETURN;
-    if (rest == "super")
+    if (identifier == "super")
         return TokenType::SUPER;
-    if (rest == "this")
+    if (identifier == "this")
         return TokenType::THIS;
-    if (rest == "true")
+    if (identifier == "true")
         return TokenType::TRUE;
-    if (rest == "var")
+    if (identifier == "var")
         return TokenType::VAR;
-    if (rest == "while")
+    if (identifier == "while")
         return TokenType::WHILE;
-    if (rest == "attempt")
+    if (identifier == "attempt")
         return TokenType::ATTEMPT;
-    if (rest == "handle")
+    if (identifier == "handle")
         return TokenType::HANDLE;
-    if (rest == "parallel")
+    if (identifier == "parallel")
         return TokenType::PARALLEL;
-    if (rest == "concurrent")
+    if (identifier == "concurrent")
         return TokenType::CONCURRENT;
-    if (rest == "async")
+    if (identifier == "async")
         return TokenType::ASYNC;
-    if (rest == "await")
+    if (identifier == "await")
         return TokenType::AWAIT;
-    if (rest == "import")
+    if (identifier == "import")
         return TokenType::IMPORT;
     // Check if the identifier matches a type keyword
-    if (rest == "int")
+    if (identifier == "int")
         return TokenType::INT_TYPE;
-    if (rest == "i8")
+    if (identifier == "i8")
         return TokenType::INT8_TYPE;
-    if (rest == "i16")
+    if (identifier == "i16")
         return TokenType::INT16_TYPE;
-    if (rest == "i32")
+    if (identifier == "i32")
         return TokenType::INT32_TYPE;
-    if (rest == "i64")
+    if (identifier == "i64")
         return TokenType::INT64_TYPE;
-    if (rest == "uint")
+    if (identifier == "uint")
         return TokenType::UINT_TYPE;
-    if (rest == "u8")
+    if (identifier == "u8")
         return TokenType::UINT8_TYPE;
-    if (rest == "u16")
+    if (identifier == "u16")
         return TokenType::UINT16_TYPE;
-    if (rest == "u32")
+    if (identifier == "u32")
         return TokenType::UINT32_TYPE;
-    if (rest == "u64")
+    if (identifier == "u64")
         return TokenType::UINT64_TYPE;
-    if (rest == "any")
+    if (identifier == "any")
         return TokenType::ANY_TYPE;
-    if (rest == "nil")
+    if (identifier == "nil")
         return TokenType::NIL_TYPE;
-    if (rest == "float")
+    if (identifier == "float")
         return TokenType::FLOAT_TYPE;
-    if (rest == "f32")
+    if (identifier == "f32")
         return TokenType::FLOAT32_TYPE;
-    if (rest == "f64")
+    if (identifier == "f64")
         return TokenType::FLOAT64_TYPE;
-    if (rest == "str")
+    if (identifier == "str")
         return TokenType::STR_TYPE;
-    if (rest == "bool")
+    if (identifier == "bool")
         return TokenType::BOOL_TYPE;
-    if (rest == "list")
+    if (identifier == "list")
         return TokenType::LIST_TYPE;
-    if (rest == "array")
+    if (identifier == "array")
         return TokenType::ARRAY_TYPE;
-    if (rest == "dict")
+    if (identifier == "dict")
         return TokenType::DICT_TYPE;
-    if (rest == "enum")
+    if (identifier == "enum")
         return TokenType::ENUM_TYPE;
-    if (rest == "sum")
+    if (identifier == "sum")
         return TokenType::SUM_TYPE;
-    if (rest == "union")
+    if (identifier == "union")
         return TokenType::UNION_TYPE;
 
-    return type;
+    return TokenType::IDENTIFIER;
 }
 
 std::string Scanner::toString() const
@@ -668,6 +647,54 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
         return "ELIF";
     case TokenType::MUT:
         return "MUT";
+        break;
+    case TokenType::ELVIS:
+        return "ELVIS";
+        break;
+    case TokenType::SAFE:
+        return "SAFE";
+        break;
+    case TokenType::INT8_TYPE:
+        return "INT8_TYPE";
+        break;
+    case TokenType::INT16_TYPE:
+        return "INT16_TYPE";
+        break;
+    case TokenType::INT32_TYPE:
+        return "INT32_TYPE";
+        break;
+    case TokenType::INT64_TYPE:
+        return "INT64_TYPE";
+        break;
+    case TokenType::UINT_TYPE:
+        return "UINT_TYPE";
+        break;
+    case TokenType::UINT8_TYPE:
+        return "UINT8_TYPE";
+        break;
+    case TokenType::UINT16_TYPE:
+        return "UINT16_TYPE";
+        break;
+    case TokenType::UINT32_TYPE:
+        return "UINT32_TYPE";
+        break;
+    case TokenType::UINT64_TYPE:
+        return "UINT64_TYPE";
+        break;
+    case TokenType::FLOAT32_TYPE:
+        return "FLOAT32_TYPE";
+        break;
+    case TokenType::FLOAT64_TYPE:
+        return "FLOAT64_TYPE";
+        break;
+    case TokenType::SUM_TYPE:
+        return "SUM_TYPE";
+        break;
+    case TokenType::UNION_TYPE:
+        return "UNION_TYPE";
+        break;
+    case TokenType::ANY_TYPE:
+        return "ANY_TYPE";
         break;
     }
     return "UNKNOWN";
