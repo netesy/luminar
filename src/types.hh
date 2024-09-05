@@ -342,30 +342,101 @@ public:
         ValuePtr value = std::make_shared<Value>();
         value->type = type;
 
-        if (type->tag == TypeTag::Bool) {
+        switch (type->tag) {
+        case TypeTag::Nil:
+            value->data = std::monostate{};
+            break;
+        case TypeTag::Bool:
             value->data = false;
-        } else if (type->tag == TypeTag::Int || type->tag == TypeTag::Int8
-                   || type->tag == TypeTag::Int16 || type->tag == TypeTag::Int32
-                   || type->tag == TypeTag::Int64) {
+            break;
+        case TypeTag::Int:
+        case TypeTag::Int64:
             value->data = int64_t(0);
-        } else if (type->tag == TypeTag::UInt || type->tag == TypeTag::UInt8
-                   || type->tag == TypeTag::UInt16 || type->tag == TypeTag::UInt32
-                   || type->tag == TypeTag::UInt64) {
+            break;
+        case TypeTag::Int8:
+            value->data = int8_t(0);
+            break;
+        case TypeTag::Int16:
+            value->data = int16_t(0);
+            break;
+        case TypeTag::Int32:
+            value->data = int32_t(0);
+            break;
+        case TypeTag::UInt:
+        case TypeTag::UInt64:
             value->data = uint64_t(0);
-        } else if (type->tag == TypeTag::Float32) {
+            break;
+        case TypeTag::UInt8:
+            value->data = uint8_t(0);
+            break;
+        case TypeTag::UInt16:
+            value->data = uint16_t(0);
+            break;
+        case TypeTag::UInt32:
+            value->data = uint32_t(0);
+            break;
+        case TypeTag::Float32:
             value->data = float(0.0);
-        } else if (type->tag == TypeTag::Float64) {
+            break;
+        case TypeTag::Float64:
             value->data = double(0.0);
-        } else if (type->tag == TypeTag::String) {
+            break;
+        case TypeTag::String:
             value->data = std::string("");
-        } else if (type->tag == TypeTag::List) {
+            break;
+        case TypeTag::List:
             value->data = ListValue{};
-        } else if (type->tag == TypeTag::Dict) {
+            break;
+        case TypeTag::Dict:
             value->data = DictValue{};
-        } else if (type->tag == TypeTag::Sum) {
-            value->data = SumValue{};
-        } else if (type->tag == TypeTag::UserDefined) {
+            break;
+        case TypeTag::Enum:
+            // For enums, we'll set it to the first value in the enum
+            if (const auto *enumType = std::get_if<EnumType>(&type->extra)) {
+                if (!enumType->values.empty()) {
+                    value->data = enumType->values[0];
+                } else {
+                    value->data = std::string(""); // Empty enum, use empty string as default
+                }
+            } else {
+                throw std::runtime_error("Invalid enum type");
+            }
+            break;
+        case TypeTag::Sum:
+            // For sum types, we'll set it to the first variant with a default value
+            if (const auto *sumType = std::get_if<SumType>(&type->extra)) {
+                if (!sumType->variants.empty()) {
+                    value->data = SumValue{0, createValue(sumType->variants[0])};
+                } else {
+                    throw std::runtime_error("Empty sum type");
+                }
+            } else {
+                throw std::runtime_error("Invalid sum type");
+            }
+            break;
+        case TypeTag::UserDefined:
+            //            if (const auto *userType = std::get_if<UserDefinedType>(&type->extra)) {
+            //                UserDefinedValue udv;
+            //                udv.variantName = userType->name;
+            //                for (const auto &[fieldName, fieldType] : userType->fields) {
+            //                    udv.fields[fieldName] = createValue(fieldType);
+            //                }
+            //                value->data = std::move(udv);
+            //            } else {
+            //                throw std::runtime_error("Invalid user-defined type");
+            //            }
             value->data = UserDefinedValue{};
+            break;
+        case TypeTag::Function:
+            // Functions are typically not instantiated as values
+            throw std::runtime_error("Cannot create a value for Function type");
+        case TypeTag::Any:
+            // For Any type, we'll use std::monostate as a placeholder
+            value->data = std::monostate{};
+            break;
+        default:
+            throw std::runtime_error("Unsupported type tag: "
+                                     + std::to_string(static_cast<int>(type->tag)));
         }
 
         return value;
@@ -584,6 +655,132 @@ public:
                                                         + targetType->toString());
                            }
                        },
+                       [&](int32_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = v;
+                               break;
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from int32_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](int16_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = v;
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from int16_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](int8_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = v;
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from int8_t to "
+                                                        + targetType->toString());
+                           }
+                       },
                        [&](uint64_t v) {
                            switch (targetType->tag) {
                            case TypeTag::UInt:
@@ -623,6 +820,132 @@ public:
                                break;
                            default:
                                throw std::runtime_error("Unsupported conversion from uint64_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](uint32_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = v;
+                               break;
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from uint32_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](uint16_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = safe_cast<uint8_t>(v);
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = v;
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from uint16_t to "
+                                                        + targetType->toString());
+                           }
+                       },
+                       [&](uint8_t v) {
+                           switch (targetType->tag) {
+                           case TypeTag::UInt:
+                           case TypeTag::UInt64:
+                               result->data = safe_cast<uint64_t>(v);
+                               break;
+                           case TypeTag::UInt8:
+                               result->data = v;
+                               break;
+                           case TypeTag::UInt16:
+                               result->data = safe_cast<uint16_t>(v);
+                               break;
+                           case TypeTag::UInt32:
+                               result->data = safe_cast<uint32_t>(v);
+                               break;
+                           case TypeTag::Int:
+                           case TypeTag::Int64:
+                               result->data = safe_cast<int64_t>(v);
+                               break;
+                           case TypeTag::Int8:
+                               result->data = safe_cast<int8_t>(v);
+                               break;
+                           case TypeTag::Int16:
+                               result->data = safe_cast<int16_t>(v);
+                               break;
+                           case TypeTag::Int32:
+                               result->data = safe_cast<int32_t>(v);
+                               break;
+                           case TypeTag::Float32:
+                               result->data = safe_cast<float>(v);
+                               break;
+                           case TypeTag::Float64:
+                               result->data = safe_cast<double>(v);
+                               break;
+                           case TypeTag::String:
+                               result->data = std::to_string(v);
+                               break;
+                           default:
+                               throw std::runtime_error("Unsupported conversion from uint8_t to "
                                                         + targetType->toString());
                            }
                        },
