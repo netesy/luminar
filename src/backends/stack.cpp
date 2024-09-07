@@ -500,10 +500,6 @@ void StackBackend::handleJump()
 {
     auto offset = program[this->pc].value;
 
-    std::cout << "handleJump: Current PC: " << this->pc << std::endl;
-    std::cout << "Current instruction: "
-              << program[this->pc].opcodeToString(program[this->pc].opcode) << std::endl;
-
     // Ensure offset is of type Int64 and convert if necessary
     if (!typeSystem.checkType(offset, typeSystem.INT64_TYPE)) {
         if (typeSystem.isCompatible(offset->type, typeSystem.INT64_TYPE)) {
@@ -518,13 +514,9 @@ void StackBackend::handleJump()
         }
     }
 
-    std::cout << "Jump offset value: " << offset << std::endl;
-
     // Perform the jump
     if (std::holds_alternative<int64_t>(offset->data)) {
         auto offsetValue = std::get<int64_t>(offset->data);
-        std::cout << "Instruction at jump target: "
-                  << program[offsetValue].opcodeToString(program[offsetValue].opcode) << std::endl;
         pc += offsetValue;
     } else {
         std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
@@ -536,10 +528,6 @@ void StackBackend::handleJumpZero()
     auto offset = program[this->pc].value;
     auto condition = stack.top();
     stack.pop();
-
-    std::cout << "handleJumpZero: Current PC: " << this->pc << std::endl;
-    std::cout << "Current instruction: "
-              << program[this->pc].opcodeToString(program[this->pc].opcode) << std::endl;
 
     // Ensure condition is boolean
     if (!typeSystem.checkType(condition, typeSystem.BOOL_TYPE)) {
@@ -564,22 +552,10 @@ void StackBackend::handleJumpZero()
     bool conditionValue = std::get<bool>(condition->data);
     int64_t offsetValue = std::get<int64_t>(offset->data);
 
-    std::cout << "Condition value: " << (conditionValue ? "true" : "false") << std::endl;
-    std::cout << "Jump offset value: " << offsetValue << std::endl;
-
     if (!conditionValue) {
         // Perform the jump
-        std::cout << "Condition is false, jumping to PC: " << offsetValue << std::endl;
-        // Show the instruction at the offsetValue
-        std::cout << "Instruction at jump target: "
-                  << program[offsetValue].opcodeToString(program[offsetValue].opcode) << std::endl;
         pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
-    } else {
-        std::cout << "Condition is true, continuing to next instruction" << std::endl;
     }
-
-    std::cout << "Next PC will be: " << (pc + 1) << std::endl;
-    std::cout << std::endl; // Add a blank line for readability between jumps
 }
 
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
