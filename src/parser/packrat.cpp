@@ -66,62 +66,82 @@ void PackratParser::statement()
 void PackratParser::if_statement()
 {
     expression(); // condition
+    size_t jumpIfFalsePos = bytecode.size();
     emit(Opcode::JUMP_IF_FALSE,
          peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
-    size_t jumpIfFalsePos = bytecode.size() - 1;
+         Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
 
     consume(TokenType::LEFT_BRACE, "Expected '{' after if condition.");
     block();
 
+    size_t jumpPos = bytecode.size();
     emit(Opcode::JUMP,
          peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
-    size_t jumpPos = bytecode.size() - 1;
+         Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
+
+    size_t elseStart = bytecode.size();
+    // Update the JUMP_IF_FALSE instruction with the correct jump location
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size() - 1});
+        Value{std::make_shared<Type>(TypeTag::Int), elseStart});
 
-    if (match(TokenType::ELIF)) {
-        do {
-            expression(); // condition
-            emit(Opcode::JUMP_IF_FALSE, peek().line);
-            size_t jumpIfFalsePos = bytecode.size() - 1;
+    std::vector<size_t> elifJumps;
 
-            consume(TokenType::LEFT_BRACE, "Expected '{' after elif condition.");
-            block();
+    while (match(TokenType::ELIF)) {
+        expression(); // condition
+        size_t elifJumpIfFalsePos = bytecode.size();
+        emit(Opcode::JUMP_IF_FALSE,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
 
-            emit(Opcode::JUMP, peek().line);
-            size_t jumpPos = bytecode.size() - 1;
-            bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-                Value{std::make_shared<Type>(TypeTag::Int), bytecode.size()});
-        } while (match(TokenType::ELIF));
+        consume(TokenType::LEFT_BRACE, "Expected '{' after elif condition.");
+        block();
 
-        if (match(TokenType::ELSE)) {
-            consume(TokenType::LEFT_BRACE, "Expected '{' after else.");
-            block();
-        }
-    } else if (match(TokenType::ELSE)) {
+        elifJumps.push_back(bytecode.size());
+        emit(Opcode::JUMP,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
+
+        size_t elifEnd = bytecode.size();
+        // Update the JUMP_IF_FALSE instruction with the correct jump location
+        bytecode[elifJumpIfFalsePos].value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(TypeTag::Int), elifEnd});
+    }
+
+    if (match(TokenType::ELSE)) {
         consume(TokenType::LEFT_BRACE, "Expected '{' after else.");
         block();
     }
 
+    size_t endIfStatement = bytecode.size();
+
+    // Update all JUMP instructions to the end of the if statement
     bytecode[jumpPos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int), bytecode.size()});
+        Value{std::make_shared<Type>(TypeTag::Int), endIfStatement});
+    for (size_t elifJump : elifJumps) {
+        bytecode[elifJump].value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(TypeTag::Int), endIfStatement});
+    }
 }
 
 void PackratParser::while_statement()
 {
     size_t loopStart = bytecode.size();
     expression(); // condition
-    emit(Opcode::JUMP_IF_FALSE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
-    size_t jumpIfFalsePos = bytecode.size() - 1;
+    size_t jumpIfFalsePos = bytecode.size();
+    emit(Opcode::JUMP_IF_FALSE,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
 
     consume(TokenType::LEFT_BRACE, "Expected '{' after while condition.");
     block();
+    //fixed the issue with whileloops not working
+    int32_t jumpLocation = loopStart - bytecode.size() - 1;
+    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), jumpLocation});
+    size_t loopEnd = bytecode.size();
 
-    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
+    // Update the JUMP_IF_FALSE instruction with the correct jump location
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int), bytecode.size() - 1});
+        Value{std::make_shared<Type>(TypeTag::Int), loopEnd});
 }
 
 void PackratParser::for_statement()
@@ -198,16 +218,20 @@ void PackratParser::var_declaration()
         type = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
+    std::cout << "declaration of variables initiated" << std::endl;
+    declareVariable(name, type);
+
     if (match(TokenType::EQUAL)) {
         expression();
+        emit(Opcode::STORE_VARIABLE,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), getVariableMemoryLocation(name)});
     } else {
         emit(Opcode::NOP, peek().line);
     }
 
     consume(TokenType::SEMICOLON, "Expected ';' after variable declaration.");
 
-    std::cout << "declaration of variables initiated" << std::endl;
-    declareVariable(name, type);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
