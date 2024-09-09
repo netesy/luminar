@@ -207,7 +207,8 @@ struct Instruction
             return "CONCATENATE_STR";
         case Opcode::LOAD_CONST:
             return "LOAD_CONST";
-
+        case Opcode::INTERPOLATE_STRING:
+            return "INTERPOLATE STRING";
             // Unrecognized opcode
         default:
             return "UNKNOWN";

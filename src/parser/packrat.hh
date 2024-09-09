@@ -74,6 +74,7 @@ private:
     void expression();
     void parse_string();
     void interpolate_string(const std::string &str);
+    std::vector<Token> tokenizeExpression(const std::string &expr);
     void logical_or_expression();
     void logical_and_expression();
     void equality_expression();

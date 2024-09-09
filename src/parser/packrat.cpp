@@ -540,41 +540,64 @@ void PackratParser::interpolate_string(const std::string &str)
     std::string::const_iterator searchStart(str.cbegin());
     std::smatch match;
 
-    // Load the initial string part
-    emit(Opcode::LOAD_STR, peek().line, Value{std::make_shared<Type>(TypeTag::String), str});
+    //    // Load the initial string part
+    //    emit(Opcode::LOAD_STR, peek().line, Value{std::make_shared<Type>(TypeTag::String), str});
+    std::string interpolatedString = std::regex_replace(str, interpolation_regex, "{}");
+    emit(Opcode::LOAD_STR,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), interpolatedString});
 
     while (std::regex_search(searchStart, str.cend(), match, interpolation_regex)) {
         std::string expr = match[1].str();
 
-        // Save current parser state
-        size_t savedPos = pos;
-        std::vector<Token> savedTokens = tokens;
+        // Handle variable interpolation
+        if (variable.hasVariable(expr)) {
+            // Emit code to load the variable
+            int32_t memoryLocation = variable.getVariableMemoryLocation(expr);
+            emit(Opcode::LOAD_VARIABLE,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+        } else {
+            // If it's not a variable, treat it as an expression
+            std::vector<Token> exprTokens = tokenizeExpression(expr);
 
-        // Create temporary tokens for the interpolated expression
-        std::vector<Token> exprTokens;
-        std::istringstream iss(expr);
-        std::string token;
-        while (iss >> token) {
-            // This is a simplified tokenization. In a real scenario, you'd need more sophisticated logic here.
-            //exprTokens.push_back(Token(TokenType::IDENTIFIER, token, peek().line));
+            // Save current parser state
+            size_t savedPos = pos;
+            std::vector<Token> savedTokens = tokens;
+
+            // Set up parser state for the interpolated expression
+            tokens = exprTokens;
+            pos = 0;
+
+            // Parse and evaluate the expression
+            expression();
+
+            // Restore parser state
+            pos = savedPos;
+            tokens = savedTokens;
         }
-
-        // Set up parser state for the interpolated expression
-        tokens = exprTokens;
-        pos = 0;
-
-        // Parse and evaluate the expression
-        expression();
-
-        // Restore parser state
-        pos = savedPos;
-        tokens = savedTokens;
 
         // Emit the INTERPOLATE_STRING instruction
         emit(Opcode::INTERPOLATE_STRING, peek().line);
 
         searchStart = match.suffix().first;
     }
+}
+
+std::vector<Token> PackratParser::tokenizeExpression(const std::string &expr)
+{
+    // Create a new Scanner object
+    Scanner exprScanner(expr, "interpolation", "");
+
+    // Scan the expression
+    std::vector<Token> exprTokens = exprScanner.scanTokens();
+
+    // Remove the EOF token if present
+    if (!exprTokens.empty() && exprTokens.back().type == TokenType::EOF_TOKEN) {
+        exprTokens.pop_back();
+    }
+
+    return exprTokens;
 }
 
 void PackratParser::handle_identifier()
