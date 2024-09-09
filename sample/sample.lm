@@ -194,3 +194,5 @@ matchExample(true);        // Output: Unknown type
 
 
 // End of the sample syntax
+
+var cnt = 0; while(cnt<5){print(cnt);cnt += 1;}

@@ -60,6 +60,7 @@ enum Opcode {
     // Class operations
     DEFINE_CLASS,
     CREATE_OBJECT,
+    LOAD_PROPERTY,
     METHOD_CALL,
 
     // File I/O operations

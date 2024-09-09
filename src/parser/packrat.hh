@@ -62,12 +62,18 @@ private:
     void for_statement();
     void print_statement();
     void block();
+    void handle_identifier();
     void var_declaration();
+    void var_call(const Token &name);
     void assignment();
     void function_declaration();
+    void function_call(const Token &name);
     void class_declaration();
+    void method_call(const Token &name);
     void expression_statement();
     void expression();
+    void parse_string();
+    void interpolate_string(const std::string &str);
     void logical_or_expression();
     void logical_and_expression();
     void equality_expression();
@@ -101,7 +107,7 @@ private:
          {"uint", TypeTag::UInt},   {"u8", TypeTag::UInt8},         {"u16", TypeTag::UInt16},
          {"u32", TypeTag::UInt32},  {"u64", TypeTag::UInt64},       {"u128", TypeTag::UInt64},
          {"f32", TypeTag::Float32}, {"f64", TypeTag::Float64},      {"float", TypeTag::Float64},
-         {"bool", TypeTag::Bool},   {"string", TypeTag::String},    {"dict", TypeTag::Dict},
+         {"bool", TypeTag::Bool},   {"str", TypeTag::String},       {"dict", TypeTag::Dict},
          {"list", TypeTag::List},   {"enum", TypeTag::Enum},        {"any", TypeTag::Any},
          {"nil", TypeTag::Nil},     {"function", TypeTag::Function}}};
 };

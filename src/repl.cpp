@@ -1,5 +1,6 @@
 #include "repl.hh"
 #include "parser/packrat.hh"
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -72,7 +73,9 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
 void REPL::startDevMode(const std::string &filename = "")
 {
     std::cout << "Luminar Dev REPL :" << std::endl;
+
     if (!filename.empty()) {
+        auto start_time = std::chrono::high_resolution_clock::now();
         // If a filename is provided, read and run the file
         std::string fileContent = readFile(filename);
         std::string filePath = std::filesystem::absolute(filename).string();
@@ -82,15 +85,22 @@ void REPL::startDevMode(const std::string &filename = "")
         } else {
             std::cerr << "Error: Unable to read file or file is empty." << std::endl;
         }
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        std::cout << "Entire completed in " << duration.count() << " microseconds." << std::endl;
     }
 
     // Start the REPL loop
     while (true) {
+        auto start_time = std::chrono::high_resolution_clock::now();
         std::string input = readInput();
         if (input == "exit" || input == "quit") {
             break;
         }
         run(input);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        std::cout << "Entire completed in " << duration.count() << " microseconds." << std::endl;
     }
 }
 

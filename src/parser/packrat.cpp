@@ -1,6 +1,7 @@
 #include "packrat.hh"
 #include "../debugger.hh"
 #include <iostream>
+#include <regex>
 #include <sstream>
 
 PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
@@ -52,7 +53,9 @@ void PackratParser::statement()
         block();
     } else if (match(TokenType::VAR)) {
         var_declaration();
-    } else if (peek().type == TokenType::IDENTIFIER && peekNext().type == TokenType::EQUAL) {
+    } else if ((peek().type == TokenType::IDENTIFIER)
+               && (peekNext().type == TokenType::EQUAL || peekNext().type == TokenType::PLUS_EQUAL
+                   || peekNext().type == TokenType::MINUS_EQUAL)) {
         assignment();
     } else if (match(TokenType::FN)) {
         function_declaration();
@@ -136,18 +139,21 @@ void PackratParser::while_statement()
     block();
     //fixed the issue with whileloops not working
     int32_t jumpLocation = loopStart - bytecode.size() - 1;
+    std::cout << "Jump Location: " << jumpLocation << std::endl;
     emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), jumpLocation});
     size_t loopEnd = bytecode.size();
 
+    int32_t forwardJump = loopEnd - jumpIfFalsePos - 1;
     // Update the JUMP_IF_FALSE instruction with the correct jump location
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int), loopEnd});
+        Value{std::make_shared<Type>(TypeTag::Int), forwardJump});
 }
 
 void PackratParser::for_statement()
 {
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'.");
+        consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'.");
 
+    // Initialization
     if (!match(TokenType::SEMICOLON)) {
         var_declaration();
     } else {
@@ -155,32 +161,36 @@ void PackratParser::for_statement()
     }
 
     size_t loopStart = bytecode.size();
+
+    // Condition
     size_t exitJump = 0;
     if (!match(TokenType::SEMICOLON)) {
         expression();
         consume(TokenType::SEMICOLON, "Expected ';' after loop condition.");
-        emit(Opcode::JUMP_IF_FALSE, peek().line);
-        exitJump = bytecode.size() - 1;
+        exitJump = bytecode.size();
+        emit(Opcode::JUMP_IF_FALSE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
     }
 
+    // Increment
+    size_t bodyJump = bytecode.size();
+    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
+    size_t incrementStart = bytecode.size();
     if (!match(TokenType::RIGHT_PAREN)) {
-        size_t bodyJump = bytecode.size();
-        emit(Opcode::JUMP, peek().line);
-        size_t incrementStart = bytecode.size();
         expression();
-        //emit(Opcode::POP, peek().line);
-        emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int32), loopStart});
-        bytecode[bodyJump].value = std::make_shared<Value>(
-            Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+        emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), loopStart});
         consume(TokenType::RIGHT_PAREN, "Expected ')' after for clauses.");
     }
 
+    // Body
+    size_t bodyStart = bytecode.size();
+    bytecode[bodyJump].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), bodyStart});
     block();
-    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int32), loopStart});
+    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), incrementStart});
 
+    // Update jumps
+    size_t loopEnd = bytecode.size();
     if (exitJump != 0) {
-        bytecode[exitJump].value = std::make_shared<Value>(
-            Value{std::make_shared<Type>(TypeTag::Int32), bytecode.size()});
+        bytecode[exitJump].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), loopEnd});
     }
 }
 
@@ -209,7 +219,7 @@ void PackratParser::var_declaration()
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected variable name.");
 
-    TypePtr type = nullptr;
+    TypePtr type = std::make_shared<Type>(TypeTag::Int);
     if (match(TokenType::COLON)) {
         std::cout << "Variable initialization found for " << name.lexeme << std::endl;
         Token typeToken = peek();
@@ -237,18 +247,46 @@ void PackratParser::var_declaration()
     std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
 }
 
+void PackratParser::var_call(const Token &name)
+{
+    int32_t location = getVariableMemoryLocation(name);
+    emit(Opcode::LOAD_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
+}
+
 void PackratParser::assignment()
 {
     auto start = std::chrono::high_resolution_clock::now();
     Token name = peek();
     std::cout << "Starting assignment" << std::endl;
     consume(TokenType::IDENTIFIER, "Expected variable name.");
-    consume(TokenType::EQUAL, "Expected '=' after variable name.");
+
+    TokenType assignmentType = TokenType::EQUAL;
+    if (match(TokenType::PLUS_EQUAL)) {
+        assignmentType = TokenType::PLUS_EQUAL;
+    } else if (match(TokenType::MINUS_EQUAL)) {
+        assignmentType = TokenType::MINUS_EQUAL;
+    } else {
+        consume(TokenType::EQUAL, "Expected '=', '+=', or '-=' after variable name.");
+    }
+
     std::cout << "Variable " << name.lexeme << " assigned" << std::endl;
     expression();
     consume(TokenType::SEMICOLON, "Expected ';' after assignment.");
 
     int32_t location = getVariableMemoryLocation(name);
+
+    if (assignmentType == TokenType::PLUS_EQUAL) {
+        emit(Opcode::LOAD_VARIABLE,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), location});
+        emit(Opcode::ADD, peek().line);
+    } else if (assignmentType == TokenType::MINUS_EQUAL) {
+        emit(Opcode::LOAD_VARIABLE,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), location});
+        emit(Opcode::SUBTRACT, peek().line);
+    }
+
     emit(Opcode::STORE_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -303,6 +341,25 @@ void PackratParser::function_declaration()
         //emit(Opcode::NIL, peek().line);
         emit(Opcode::RETURN, peek().line);
     }
+}
+
+void PackratParser::function_call(const Token &name)
+{
+    std::vector<TypePtr> argTypes;
+    int argCount = 0;
+    if (!check(TokenType::RIGHT_PAREN)) {
+        do {
+            expression();
+            argCount++;
+            // You might want to infer and store argument types here
+        } while (match(TokenType::COMMA));
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+
+    emit(Opcode::INVOKE_FUNCTION,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+    emit(Opcode::PUSH_ARGS, peek().line, Value{std::make_shared<Type>(TypeTag::Int), argCount});
 }
 
 void PackratParser::class_declaration()
@@ -461,17 +518,104 @@ void PackratParser::primary_expression()
     } else if (match(TokenType::NUMBER)) {
         emit(Opcode::LOAD_CONST, peek().line, std::move(value));
     } else if (match(TokenType::STRING)) {
-        emit(Opcode::LOAD_STR, peek().line, std::move(value));
+        parse_string();
     } else if (match(TokenType::IDENTIFIER)) {
-        int32_t location = getVariableMemoryLocation(previous());
-        emit(Opcode::LOAD_VARIABLE,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::Int), location});
+        handle_identifier();
     } else if (match(TokenType::LEFT_PAREN)) {
         expression();
         consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
     } else {
         error("Expected expression.");
+    }
+}
+void PackratParser::parse_string()
+{
+    Token stringToken = previous();
+    interpolate_string(stringToken.lexeme);
+}
+
+void PackratParser::interpolate_string(const std::string &str)
+{
+    std::regex interpolation_regex("\\{([^}]+)\\}");
+    std::string::const_iterator searchStart(str.cbegin());
+    std::smatch match;
+
+    // Load the initial string part
+    emit(Opcode::LOAD_STR, peek().line, Value{std::make_shared<Type>(TypeTag::String), str});
+
+    while (std::regex_search(searchStart, str.cend(), match, interpolation_regex)) {
+        std::string expr = match[1].str();
+
+        // Save current parser state
+        size_t savedPos = pos;
+        std::vector<Token> savedTokens = tokens;
+
+        // Create temporary tokens for the interpolated expression
+        std::vector<Token> exprTokens;
+        std::istringstream iss(expr);
+        std::string token;
+        while (iss >> token) {
+            // This is a simplified tokenization. In a real scenario, you'd need more sophisticated logic here.
+            //exprTokens.push_back(Token(TokenType::IDENTIFIER, token, peek().line));
+        }
+
+        // Set up parser state for the interpolated expression
+        tokens = exprTokens;
+        pos = 0;
+
+        // Parse and evaluate the expression
+        expression();
+
+        // Restore parser state
+        pos = savedPos;
+        tokens = savedTokens;
+
+        // Emit the INTERPOLATE_STRING instruction
+        emit(Opcode::INTERPOLATE_STRING, peek().line);
+
+        searchStart = match.suffix().first;
+    }
+}
+
+void PackratParser::handle_identifier()
+{
+    Token name = previous();
+    if (match(TokenType::LEFT_PAREN)) {
+        // Function call
+        function_call(name);
+    } else if (match(TokenType::DOT)) {
+        // Method or class call
+        method_call(name);
+    } else {
+        // Variable call
+        var_call(name);
+    }
+}
+
+void PackratParser::method_call(const Token &object)
+{
+    Token method = peek();
+    consume(TokenType::IDENTIFIER, "Expected method name after '.'.");
+
+    if (match(TokenType::LEFT_PAREN)) {
+        int argCount = 0;
+        if (!check(TokenType::RIGHT_PAREN)) {
+            do {
+                expression();
+                argCount++;
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+
+        emit(Opcode::METHOD_CALL,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), object.lexeme + "." + method.lexeme});
+        emit(Opcode::PUSH_ARGS, peek().line, Value{std::make_shared<Type>(TypeTag::Int), argCount});
+    } else {
+        // This is a property access, not a method call
+        emit(Opcode::LOAD_PROPERTY,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), object.lexeme + "." + method.lexeme});
     }
 }
 
@@ -626,6 +770,7 @@ TypeTag PackratParser::inferType(const Token &token)
             return TypeTag::Int;
         }
     case TokenType::STRING:
+    case TokenType::STR_TYPE:
         return TypeTag::String;
     case TokenType::TRUE:
     case TokenType::FALSE:

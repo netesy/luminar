@@ -61,7 +61,7 @@ void StackBackend::execute(const Instruction &instruction)
         handleLoadConst(instruction.value);
         break;
     case INTERPOLATE_STRING:
-        handleInterpolateString(std::get<int32_t>(instruction.value->data));
+        handleInterpolateString();
         break;
     case PRINT:
         handlePrint();
@@ -149,23 +149,28 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
     ValuePtr result = std::make_shared<Value>();
     result->type = value->type;
 
-    if (instruction.opcode == NEGATE) {
-        if (value->type->tag == TypeTag::Int) {
+    switch (instruction.opcode) {
+    case NEGATE:
+        if (typeSystem.isCompatible(typeSystem.INT_TYPE, value->type)) {
             result->data = -std::get<int64_t>(value->data);
-        } else if (value->type->tag == TypeTag::Float64) {
+        } else if (typeSystem.isCompatible(typeSystem.FLOAT64_TYPE, value->type)) {
             result->data = -std::get<double>(value->data);
         } else {
             std::cerr << "Error: Unsupported type for NEGATE operation" << std::endl;
             return;
         }
-    } else if (instruction.opcode == NOT) {
-        if (value->type->tag == TypeTag::Bool) {
+        break;
+
+    case NOT:
+        if (typeSystem.isCompatible(typeSystem.BOOL_TYPE, value->type)) {
             result->data = !std::get<bool>(value->data);
         } else {
             std::cerr << "Error: Unsupported type for NOT operation" << std::endl;
             return;
         }
-    } else {
+        break;
+
+    default:
         std::cerr << "Error: Invalid unary operation opcode" << std::endl;
         return;
     }
@@ -185,12 +190,19 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
     auto value1 = stack.top();
     stack.pop();
 
-    ValuePtr result = std::make_shared<Value>();
+    // Get common type between the two values
+    TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
+    if (!commonType) {
+        std::cerr << "Error: Incompatible types for binary operation" << std::endl;
+        return;
+    }
 
-    if (value1->type->tag == TypeTag::Int && value2->type->tag == TypeTag::Int) {
-        int32_t v1 = std::get<int64_t>(value1->data);
-        int32_t v2 = std::get<int64_t>(value2->data);
-        result->type = typeSystem.INT_TYPE;
+    ValuePtr result = std::make_shared<Value>();
+    result->type = commonType;
+
+    if (commonType->tag == TypeTag::Int) {
+        int64_t v1 = std::get<int64_t>(value1->data);
+        int64_t v2 = std::get<int64_t>(value2->data);
 
         switch (instruction.opcode) {
         case ADD:
@@ -220,10 +232,9 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
             std::cerr << "Error: Invalid binary operation opcode" << std::endl;
             return;
         }
-    } else if (value1->type->tag == TypeTag::Float64 && value2->type->tag == TypeTag::Float64) {
+    } else if (commonType->tag == TypeTag::Float64) {
         double v1 = std::get<double>(value1->data);
         double v2 = std::get<double>(value2->data);
-        result->type = typeSystem.FLOAT64_TYPE;
 
         switch (instruction.opcode) {
         case ADD:
@@ -269,26 +280,28 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
     auto value1 = stack.top();
     stack.pop();
 
+    // Ensure both values are of type bool
+    if (!typeSystem.isCompatible(typeSystem.BOOL_TYPE, value1->type)
+        || !typeSystem.isCompatible(typeSystem.BOOL_TYPE, value2->type)) {
+        std::cerr << "Error: Unsupported types for logical operation" << std::endl;
+        return;
+    }
+
     ValuePtr result = std::make_shared<Value>();
     result->type = typeSystem.BOOL_TYPE;
 
-    if (value1->type->tag == TypeTag::Bool && value2->type->tag == TypeTag::Bool) {
-        bool v1 = std::get<bool>(value1->data);
-        bool v2 = std::get<bool>(value2->data);
+    bool v1 = std::get<bool>(value1->data);
+    bool v2 = std::get<bool>(value2->data);
 
-        switch (instruction.opcode) {
-        case AND:
-            result->data = v1 && v2;
-            break;
-        case OR:
-            result->data = v1 || v2;
-            break;
-        default:
-            std::cerr << "Error: Invalid logical operation opcode" << std::endl;
-            return;
-        }
-    } else {
-        std::cerr << "Error: Unsupported types for logical operation" << std::endl;
+    switch (instruction.opcode) {
+    case AND:
+        result->data = v1 && v2;
+        break;
+    case OR:
+        result->data = v1 || v2;
+        break;
+    default:
+        std::cerr << "Error: Invalid logical operation opcode" << std::endl;
         return;
     }
 
@@ -306,6 +319,13 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
     stack.pop();
     auto value1 = stack.top();
     stack.pop();
+
+    // Get common type between the two values
+    TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
+    if (!commonType) {
+        std::cerr << "Error: Cannot compare values of different types" << std::endl;
+        return;
+    }
 
     ValuePtr result = std::make_shared<Value>();
     result->type = typeSystem.BOOL_TYPE;
@@ -337,27 +357,21 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         return true;
     };
 
-    if (value1->type->tag == value2->type->tag) {
-        switch (value1->type->tag) {
-        case TypeTag::Int:
-            if (!compareValues(std::get<int64_t>(value1->data), std::get<int64_t>(value2->data)))
-                return;
-            break;
-        case TypeTag::Float64:
-            if (!compareValues(std::get<double>(value1->data), std::get<double>(value2->data)))
-                return;
-            break;
-        case TypeTag::String:
-            if (!compareValues(std::get<std::string>(value1->data),
-                               std::get<std::string>(value2->data)))
-                return;
-            break;
-        default:
-            std::cerr << "Error: Unsupported type for comparison operation" << std::endl;
+    if (commonType->tag == TypeTag::Int) {
+        if (!compareValues(std::get<int64_t>(value1->data), std::get<int64_t>(value2->data))) {
+            return;
+        }
+    } else if (commonType->tag == TypeTag::Float64) {
+        if (!compareValues(std::get<double>(value1->data), std::get<double>(value2->data))) {
+            return;
+        }
+    } else if (commonType->tag == TypeTag::String) {
+        if (!compareValues(std::get<std::string>(value1->data),
+                           std::get<std::string>(value2->data))) {
             return;
         }
     } else {
-        std::cerr << "Error: Cannot compare values of different types" << std::endl;
+        std::cerr << "Error: Unsupported type for comparison operation" << std::endl;
         return;
     }
 
@@ -369,39 +383,70 @@ void StackBackend::handleLoadConst(const ValuePtr &constantValue)
     stack.push(constantValue);
 }
 
-void StackBackend::handleInterpolateString(int32_t partCount)
+void StackBackend::handleInterpolateString()
 {
-    std::string result;
-    for (int i = 0; i < partCount; ++i) {
-        if (stack.empty()) {
-            std::cerr << "Error: Stack underflow during string interpolation" << std::endl;
-            return;
-        }
-        auto part = stack.top();
-        stack.pop();
-
-        result = std::visit(
-                     [](const auto &v) -> std::string {
-                         using T = std::decay_t<decltype(v)>;
-                         if constexpr (std::is_same_v<T, std::monostate>) {
-                             return "";
-                         } else if constexpr (std::is_same_v<T, bool>) {
-                             return v ? "true" : "false";
-                         } else if constexpr (std::is_arithmetic_v<T>) {
-                             return std::to_string(v);
-                         } else if constexpr (std::is_same_v<T, std::string>) {
-                             return v;
-                         } else {
-                             return "Unsupported type";
-                         }
-                     },
-                     part->data)
-                 + result;
+    if (stack.size() < 2) {
+        std::cerr << "Error: Stack underflow during string interpolation" << std::endl;
+        return;
     }
 
+    // Pop the value to be interpolated
+    auto value = stack.top();
+    stack.pop();
+
+    // Pop the template string
+    auto templateStr = stack.top();
+    stack.pop();
+
+    std::string result;
+    std::string templateString;
+
+    // Convert template to string
+    std::visit(
+        [&templateString](const auto &v) {
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, std::string>) {
+                templateString = v;
+            } else {
+                std::cerr << "Error: Template is not a string" << std::endl;
+            }
+        },
+        templateStr->data);
+
+    // Find the first occurrence of {}
+    size_t pos = templateString.find("{}");
+    if (pos == std::string::npos) {
+        std::cerr << "Error: No {} found in template string" << std::endl;
+        return;
+    }
+
+    // Convert value to string
+    std::string interpolatedValue = std::visit(
+        [](const auto &v) -> std::string {
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, std::monostate>) {
+                return "null";
+            } else if constexpr (std::is_same_v<T, bool>) {
+                return v ? "true" : "false";
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                return std::to_string(v);
+            } else if constexpr (std::is_same_v<T, std::string>) {
+                return v;
+            } else {
+                return "Unsupported type";
+            }
+        },
+        value->data);
+
+    // Perform the interpolation
+    result = templateString.substr(0, pos) + interpolatedValue + templateString.substr(pos + 2);
+
+    // Create a new Value for the interpolated string
     ValuePtr interpolatedString = std::make_shared<Value>();
     interpolatedString->type = typeSystem.STRING_TYPE;
     interpolatedString->data = result;
+
+    // Push the result back onto the stack
     stack.push(interpolatedString);
 }
 
@@ -550,11 +595,17 @@ void StackBackend::handleJumpZero()
     }
 
     bool conditionValue = std::get<bool>(condition->data);
-    int64_t offsetValue = std::get<int64_t>(offset->data);
+    //int64_t offsetValue = std::get<int64_t>(offset->data);
 
     if (!conditionValue) {
         // Perform the jump
-        pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
+        // pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
+        if (std::holds_alternative<int64_t>(offset->data)) {
+            int64_t offsetValue = std::get<int64_t>(offset->data);
+            pc = offsetValue - 1;
+        } else {
+            std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
+        }
     }
 }
 
@@ -581,11 +632,13 @@ void StackBackend::handleParallel(int32_t taskCount)
     unsigned int instructionsPerTask = program.size() / taskCount;
 
     for (int32_t i = 0; i < taskCount; ++i) {
-        tasks.push_back([this, i, instructionsPerTask]() {
+        tasks.push_back([this, i, instructionsPerTask, &taskCount]() {
             unsigned int start = i * instructionsPerTask;
-            unsigned int end = (i + 1) * instructionsPerTask;
+            unsigned int end = (i == taskCount - 1) ? program.size() : start + instructionsPerTask;
+
             for (unsigned int j = start; j < end; ++j) {
-                execute(program[j]);
+                const Instruction &instruction = program[j];
+                execute(instruction);
             }
         });
     }

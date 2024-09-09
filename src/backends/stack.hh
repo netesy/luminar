@@ -40,7 +40,7 @@ private:
     void performComparisonOperation(const Instruction &instruction);
     void performLogicalOperation(const Instruction &instruction);
     void handleLoadConst(const ValuePtr &constantValue);
-    void handleInterpolateString(int32_t partCount);
+    void handleInterpolateString();
     void handlePrint();
     void handleHalt();
     void handleDeclareVariable(int32_t variableIndex);
