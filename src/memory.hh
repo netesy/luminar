@@ -1,83 +1,235 @@
 #pragma once
 
-#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <memory>
-#include <mutex>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+#include <dbghelp.h>
+#include <windows.h>
+#pragma comment(lib, "dbghelp.lib")
+#else
+#include <cxxabi.h>
+#include <dlfcn.h>
+#include <execinfo.h>
+#endif
+
+// Default allocator
+class DefaultAllocator
+{
+public:
+    void *allocate(size_t size, size_t alignment)
+    {
+        void *ptr = nullptr;
+        if (posix_memalign(&ptr, alignment, size) != 0) {
+            throw std::bad_alloc();
+        }
+        return ptr;
+    }
+
+    void deallocate(void *ptr) noexcept { free(ptr); }
+};
+
+template<typename Allocator = DefaultAllocator>
 class MemoryManager
 {
 private:
-    std::vector<void *> allocations;
+    struct AllocationInfo
+    {
+        size_t size;
+        std::chrono::steady_clock::time_point timestamp;
+        std::string stackTrace;
+
+        AllocationInfo(size_t s, const std::string &st)
+            : size(s)
+            , timestamp(std::chrono::steady_clock::now())
+            , stackTrace(st)
+        {}
+    };
+
+    std::unordered_map<void *, std::unique_ptr<AllocationInfo>> allocations;
+    bool auditMode;
+    Allocator allocator;
+
+    std::string captureStackTrace()
+    {
+#ifdef _WIN32
+        const int max_frames = 32;
+        void *callstack[max_frames];
+        HANDLE process = GetCurrentProcess();
+        SymInitialize(process, NULL, TRUE);
+        WORD frames = CaptureStackBackTrace(0, max_frames, callstack, NULL);
+
+        SYMBOL_INFO *symbol = (SYMBOL_INFO *) calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);
+        symbol->MaxNameLen = 255;
+        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+        std::ostringstream trace_stream;
+        for (int i = 0; i < frames; i++) {
+            SymFromAddr(process, (DWORD64) (callstack[i]), 0, symbol);
+            trace_stream << i << ": " << symbol->Name << " - 0x" << symbol->Address << "\n";
+        }
+        free(symbol);
+        return trace_stream.str();
+#else
+        const int max_frames = 32;
+        void *callstack[max_frames];
+        int frames = backtrace(callstack, max_frames);
+        char **strs = backtrace_symbols(callstack, frames);
+
+        std::ostringstream trace_stream;
+        for (int i = 0; i < frames; ++i) {
+            Dl_info info;
+            if (dladdr(callstack[i], &info)) {
+                char *demangled = nullptr;
+                int status;
+                demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
+                trace_stream << i << ": " << (demangled ? demangled : info.dli_sname) << " + "
+                             << (char *) callstack[i] - (char *) info.dli_saddr << "\n";
+                free(demangled);
+            } else {
+                trace_stream << i << ": " << strs[i] << "\n";
+            }
+        }
+        free(strs);
+        return trace_stream.str();
+#endif
+    }
+
+    std::string getTimestamp()
+    {
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+        return ss.str();
+    }
+
+    void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
+    {
+        void *ptr = allocator.allocate(size, alignment);
+
+        auto info = std::make_unique<AllocationInfo>(size, auditMode ? captureStackTrace() : "");
+
+        if (auditMode) {
+            std::cout << "[AUDIT] Allocation: " << size << " bytes at " << ptr
+                      << " (alignment: " << alignment << ") "
+                      << " (" << getTimestamp() << ")\n";
+        }
+
+        allocations[ptr] = std::move(info);
+        return ptr;
+    }
+
+    void deallocate(void *ptr)
+    {
+        auto it = allocations.find(ptr);
+        if (it != allocations.end()) {
+            if (auditMode) {
+                auto duration = std::chrono::steady_clock::now() - it->second->timestamp;
+                std::cout << "[AUDIT] Deallocation: " << it->second->size << " bytes at " << ptr
+                          << " (" << getTimestamp() << "), lived for "
+                          << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+                          << "ms\n";
+            }
+            allocator.deallocate(ptr);
+            allocations.erase(it);
+        }
+    }
 
 public:
+    MemoryManager(bool enableAuditMode = false, const Allocator &alloc = Allocator())
+        : auditMode(enableAuditMode)
+        , allocator(alloc)
+    {}
+
+    void setAuditMode(bool enable) { auditMode = enable; }
+
     static void logMemoryUsage(const std::string &msg)
     {
         std::cout << "[MemoryManager] " << msg << "\n";
     }
 
-    template<typename T>
-    void trackAllocation(T *ptr)
-    {
-        logMemoryUsage("Allocated " + std::to_string(sizeof(T)) + " bytes.");
-        allocations.push_back(ptr);
-    }
-
     void reportLeaks()
     {
-        for (void *ptr : allocations) {
-            if (ptr) {
-                std::cout << "Leaked memory at " << ptr << "\n";
+        if (allocations.empty()) {
+            std::cout << "No memory leaks detected.\n";
+            return;
+        }
+
+        std::cout << "Memory leaks detected:\n";
+        for (const auto &[ptr, info] : allocations) {
+            auto duration = std::chrono::steady_clock::now() - info->timestamp;
+            std::cout << "- Leak: " << info->size << " bytes at " << ptr << ", allocated "
+                      << std::chrono::duration_cast<std::chrono::seconds>(duration).count()
+                      << " seconds ago\n";
+            if (auditMode && !info->stackTrace.empty()) {
+                std::cout << "  Stack trace:\n" << info->stackTrace << "\n";
             }
         }
+    }
+
+    size_t getTotalAllocatedMemory() const
+    {
+        size_t total = 0;
+        for (const auto &[ptr, info] : allocations) {
+            total += info->size;
+        }
+        return total;
     }
 
     ~MemoryManager() { reportLeaks(); }
 
     class Region
     {
+    private:
+        MemoryManager &manager;
+        std::vector<void *> regionAllocations;
+
     public:
-        Region() { std::cout << "Region created.\n"; }
+        explicit Region(MemoryManager &mgr)
+            : manager(mgr)
+        {
+            std::cout << "Region created.\n";
+        }
 
         ~Region()
         {
-            for (auto &ptr : allocations) {
-                delete[] static_cast<char *>(ptr);
+            for (void *ptr : regionAllocations) {
+                manager.deallocate(ptr);
             }
             std::cout << "Region destroyed. Memory deallocated.\n";
         }
 
         template<typename T, typename... Args>
-        T *createLinear(Args &&...args)
+        T *create(Args &&...args)
         {
-            T *obj = new T(std::forward<Args>(args)...);
-            allocations.push_back(static_cast<void *>(obj));
+            void *memory = manager.allocate(sizeof(T), alignof(T));
+            T *obj = new (memory) T(std::forward<Args>(args)...);
+            regionAllocations.push_back(memory);
             return obj;
         }
-
-        template<typename T, typename... Args>
-        T *createRef(Args &&...args)
-        {
-            return createLinear<T>(std::forward<Args>(args)...);
-        }
-
-    private:
-        std::vector<void *> allocations;
     };
-
-    template<typename T>
-    class Ref;
 
     template<typename T>
     class Linear
     {
+    private:
+        T *ptr;
+        Region *region;
+
     public:
-        explicit Linear(Region &region, T *ptr) noexcept
-            : ptr(ptr)
-            , region(&region)
+        explicit Linear(Region &r, T *p)
+            : ptr(p)
+            , region(&r)
         {
             std::cout << "Linear object created.\n";
         }
@@ -111,112 +263,62 @@ public:
             }
         }
 
-        T *operator->() const noexcept { return ptr; }
-        T &operator*() const noexcept { return *ptr; }
-        T *get() const noexcept { return ptr; }
+        T *operator->() const { return ptr; }
+        T &operator*() const { return *ptr; }
+        T *get() const { return ptr; }
 
-        Ref<T> toRef() const
-        {
-            std::cout << "Converting Linear to Reference.\n";
-            return Ref<T>(*region, ptr);
-        }
-
-        void transferOwnership(Linear<T> &target)
-        {
-            if (this != &target) {
-                target.ptr = this->ptr;
-                target.region = this->region;
-                this->ptr = nullptr;
-                this->region = nullptr;
-            }
-        }
-
-        T *borrow() const noexcept
+        T *borrow() const
         {
             std::cout << "Borrowing Linear resource.\n";
             return ptr;
         }
-
-    private:
-        T *ptr;
-        Region *region;
     };
 
     template<typename T>
     class Ref
     {
+    private:
+        T *ref;
+        Region *region;
+
     public:
-        Ref(Region &region, T *ptr) noexcept
-            : ref(ptr)
-            , region(&region)
+        Ref(Region &r, T *p)
+            : ref(p)
+            , region(&r)
         {
             std::cout << "Reference created.\n";
         }
 
-        T *operator->() const noexcept { return ref; }
-        T &operator*() const noexcept { return *ref; }
-        T *get() const noexcept { return ref; }
-
-        Linear<T> toLinear()
-        {
-            std::cout << "Converting Reference to Linear.\n";
-            T *tmp = ref;
-            ref = nullptr;
-            return Linear<T>(*region, tmp);
-        }
-
-        class WeakRef
-        {
-        public:
-            WeakRef() = default;
-
-            explicit WeakRef(std::atomic<T *> &ref_ptr) noexcept
-                : weak_ref(&ref_ptr)
-            {}
-
-            T *lock() const noexcept
-            {
-                T *tmp = weak_ref->load();
-                return tmp;
-            }
-
-        private:
-            std::atomic<T *> *weak_ref{nullptr};
-        };
-
-        WeakRef toWeakRef() const noexcept { return WeakRef(weak_ref); }
-
-    private:
-        T *ref;
-        Region *region;
-        mutable std::atomic<T *> weak_ref{nullptr};
-        mutable std::mutex ref_mutex;
-
-        void makeThreadSafe() { std::lock_guard<std::mutex> lock(ref_mutex); }
+        T *operator->() const { return ref; }
+        T &operator*() const { return *ref; }
+        T *get() const { return ref; }
     };
 
     class Unsafe
     {
     public:
-        static void *allocate(std::size_t size)
+        static void *allocate(std::size_t size, std::size_t alignment = alignof(std::max_align_t))
         {
-            std::cout << "Unsafe allocate: " << size << " bytes\n";
-            return new char[size];
+            std::cout << "Unsafe allocate: " << size << " bytes (alignment: " << alignment << ")\n";
+            return DefaultAllocator().allocate(size, alignment);
         }
 
         static void deallocate(void *ptr) noexcept
         {
             std::cout << "Unsafe deallocate\n";
-            delete[] static_cast<char *>(ptr);
+            DefaultAllocator().deallocate(ptr);
         }
 
-        static void *resize(void *ptr, std::size_t new_size)
+        static void *resize(void *ptr,
+                            std::size_t new_size,
+                            std::size_t alignment = alignof(std::max_align_t))
         {
-            std::cout << "Unsafe resize to " << new_size << " bytes\n";
-            void *new_ptr = ::operator new(new_size);
+            std::cout << "Unsafe resize to " << new_size << " bytes (alignment: " << alignment
+                      << ")\n";
+            void *new_ptr = DefaultAllocator().allocate(new_size, alignment);
             if (ptr) {
-                std::memcpy(new_ptr, ptr, new_size); // Note: Need to copy the old data here
-                ::operator delete(ptr);
+                std::memcpy(new_ptr, ptr, new_size);
+                DefaultAllocator().deallocate(ptr);
             }
             return new_ptr;
         }
@@ -248,125 +350,49 @@ public:
             std::memmove(dest, src, num);
         }
     };
+
+    template<typename T, typename... Args>
+    Linear<T> makeLinear(Region &region, Args &&...args)
+    {
+        return Linear<T>(region, region.create<T>(std::forward<Args>(args)...));
+    }
+
+    template<typename T, typename... Args>
+    Ref<T> makeRef(Region &region, Args &&...args)
+    {
+        return Ref<T>(region, region.create<T>(std::forward<Args>(args)...));
+    }
 };
 
 // Example usage
 int main()
 {
-    // Linear-First Approach: Using Regions with Linear Types
+    MemoryManager<> memoryManager(true); // Enable audit mode with default allocator
+    MemoryManager<>::Region globalRegion(memoryManager);
+
+    auto linearInt = memoryManager.makeLinear<int>(globalRegion, 42);
+    std::cout << "Linear int value: " << *linearInt << "\n";
+
+    struct ComplexObject
     {
-        std::cout << "\n--- Linear-First Approach ---\n";
-        MemoryManager::Region region;
+        int x;
+        double y;
+        ComplexObject(int x, double y)
+            : x(x)
+            , y(y)
+        {}
+    };
 
-        // Create a Linear object
-        MemoryManager::Linear<int> lin(region, region.createLinear<int>(42));
-        std::cout << "Linear value: " << *lin << "\n";
+    auto linearComplex = memoryManager.makeLinear<ComplexObject>(globalRegion, 10, 3.14);
+    std::cout << "Linear complex object: x = " << linearComplex->x << ", y = " << linearComplex->y
+              << "\n";
 
-        // Convert Linear to Ref
-        auto ref = lin.toRef();
-        std::cout << "Converted Reference value: " << *ref << "\n";
+    // Using Unsafe operations
+    void *rawMemory = MemoryManager<>::Unsafe::allocate(1024,
+                                                        64); // 1024 bytes aligned to 64-byte boundary
+    MemoryManager<>::Unsafe::deallocate(rawMemory);
 
-        // Borrow the resource
-        int *borrowed = lin.borrow();
-        std::cout << "Borrowed Linear value: " << *borrowed << "\n";
-
-        // Convert Ref back to Linear
-        auto linAgain = ref.toLinear();
-        std::cout << "Linear value after conversion: " << *linAgain << "\n";
-    }
-
-    // Reference-First Approach: Using Regions with References
-    {
-        std::cout << "\n--- Reference-First Approach ---\n";
-        MemoryManager::Region region;
-
-        // Create a Ref object
-        MemoryManager::Ref<int> ref(region, region.createRef<int>(100));
-        std::cout << "Reference value: " << *ref << "\n";
-
-        // Convert Ref to Linear
-        auto lin = ref.toLinear();
-        std::cout << "Converted Linear value: " << *lin << "\n";
-
-        // Convert Linear back to Ref
-        auto refAgain = lin.toRef();
-        std::cout << "Reference value after conversion: " << *refAgain << "\n";
-
-        // Create a weak reference
-        auto weakRef = refAgain.toWeakRef();
-        if (auto lockedRef = weakRef.lock()) {
-            std::cout << "Weak reference locked value: " << *lockedRef << "\n";
-        } else {
-            std::cout << "Weak reference is expired.\n";
-        }
-    }
-
-    // Manual Memory Management: Unsafe Mode
-    {
-        std::cout << "\n--- Manual Memory Management (Unsafe Mode) ---\n";
-        // Allocate memory
-        int *buffer = static_cast<int *>(MemoryManager::Unsafe::allocate(5 * sizeof(int)));
-
-        // Initialize memory
-        for (int i = 0; i < 5; ++i) {
-            buffer[i] = i * 10;
-        }
-
-        // Print initial values
-        std::cout << "Initial values: ";
-        for (int i = 0; i < 5; ++i) {
-            std::cout << buffer[i] << " ";
-        }
-        std::cout << "\n";
-
-        // Resize to a larger size
-        int *new_buffer = static_cast<int *>(
-            MemoryManager::Unsafe::resize(buffer, 10 * sizeof(int)));
-        MemoryManager::Unsafe::copy(new_buffer, buffer, 5 * sizeof(int));
-        MemoryManager::Unsafe::deallocate(buffer);
-        buffer = new_buffer;
-
-        // Initialize new elements
-        for (int i = 5; i < 10; ++i) {
-            buffer[i] = i * 10;
-        }
-
-        // Print new values
-        std::cout << "After resize: ";
-        for (int i = 0; i < 10; ++i) {
-            std::cout << buffer[i] << " ";
-        }
-        std::cout << "\n";
-
-        // Use set to set all values to 0
-        MemoryManager::Unsafe::set(buffer, 0, 10 * sizeof(int));
-
-        // Print after set
-        std::cout << "After set: ";
-        for (int i = 0; i < 10; ++i) {
-            std::cout << buffer[i] << " ";
-        }
-        std::cout << "\n";
-
-        // Allocate and initialize new memory using allocateZeroed
-        int *zeroed = static_cast<int *>(MemoryManager::Unsafe::allocateZeroed(5, sizeof(int)));
-
-        // Print zeroed memory
-        std::cout << "Zeroed memory: ";
-        for (int i = 0; i < 5; ++i) {
-            std::cout << zeroed[i] << " ";
-        }
-        std::cout << "\n";
-
-        // Compare memory
-        MemoryManager::Unsafe::copy(zeroed, buffer, 5 * sizeof(int));
-        int cmp_result = MemoryManager::Unsafe::compare(buffer, zeroed, 5 * sizeof(int));
-        std::cout << "Compare result: " << cmp_result << "\n";
-
-        // Cleanup
-        MemoryManager::Unsafe::deallocate(buffer);
-        MemoryManager::Unsafe::deallocate(zeroed);
-    }
+    std::cout << "\nLeaving scope, all memory should be deallocated.\n";
 
     return 0;
 }
