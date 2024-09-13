@@ -5,6 +5,21 @@
 #include <stdexcept>
 #include <type_traits>
 
+StackBackend::StackBackend(std::vector<Instruction> &program)
+    : program(program)
+    , memoryManager(true)
+    , globalRegion(memoryManager)
+{
+    regionStack.push(&globalRegion);
+}
+
+StackBackend::~StackBackend()
+{
+    while (!regionStack.empty()) {
+        popRegion();
+    }
+}
+
 void StackBackend::run(const std::vector<Instruction> &program)
 {
     this->program = program;
@@ -27,6 +42,11 @@ void StackBackend::run(const std::vector<Instruction> &program)
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
     std::cout << "VM ran for a total of  " << duration.count() << " microseconds." << std::endl;
+
+    // Print memory statistics
+    memoryManager.reportLeaks();
+    memoryManager.printStatistics();
+    memoryManager.~MemoryManager();
 }
 
 void StackBackend::execute(const Instruction &instruction)
@@ -380,7 +400,12 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
 
 void StackBackend::handleLoadConst(const ValuePtr &constantValue)
 {
-    stack.push(constantValue);
+    //stack.push(constantValue);
+    auto linearValue = memoryManager.makeLinear<Value>(currentRegion(), *constantValue);
+    auto sharedValue = std::make_shared<Value>(*linearValue);
+
+    // Push the linear value onto the stack
+    stack.push(sharedValue);
 }
 
 void StackBackend::handleInterpolateString()
@@ -456,9 +481,20 @@ void StackBackend::handlePrint()
         std::cerr << "Error: value stack underflow" << std::endl;
         return;
     }
-    std::visit([](const auto &value) { std::cout << "The result: " << value << std::endl; },
-               stack.top()->data);
+
+    auto value = stack.top();
     stack.pop();
+
+    // Ensure that the value is managed by the memory manager
+    if (value->type == typeSystem.STRING_TYPE) {
+        // Example: Perform a memory management operation
+        auto managedValue = memoryManager.makeLinear<Value>(currentRegion(), *value);
+        std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
+                   managedValue->data);
+    } else {
+        std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
+                   value->data);
+    }
 }
 
 void StackBackend::handleHalt()
@@ -471,6 +507,13 @@ void StackBackend::handleDeclareVariable(int32_t variableIndex)
 {
     if (variableIndex >= static_cast<int32_t>(variables.size())) {
         variables.resize(variableIndex + 1);
+    }
+    //    variables[variableIndex] = memoryManager.makeLinear<Value>(currentRegion());
+
+    // Initialize the variable in the current region
+    if (!variables[variableIndex]) {
+        auto linearValue = memoryManager.makeLinear<Value>(currentRegion());
+        variables[variableIndex] = std::make_shared<Value>(*linearValue);
     }
 }
 
@@ -529,11 +572,14 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
 
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
+    pushRegion(); // Create a new region for the function call
     if (functions.find(functionName) == functions.end()) {
         std::cerr << "Error: Function not declared" << std::endl;
+        popRegion();
         return;
     }
     functions[functionName]();
+    popRegion();
 }
 
 void StackBackend::handlePushArg(const Instruction &instruction)
@@ -624,6 +670,24 @@ void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
     }
 
     threads.clear();
+}
+
+void StackBackend::pushRegion()
+{
+    regionStack.push(new MemoryManager<>::Region(memoryManager));
+}
+
+void StackBackend::popRegion()
+{
+    if (regionStack.size() > 1) { // Always keep the global region
+        delete regionStack.top();
+        regionStack.pop();
+    }
+}
+
+MemoryManager<>::Region &StackBackend::currentRegion()
+{
+    return *regionStack.top();
 }
 
 void StackBackend::handleParallel(int32_t taskCount)

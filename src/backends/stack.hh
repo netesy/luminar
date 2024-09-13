@@ -1,6 +1,7 @@
 #ifndef STACK_HH
 #define STACK_HH
 
+#include "../memory.hh"
 #include "../types.hh"
 #include "backend.hh"
 #include <functional>
@@ -16,13 +17,15 @@
 class StackBackend : public Backend
 {
 public:
-    explicit StackBackend(std::vector<Instruction> &program)
-        : program(program)
-    {}
+    explicit StackBackend(std::vector<Instruction> &program);
+    ~StackBackend();
 
     void run(const std::vector<Instruction> &program) override;
     void execute(const Instruction &instruction) override;
     void dumpRegisters() override;
+
+    void setUnsafeMode(bool enable) { unsafeMode = enable; }
+    bool isUnsafeMode() const { return unsafeMode; }
 
 private:
     std::stack<ValuePtr> stack;
@@ -34,6 +37,12 @@ private:
     std::vector<Instruction> program;
     size_t pc = 0;
     TypeSystem typeSystem;
+    bool unsafeMode = false;
+
+    // Add MemoryManager
+    MemoryManager<> memoryManager;
+    MemoryManager<>::Region globalRegion;
+    std::stack<MemoryManager<>::Region *> regionStack;
 
     void performUnaryOperation(const Instruction &instruction);
     void performBinaryOperation(const Instruction &instruction);
@@ -54,6 +63,15 @@ private:
     void handleParallel(int32_t taskCount);
     void handleConcurrent(int32_t taskCount);
     void concurrent(std::vector<std::function<void()>> tasks);
+
+    void handleAlloc(const Instruction &instruction);
+    void handleDealloc(const Instruction &instruction);
+    void handleResize(const Instruction &instruction);
+
+    // New methods for region management
+    void pushRegion();
+    void popRegion();
+    MemoryManager<>::Region &currentRegion();
 };
 
 #endif // STACK_BACKEND_HH
