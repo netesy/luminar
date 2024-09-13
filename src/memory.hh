@@ -1,5 +1,7 @@
 #pragma once
+// memory.hh
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -12,30 +14,48 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef _WIN32
-#include <dbghelp.h>
-#include <windows.h>
-#pragma comment(lib, "dbghelp.lib")
-#else
-#include <cxxabi.h>
-#include <dlfcn.h>
-#include <execinfo.h>
-#endif
+// Compile-time stack trace macros
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define CURRENT_FUNCTION __FUNCTION__
+#define CURRENT_LINE __LINE__
 
-// Default allocator
+#define TRACE_INFO() (std::string(CURRENT_FUNCTION) + " at line " + TOSTRING(CURRENT_LINE))
+
+// Default allocator (unchanged)
 class DefaultAllocator
 {
 public:
     void *allocate(size_t size, size_t alignment)
     {
         void *ptr = nullptr;
+
+#ifdef _WIN32
+        // Windows-specific alignment allocation
+        ptr = _aligned_malloc(size, alignment);
+        if (!ptr) {
+            throw std::bad_alloc();
+        }
+#else
+        // POSIX-specific alignment allocation
         if (posix_memalign(&ptr, alignment, size) != 0) {
             throw std::bad_alloc();
         }
+#endif
+
         return ptr;
     }
 
-    void deallocate(void *ptr) noexcept { free(ptr); }
+    void deallocate(void *ptr) noexcept
+    {
+#ifdef _WIN32
+        // Windows-specific deallocation
+        _aligned_free(ptr);
+#else
+        // POSIX-specific deallocation
+        free(ptr);
+#endif
+    }
 };
 
 template<typename Allocator = DefaultAllocator>
@@ -59,50 +79,12 @@ private:
     bool auditMode;
     Allocator allocator;
 
-    std::string captureStackTrace()
-    {
-#ifdef _WIN32
-        const int max_frames = 32;
-        void *callstack[max_frames];
-        HANDLE process = GetCurrentProcess();
-        SymInitialize(process, NULL, TRUE);
-        WORD frames = CaptureStackBackTrace(0, max_frames, callstack, NULL);
-
-        SYMBOL_INFO *symbol = (SYMBOL_INFO *) calloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char), 1);
-        symbol->MaxNameLen = 255;
-        symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-
-        std::ostringstream trace_stream;
-        for (int i = 0; i < frames; i++) {
-            SymFromAddr(process, (DWORD64) (callstack[i]), 0, symbol);
-            trace_stream << i << ": " << symbol->Name << " - 0x" << symbol->Address << "\n";
-        }
-        free(symbol);
-        return trace_stream.str();
-#else
-        const int max_frames = 32;
-        void *callstack[max_frames];
-        int frames = backtrace(callstack, max_frames);
-        char **strs = backtrace_symbols(callstack, frames);
-
-        std::ostringstream trace_stream;
-        for (int i = 0; i < frames; ++i) {
-            Dl_info info;
-            if (dladdr(callstack[i], &info)) {
-                char *demangled = nullptr;
-                int status;
-                demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
-                trace_stream << i << ": " << (demangled ? demangled : info.dli_sname) << " + "
-                             << (char *) callstack[i] - (char *) info.dli_saddr << "\n";
-                free(demangled);
-            } else {
-                trace_stream << i << ": " << strs[i] << "\n";
-            }
-        }
-        free(strs);
-        return trace_stream.str();
-#endif
-    }
+    // Memory statistics
+    size_t totalAllocated;
+    size_t peakMemoryUsage;
+    size_t allocationCount;
+    size_t deallocationCount;
+    size_t largestAllocation;
 
     std::string getTimestamp()
     {
@@ -117,15 +99,22 @@ private:
     {
         void *ptr = allocator.allocate(size, alignment);
 
-        auto info = std::make_unique<AllocationInfo>(size, auditMode ? captureStackTrace() : "");
+        auto info = std::make_unique<AllocationInfo>(size, auditMode ? TRACE_INFO() : "");
 
         if (auditMode) {
-            std::cout << "[AUDIT] Allocation: " << size << " bytes at " << ptr
+            std::cout << "\n[AUDIT] Allocation: " << size << " bytes at " << ptr
                       << " (alignment: " << alignment << ") "
                       << " (" << getTimestamp() << ")\n";
         }
 
         allocations[ptr] = std::move(info);
+
+        // Update statistics
+        totalAllocated += size;
+        peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
+        allocationCount++;
+        largestAllocation = std::max(largestAllocation, size);
+
         return ptr;
     }
 
@@ -135,11 +124,16 @@ private:
         if (it != allocations.end()) {
             if (auditMode) {
                 auto duration = std::chrono::steady_clock::now() - it->second->timestamp;
-                std::cout << "[AUDIT] Deallocation: " << it->second->size << " bytes at " << ptr
+                std::cout << "\n\n[AUDIT] Deallocation: " << it->second->size << " bytes at " << ptr
                           << " (" << getTimestamp() << "), lived for "
                           << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
-                          << "ms\n";
+                          << "ms\n\n";
             }
+
+            // Update statistics
+            totalAllocated -= it->second->size;
+            deallocationCount++;
+
             allocator.deallocate(ptr);
             allocations.erase(it);
         }
@@ -149,6 +143,11 @@ public:
     MemoryManager(bool enableAuditMode = false, const Allocator &alloc = Allocator())
         : auditMode(enableAuditMode)
         , allocator(alloc)
+        , totalAllocated(0)
+        , peakMemoryUsage(0)
+        , allocationCount(0)
+        , deallocationCount(0)
+        , largestAllocation(0)
     {}
 
     void setAuditMode(bool enable) { auditMode = enable; }
@@ -177,16 +176,39 @@ public:
         }
     }
 
-    size_t getTotalAllocatedMemory() const
+    size_t getTotalAllocatedMemory() const { return totalAllocated; }
+
+    size_t getPeakMemoryUsage() const { return peakMemoryUsage; }
+
+    size_t getAllocationCount() const { return allocationCount; }
+
+    size_t getDeallocationCount() const { return deallocationCount; }
+
+    size_t getLargestAllocation() const { return largestAllocation; }
+
+    double getAverageAllocationSize() const
     {
-        size_t total = 0;
-        for (const auto &[ptr, info] : allocations) {
-            total += info->size;
-        }
-        return total;
+        return allocationCount > 0 ? static_cast<double>(totalAllocated) / allocationCount : 0.0;
     }
 
-    ~MemoryManager() { reportLeaks(); }
+    void printStatistics() const
+    {
+        std::cout << "=======================================\n\n"
+                  << "Memory Manager Statistics:\n"
+                  << "  Current Total Allocated: " << totalAllocated << " bytes\n"
+                  << "  Peak Memory Usage: " << peakMemoryUsage << " bytes\n"
+                  << "  Number of Allocations: " << allocationCount << "\n"
+                  << "  Number of Deallocations: " << deallocationCount << "\n"
+                  << "  Largest Allocation: " << largestAllocation << " bytes\n"
+                  << "  Average Allocation Size: " << getAverageAllocationSize() << " bytes\n"
+                  << "=======================================\n\n";
+    }
+
+    ~MemoryManager()
+    {
+        reportLeaks();
+        printStatistics();
+    }
 
     class Region
     {
@@ -354,45 +376,148 @@ public:
     template<typename T, typename... Args>
     Linear<T> makeLinear(Region &region, Args &&...args)
     {
-        return Linear<T>(region, region.create<T>(std::forward<Args>(args)...));
+        return Linear<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 
     template<typename T, typename... Args>
     Ref<T> makeRef(Region &region, Args &&...args)
     {
-        return Ref<T>(region, region.create<T>(std::forward<Args>(args)...));
+        return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 };
 
 // Example usage
-int main()
-{
-    MemoryManager<> memoryManager(true); // Enable audit mode with default allocator
-    MemoryManager<>::Region globalRegion(memoryManager);
+//int main()
+//{
+//    // Enable audit mode to show memory allocations and deallocations
+//    MemoryManager<> memoryManager(true);
+//    MemoryManager<>::Region globalRegion(memoryManager); // Global region to handle memory
 
-    auto linearInt = memoryManager.makeLinear<int>(globalRegion, 42);
-    std::cout << "Linear int value: " << *linearInt << "\n";
+//    // Safe code demonstration with linear types and regions
+//    {
+//        std::cout << "\n--- Safe Code: Linear Types and Regions Demonstration ---\n";
 
-    struct ComplexObject
-    {
-        int x;
-        double y;
-        ComplexObject(int x, double y)
-            : x(x)
-            , y(y)
-        {}
-    };
+//        // Create a linear object in the global region
+//        auto linearInt = memoryManager.makeLinear<int>(globalRegion, 42);
+//        std::cout << "Linear int value: " << *linearInt << "\n";
 
-    auto linearComplex = memoryManager.makeLinear<ComplexObject>(globalRegion, 10, 3.14);
-    std::cout << "Linear complex object: x = " << linearComplex->x << ", y = " << linearComplex->y
-              << "\n";
+//        // Create a more complex linear object
+//        struct ComplexObject
+//        {
+//            int x;
+//            double y;
+//            ComplexObject(int x, double y)
+//                : x(x)
+//                , y(y)
+//            {}
+//        };
 
-    // Using Unsafe operations
-    void *rawMemory = MemoryManager<>::Unsafe::allocate(1024,
-                                                        64); // 1024 bytes aligned to 64-byte boundary
-    MemoryManager<>::Unsafe::deallocate(rawMemory);
+//        auto linearComplex = memoryManager.makeLinear<ComplexObject>(globalRegion, 10, 3.14);
+//        std::cout << "Linear complex object: x = " << linearComplex->x
+//                  << ", y = " << linearComplex->y << "\n";
 
-    std::cout << "\nLeaving scope, all memory should be deallocated.\n";
+//        // Create a reference to an int in the global region
+//        auto refInt = memoryManager.makeRef<int>(globalRegion, 100);
+//        std::cout << "Reference int value: " << *refInt << "\n";
 
-    return 0;
-}
+//        // Borrow the value from a linear object (safe borrowing)
+//        int *borrowedInt = linearInt.borrow();
+//        std::cout << "Borrowed int value: " << *borrowedInt << "\n";
+
+//        // Demonstrate move semantics with linear types (safe move)
+//        auto movedLinearInt = std::move(linearInt);
+//        std::cout << "Moved linear int value: " << *movedLinearInt << "\n";
+
+//        // Report total allocated memory in safe code
+//        std::cout << "Total allocated memory: " << memoryManager.getTotalAllocatedMemory()
+//                  << " bytes\n";
+
+//        // Objects will be automatically deallocated when the region is destroyed
+//    }
+
+//    // Unsafe code demonstration
+//    std::cout << "\n--- Unsafe Memory Operations Demonstration ---\n";
+
+//    // 1. Allocate memory (unsafe)
+//    std::cout << "Allocating 100 bytes using unsafe allocate...\n";
+//    void *unsafeMemory = MemoryManager<>::Unsafe::allocate(100);
+
+//    // 2. Set memory to a value (unsafe)
+//    std::cout << "Setting all bytes to 'A'...\n";
+//    MemoryManager<>::Unsafe::set(unsafeMemory, 'A', 100);
+
+//    // 3. Copy memory (unsafe)
+//    std::cout << "Allocating another 100 bytes...\n";
+//    void *unsafeCopyMemory = MemoryManager<>::Unsafe::allocate(100);
+//    std::cout << "Copying memory content to new block...\n";
+//    MemoryManager<>::Unsafe::copy(unsafeCopyMemory, unsafeMemory, 100);
+
+//    // 4. Compare memory (unsafe)
+//    std::cout << "Comparing the two blocks...\n";
+//    if (MemoryManager<>::Unsafe::compare(unsafeMemory, unsafeCopyMemory, 100) == 0) {
+//        std::cout << "Memory blocks are identical.\n";
+//    } else {
+//        std::cout << "Memory blocks are different.\n";
+//    }
+
+//    // 5. Resize memory (unsafe, can lead to leaks)
+//    std::cout << "Resizing the first block to 200 bytes (possible leak if not handled)...\n";
+//    void *resizedMemory = MemoryManager<>::Unsafe::resize(unsafeMemory, 200);
+
+//    // 6. Move memory (unsafe)
+//    std::cout << "Moving content from the second block to a third block...\n";
+//    void *unsafeMoveMemory = MemoryManager<>::Unsafe::allocate(100);
+//    MemoryManager<>::Unsafe::move(unsafeMoveMemory, unsafeCopyMemory, 100);
+
+//    // Incorrect usage leading to memory leak:
+//    std::cout << "\n--- Incorrect Usage: Memory Leak ---\n";
+//    std::cout << "Forgetting to deallocate the original second block...\n";
+//    // Memory leak here, since the second block is not deallocated before overwriting.
+
+//    // Correct usage: Deallocate all the blocks
+//    std::cout << "\n--- Correct Usage: Cleaning Up ---\n";
+//    MemoryManager<>::Unsafe::deallocate(resizedMemory);    // Properly deallocate resized memory
+//    MemoryManager<>::Unsafe::deallocate(unsafeCopyMemory); // Deallocate copy memory
+//    MemoryManager<>::Unsafe::deallocate(unsafeMoveMemory); // Deallocate moved memory
+
+//    std::cout << "All memory blocks have been properly deallocated.\n";
+
+//    // Unsafe memory management with linear types and references
+//    std::cout << "\n--- Unsafe Memory Management with Linear Types and References ---\n";
+
+//    // 1. Allocate memory using linear types
+//    {
+//        // Use a region to handle memory
+//        MemoryManager<>::Region region(memoryManager);
+
+//        // Create objects with potential circular references
+//        struct Node
+//        {
+//            int value;
+//            Node *next;
+//            Node(int v)
+//                : value(v)
+//                , next(nullptr)
+//            {}
+//        };
+
+//        // Create two nodes with a circular reference
+//        auto node1 = memoryManager.makeLinear<Node>(region, 1);
+//        auto node2 = memoryManager.makeLinear<Node>(region, 2);
+
+//        // Circular reference assignment
+//        node1->next = node2.get();
+//        node2->next = node1.get();
+
+//        std::cout << "Node1 value: " << node1->value << "\n";
+//        std::cout << "Node2 value: " << node2->value << "\n";
+
+//        // Explicitly handle circular references:
+//        node1->next = nullptr; // Break the cycle
+//        node2->next = nullptr;
+
+//        // Clean up is handled automatically by the region
+//    }
+
+//    return 0;
+//}
