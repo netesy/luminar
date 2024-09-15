@@ -1,6 +1,7 @@
 //types.hh
 #pragma once
 
+#include "memory.hh"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -257,6 +258,17 @@ struct Value
                  UserDefinedValue>
         data;
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
+    //    // Add this constructor
+    //    Value(const std::shared_ptr<Value> &other)
+    //        : type(other->type)
+    //        , data(other->data)
+    //    {}
+
+    //    // Add this constructor
+    //    Value(const MemoryManager<>::Ref<Value> &other)
+    //        : type(other->type)
+    //        , data(other->data)
+    //    {}
 };
 
 class TypeSystem
@@ -264,6 +276,7 @@ class TypeSystem
 private:
     std::map<std::string, TypePtr> userDefinedTypes;
     std::map<std::string, TypePtr> typeAliases;
+    MemoryManager<> memoryManager;
 
     bool canConvert(TypePtr from, TypePtr to)
     {
@@ -1057,6 +1070,21 @@ public:
             value->data);
 
         return result;
+    }
+
+    MemoryManager<>::Ref<Value> convert(const MemoryManager<>::Ref<Value> &value, TypePtr targetType)
+    {
+        // Create a temporary shared_ptr to use with the existing convert function
+        auto sharedValue = std::make_shared<Value>(*value);
+        auto convertedSharedValue = convert(sharedValue, targetType);
+
+        // Use the region from the input value
+        auto &region = value.getRegion();
+
+        // Create a new Ref<Value> in the same region as the input value
+        return memoryManager.makeRef<Value>(
+            region,
+            *convertedSharedValue); //MemoryManager<>::makeRef<Value>(region, *convertedSharedValue);
     }
 };
 
