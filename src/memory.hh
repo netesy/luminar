@@ -294,6 +294,7 @@ public:
             std::cout << "Borrowing Linear resource.\n";
             return ptr;
         }
+        Region &getRegion() const { return *region; }
     };
 
     template<typename T>
@@ -304,6 +305,12 @@ public:
         Region *region;
 
     public:
+        Ref()
+            : region(nullptr)
+            , ref(nullptr)
+        {
+            std::cout << "Reference created.\n";
+        }
         Ref(Region &r, T *p)
             : ref(p)
             , region(&r)
@@ -314,6 +321,7 @@ public:
         T *operator->() const { return ref; }
         T &operator*() const { return *ref; }
         T *get() const { return ref; }
+        Region &getRegion() const { return *region; }
     };
 
     class Unsafe
@@ -376,12 +384,45 @@ public:
     template<typename T, typename... Args>
     Linear<T> makeLinear(Region &region, Args &&...args)
     {
+        //        if constexpr (sizeof...(Args) == 1
+        //                      && std::is_same_v<std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>,
+        //                                        std::shared_ptr<T>>) {
+        //            // Handle case where a shared_ptr<T> is passed
+        //            const auto &sharedPtr = std::get<0>(std::forward_as_tuple(std::forward<Args>(args)...));
+        //            T *obj = region.template create<T>(*sharedPtr); // Copy from shared_ptr
+        //            return Linear<T>(region, obj);
+        //        } else {
+        //            // Handle regular case
+        //            return Linear<T>(region, region.template create<T>(std::forward<Args>(args)...));
+        //        }
+        if constexpr (sizeof...(Args) == 1) {
+            using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
+            if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
+                // Handle case where a shared_ptr<T> is passed
+                const auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
+                T *obj = region.template create<T>(*sharedPtr); // Copy from shared_ptr
+                return Linear<T>(region, obj);
+            }
+        }
+
+        // Handle regular case
         return Linear<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 
     template<typename T, typename... Args>
     Ref<T> makeRef(Region &region, Args &&...args)
     {
+        if constexpr (sizeof...(Args) == 1) {
+            using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
+            if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
+                // Handle case where a shared_ptr<T> is passed
+                const auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
+                T *obj = region.template create<T>(*sharedPtr); // Copy from shared_ptr
+                return Ref<T>(region, obj);
+            }
+        }
+
+        // Handle regular case
         return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 };
