@@ -28,9 +28,12 @@ public:
     bool isUnsafeMode() const { return unsafeMode; }
 
 private:
-    std::stack<ValuePtr> stack;
-    std::vector<ValuePtr> constants;
-    std::vector<ValuePtr> variables;
+    //    std::stack<ValuePtr> stack;
+    //    std::vector<ValuePtr> constants;
+    //    std::vector<ValuePtr> variables;
+    std::stack<MemoryManager<>::Ref<Value>> stack;
+    std::vector<MemoryManager<>::Ref<Value>> constants;
+    std::vector<MemoryManager<>::Ref<Value>> variables;
     std::map<std::string, std::function<void()>> functions;
     std::vector<std::thread> threads;
     std::mutex mtx;
@@ -72,6 +75,11 @@ private:
     void pushRegion();
     void popRegion();
     MemoryManager<>::Region &currentRegion();
+
+    //push ansd pop
+    void push(const ValuePtr &valuePtr);
+
+    ValuePtr pop();
 };
 
 #endif // STACK_BACKEND_HH

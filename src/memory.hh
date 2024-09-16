@@ -401,17 +401,34 @@ public:
     template<typename T, typename... Args>
     Ref<T> makeRef(Region &region, Args &&...args)
     {
+        //        if constexpr (sizeof...(Args) == 1) {
+        //            using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
+        //            if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
+        //                // Handle case where a shared_ptr<T> is passed
+        //                const auto& sharedPtr = std::get<0>(std::forward_as_tuple(args...));
+        //                T* obj = region.template create<T>(*sharedPtr); // Copy from shared_ptr
+        //                return Ref<T>(region, obj);
+        //            } else if constexpr (std::is_same_v<FirstArg, T>) {
+        //                // Handle case where a T object is passed directly
+        //                const T& value = std::get<0>(std::forward_as_tuple(args...));
+        //                T* obj = region.template create<T>(value); // Copy from Value
+        //                return Ref<T>(region, obj);
+        //            }
+        //        }
+
+        // Handle regular case
         if constexpr (sizeof...(Args) == 1) {
             using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
             if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
                 // Handle case where a shared_ptr<T> is passed
-                const auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
+                auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
+                // Create a T object from the shared_ptr and return a Ref<T> to it
                 T *obj = region.template create<T>(*sharedPtr); // Copy from shared_ptr
                 return Ref<T>(region, obj);
             }
         }
 
-        // Handle regular case
+        // Handle regular case where arguments are used directly to create T
         return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 };
