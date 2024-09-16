@@ -128,7 +128,7 @@ void StackBackend::execute(const Instruction &instruction)
 void StackBackend::dumpRegisters()
 {
     std::cout << "Stack:\n";
-    std::stack<ValuePtr> tempStack = stack;
+    std::stack<MemoryManager<>::Ref<Value>> tempStack = stack;
     while (!tempStack.empty()) {
         auto value = tempStack.top();
         tempStack.pop();
@@ -163,8 +163,7 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
         return;
     }
 
-    auto value = stack.top();
-    stack.pop();
+    auto value = pop();
 
     ValuePtr result = std::make_shared<Value>();
     result->type = value->type;
@@ -195,7 +194,7 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
         return;
     }
 
-    stack.push(result);
+    push(result);
 }
 
 void StackBackend::performBinaryOperation(const Instruction &instruction)
@@ -205,10 +204,8 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
         return;
     }
 
-    auto value2 = stack.top();
-    stack.pop();
-    auto value1 = stack.top();
-    stack.pop();
+    auto value2 = pop();
+    auto value1 = pop();
 
     // Get common type between the two values
     TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
@@ -285,7 +282,7 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
         return;
     }
 
-    stack.push(result);
+    push(result);
 }
 
 void StackBackend::performLogicalOperation(const Instruction &instruction)
@@ -295,10 +292,9 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
         return;
     }
 
-    auto value2 = stack.top();
-    stack.pop();
-    auto value1 = stack.top();
-    stack.pop();
+    auto value2 = pop();
+
+    auto value1 = pop();
 
     // Ensure both values are of type bool
     if (!typeSystem.isCompatible(typeSystem.BOOL_TYPE, value1->type)
@@ -325,7 +321,7 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
         return;
     }
 
-    stack.push(result);
+    push(result);
 }
 
 void StackBackend::performComparisonOperation(const Instruction &instruction)
@@ -335,10 +331,9 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         return;
     }
 
-    auto value2 = stack.top();
-    stack.pop();
-    auto value1 = stack.top();
-    stack.pop();
+    auto value2 = pop();
+
+    auto value1 = pop();
 
     // Get common type between the two values
     TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
@@ -395,17 +390,17 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         return;
     }
 
-    stack.push(result);
+    push(result);
 }
 
 void StackBackend::handleLoadConst(const ValuePtr &constantValue)
 {
-    //stack.push(constantValue);
+    //push(constantValue);
     auto linearValue = memoryManager.makeLinear<Value>(currentRegion(), *constantValue);
     auto sharedValue = std::make_shared<Value>(*linearValue);
 
     // Push the linear value onto the stack
-    stack.push(sharedValue);
+    push(sharedValue);
 }
 
 void StackBackend::handleInterpolateString()
@@ -416,12 +411,10 @@ void StackBackend::handleInterpolateString()
     }
 
     // Pop the value to be interpolated
-    auto value = stack.top();
-    stack.pop();
+    auto value = pop();
 
     // Pop the template string
-    auto templateStr = stack.top();
-    stack.pop();
+    auto templateStr = pop();
 
     std::string result;
     std::string templateString;
@@ -472,7 +465,7 @@ void StackBackend::handleInterpolateString()
     interpolatedString->data = result;
 
     // Push the result back onto the stack
-    stack.push(interpolatedString);
+    push(interpolatedString);
 }
 
 void StackBackend::handlePrint()
@@ -482,8 +475,7 @@ void StackBackend::handlePrint()
         return;
     }
 
-    auto value = stack.top();
-    stack.pop();
+    auto value = pop();
 
     // Ensure that the value is managed by the memory manager
     if (value->type == typeSystem.STRING_TYPE) {
@@ -508,12 +500,11 @@ void StackBackend::handleDeclareVariable(int32_t variableIndex)
     if (variableIndex >= static_cast<int32_t>(variables.size())) {
         variables.resize(variableIndex + 1);
     }
-    //    variables[variableIndex] = memoryManager.makeLinear<Value>(currentRegion());
 
     // Initialize the variable in the current region
-    if (!variables[variableIndex]) {
+    if (!variables[variableIndex].get()) {
         auto linearValue = memoryManager.makeLinear<Value>(currentRegion());
-        variables[variableIndex] = std::make_shared<Value>(*linearValue);
+        variables[variableIndex] = memoryManager.makeRef<Value>(currentRegion());
     }
 }
 
@@ -535,9 +526,20 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
         std::cerr << "Error: value stack underflow" << std::endl;
         return;
     }
-    auto value = stack.top();
-    variables[variableIndex] = value;
-    stack.pop();
+    //    auto value = pop();
+    //    variables[variableIndex] = memoryManager.makeRef<Value>(currentRegion(), value);
+    // Assuming pop returns ValuePtr
+    ValuePtr valuePtr = pop();
+
+    if (valuePtr) {
+        // Extract the Value from ValuePtr
+        const Value &value = *valuePtr;
+
+        // Use the extracted Value to create a Ref<Value>
+        variables[variableIndex] = memoryManager.makeRef<Value>(currentRegion(), value);
+    } else {
+        std::cerr << "Error: Null value pointer" << std::endl;
+    }
 }
 
 void StackBackend::handleDeclareFunction(const std::string &functionName)
@@ -557,7 +559,7 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
 
         if (it != program.end()) {
             size_t index = std::distance(program.begin(), it);
-            std::stack<ValuePtr> localStack;
+            std::stack<MemoryManager<>::Ref<Value>> localStack;
             std::swap(stack, localStack); // Save current stack state
             for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT;
                  ++i) {
@@ -584,7 +586,7 @@ void StackBackend::handleCallFunction(const std::string &functionName)
 
 void StackBackend::handlePushArg(const Instruction &instruction)
 {
-    stack.push(instruction.value);
+    push(instruction.value);
 }
 
 void StackBackend::handleJump()
@@ -617,8 +619,7 @@ void StackBackend::handleJump()
 void StackBackend::handleJumpZero()
 {
     auto offset = program[this->pc].value;
-    auto condition = stack.top();
-    stack.pop();
+    auto condition = pop();
 
     // Ensure condition is boolean
     if (!typeSystem.checkType(condition, typeSystem.BOOL_TYPE)) {
@@ -641,35 +642,15 @@ void StackBackend::handleJumpZero()
     }
 
     bool conditionValue = std::get<bool>(condition->data);
-    //int64_t offsetValue = std::get<int64_t>(offset->data);
-
     if (!conditionValue) {
         // Perform the jump
-        // pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
         if (std::holds_alternative<int64_t>(offset->data)) {
             int64_t offsetValue = std::get<int64_t>(offset->data);
-            pc = offsetValue - 1;
+            pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
         } else {
             std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
         }
     }
-}
-
-void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
-{
-    // Start threads for each task
-    for (auto &task : tasks) {
-        threads.emplace_back(task);
-    }
-
-    // Join all threads
-    for (auto &thread : threads) {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
-
-    threads.clear();
 }
 
 void StackBackend::pushRegion()
@@ -690,6 +671,45 @@ MemoryManager<>::Region &StackBackend::currentRegion()
     return *regionStack.top();
 }
 
+void StackBackend::push(const ValuePtr &valuePtr)
+{
+    auto refValue = memoryManager.makeRef<Value>(currentRegion(), *valuePtr);
+
+    // Push the converted value onto the stack
+    stack.push(refValue);
+}
+
+ValuePtr StackBackend::pop()
+{
+    if (stack.empty()) {
+        std::cerr << "Error: Stack underflow" << std::endl;
+        return nullptr;
+    }
+
+    // Pop the value from the stack
+    auto refValue = stack.top();
+    stack.pop();
+
+    // Convert MemoryManager<>::Ref<Value> to ValuePtr
+    return std::make_shared<Value>(*refValue);
+}
+
+void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
+{
+    // Start threads for each task
+    for (auto &task : tasks) {
+        threads.emplace_back(task);
+    }
+
+    // Join all threads
+    for (auto &thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+
+    threads.clear();
+}
 void StackBackend::handleParallel(int32_t taskCount)
 {
     std::vector<std::function<void()>> tasks;
