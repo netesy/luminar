@@ -44,8 +44,6 @@ void StackBackend::run(const std::vector<Instruction> &program)
     std::cout << "VM ran for a total of  " << duration.count() << " microseconds." << std::endl;
 
     // Print memory statistics
-    memoryManager.reportLeaks();
-    memoryManager.printStatistics();
     memoryManager.~MemoryManager();
 }
 
@@ -154,6 +152,7 @@ void StackBackend::dumpRegisters()
     for (const auto &[name, _] : functions) {
         std::cout << "Function: " << name << "\n";
     }
+    std::cout << "End of Dump Registers\n";
 }
 
 void StackBackend::performUnaryOperation(const Instruction &instruction)
