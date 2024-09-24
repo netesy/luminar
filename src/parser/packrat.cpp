@@ -25,6 +25,7 @@ Bytecode PackratParser::parse()
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
         std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
+        //std::cout << "Parsing debug " << toString() << std::endl;
         return bytecode;
     } catch (const std::exception &e) {
         std::cerr << "Parsing error: " << e.what() << std::endl;
@@ -59,6 +60,13 @@ void PackratParser::statement()
         assignment();
     } else if (match(TokenType::FN)) {
         function_declaration();
+    } else if (match(TokenType::RETURN)) {
+        // return_statement();
+        if (!check(TokenType::SEMICOLON)) {
+            expression();
+        }
+        consume(TokenType::SEMICOLON, "Expected ';' after return statement.");
+        emit(Opcode::RETURN, peek().line);
     } else if (match(TokenType::CLASS)) {
         class_declaration();
     } else {
@@ -300,7 +308,7 @@ void PackratParser::function_declaration()
     consume(TokenType::IDENTIFIER, "Expected function name.");
     consume(TokenType::LEFT_PAREN, "Expected '(' after function name.");
 
-    std::vector<TypePtr> paramTypes;
+    std::vector<std::pair<std::string, TypePtr>> parameters;
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             Token paramName = peek();
@@ -308,10 +316,10 @@ void PackratParser::function_declaration()
             TypePtr paramType = nullptr;
             if (match(TokenType::COLON)) {
                 Token typeToken = peek();
-                consume(TokenType::IDENTIFIER, "Expected type name.");
+                advance();
                 paramType = std::make_shared<Type>(stringToType(typeToken.lexeme));
             }
-            paramTypes.push_back(paramType);
+            parameters.push_back({paramName.lexeme, paramType});
         } while (match(TokenType::COMMA));
     }
     consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
@@ -319,7 +327,8 @@ void PackratParser::function_declaration()
     TypePtr returnType = nullptr;
     if (match(TokenType::COLON)) {
         Token typeToken = peek();
-        consume(TokenType::IDENTIFIER, "Expected return type name.");
+        advance(); //This should check against all the types
+        //consume(TokenType::IDENTIFIER, "Expected return type name.");
         returnType = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
@@ -332,15 +341,24 @@ void PackratParser::function_declaration()
          peek().line,
          Value{std::make_shared<Type>(TypeTag::Int), name.lexeme});
 
-    block();
+    // Add parameters to the current scope
+    for (const auto &param : parameters) {
+        declareVariable(Token{TokenType::IDENTIFIER, param.first}, param.second);
+    }
 
-    exitScope();
-
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        statement();
+    }
     // Emit return if not present
     if (bytecode.back().opcode != Opcode::RETURN) {
-        //emit(Opcode::NIL, peek().line);
+        if (returnType && returnType->tag != TypeTag::Nil) {
+            error("Function must return a value of type " + returnType->toString());
+        }
         emit(Opcode::RETURN, peek().line);
     }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after function block.");
+
+    exitScope();
 }
 
 void PackratParser::function_call(const Token &name)
