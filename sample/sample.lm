@@ -75,7 +75,7 @@ fn process_data(data: [int]) throws int {
 
 // Main function demonstrating error handling
 fn main() {
-    var data: [int] = [1, 2, 3]
+    var data: [int] = [1, 2, 3];
     attempt {
         let result = process_data(data)
         print("Result:", result)

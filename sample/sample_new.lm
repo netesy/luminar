@@ -19,8 +19,8 @@ Code snippet
 print(1 + 2 + (3 * 4) - (10 / 5));  // Output: 11
 
 // Logical Operators:
-print((12 > 3) && (12 > 13));    // false (AND requires both conditions true)
-print((12 > 3) || (12 > 13));    // true (OR requires at least one condition true)
+print((12 > 3) and (12 > 13));    // false (AND requires both conditions true)
+print((12 > 3) or (12 > 13));    // true (OR requires at least one condition true)
 
 // Logical NOT:
 print(!true);                     // false
@@ -79,9 +79,9 @@ for ((key, value) in my_dict) {
 // While loop:
 var j: int = 0;
 while (j < 5) {
-  print("While loop iteration: {}", j);
+  print("While loop iteration: {j}");
   j += 1;
-}
+}  var j: int = 0; while (j < 5) { print("While loop iteration: {j}"); j += 1;}
 
 // Error Handling
 
