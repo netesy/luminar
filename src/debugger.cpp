@@ -79,52 +79,6 @@ void Debugger::debugLog(const std::string &errorMessage,
 
 void Debugger::printContextLines(std::ostream &out, int errorLine, int errorIndex)
 {
-    //    // Function to wrap text in specific styles
-    //  // You might need to adjust these escape sequences based on your terminal
-    //  std::string boldOn( "\033[1m" );
-    //  std::string boldOff( "\033[0m" );
-    //  std::string colorRed( "\033[31m" );
-    //  std::string colorReset( "\033[0m" );
-
-    //  if (errorLine > 1 && errorLine <= int(sourceCodez.size())) {
-    //    out << (errorLine - 1) << " | " << sourceCodez[errorLine - 2] << std::endl;
-    //  }
-
-    //  if (errorLine >= 1 && errorLine <= int(sourceCodez.size())) {
-    //    std::string currentLine = sourceCodez[errorLine - 1];
-
-    //    // Highlight the faulty token if an index is provided
-    //    if (errorIndex >= 0 && errorIndex < int(currentLine.size())) {
-    //        // Split the line into tokens based on whitespace (assuming basic tokenization)
-    //        std::vector<std::string> tokens;
-    //        std::stringstream ss(currentLine);
-    //        std::string token;
-    //        while (std::getline(ss, token, ' ')) {
-    //            tokens.push_back(token);
-    //        }
-
-    //        // Rebuild the line with highlighted faulty token
-    //        currentLine.clear();
-    //        for (int i = 0; i < int(tokens.size()); i++) {
-    //            if (i == errorIndex) {
-    //                currentLine += colorRed + tokens[i] + colorReset + " ";
-    //            } else {
-    //                currentLine += tokens[i] + " ";
-    //            }
-    //        }
-    //    }
-
-    //    out << errorLine << colorRed << " > " << colorReset << boldOn << currentLine << boldOff
-    //        << std::endl;
-    //  }
-
-    //  if (errorLine < int(sourceCodez.size())) {
-    //    out << (errorLine + 1) << " | " << sourceCodez[errorLine] << std::endl;
-    //  }
-
-    //  // Additional information about the error
-    //  //out << "Error: " << errorMessage << std::endl;
-    //  out << std::endl;
     std::string boldOn("\033[1m");
     std::string boldOff("\033[0m");
     std::string colorRed("\033[31m");
