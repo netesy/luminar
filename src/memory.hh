@@ -117,7 +117,9 @@ private:
     void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
         void *ptr = allocator.allocate(size, alignment);
-        std::cout << "Allocated " << size << " bytes at " << ptr << std::endl;
+        // std::cout << "Allocated " << size << " bytes at " << ptr << std::endl;
+        log("Allocated " + std::to_string(size) + " bytes at "
+            + std::to_string(reinterpret_cast<uintptr_t>(ptr)));
 
         auto info = std::make_unique<AllocationInfo>(size, auditMode ? TRACE_INFO() : "");
 
@@ -141,6 +143,7 @@ private:
     void deallocate(void *ptr)
     {
         std::cout << "Deallocating memory at " << ptr << std::endl;
+        // log("Deallocating memory at " + std::to_string(ptr));
         auto it = allocations.find(ptr);
         if (it != allocations.end()) {
             if (auditMode) {
@@ -231,7 +234,7 @@ public:
             return;
         }
 
-        std::cout << "Memory leaks detected:\n";
+        log("Memory leaks detected:\n");
         for (const auto &[ptr, info] : allocations) {
             auto duration = std::chrono::steady_clock::now() - info->timestamp;
             log("- Leak: " + std::to_string(info->size) + " bytes at "
@@ -284,10 +287,10 @@ public:
         ss << "=======================================\n";
 
         std::string result = ss.str();
+        log(result);
+        std::cout << result;
         // Log the statistics to a file
         logToFile();
-        // Print to console
-        std::cout << result;
     }
 
     ~MemoryManager()
@@ -295,7 +298,7 @@ public:
         reportLeaks();
         log("MemoryManager destroyed");
         logFile.close();
-        printStatistics();
+        // printStatistics();
     }
 
     class Region
@@ -309,8 +312,8 @@ public:
             : manager(mgr)
         {
             manager.activeRegionsCount++;
-            std::cout << "Region created. Active Regions: " << manager.getActiveRegionsCount()
-                      << "\n";
+            manager.log("Region created. Active Regions: "
+                        + std::to_string(manager.getActiveRegionsCount()));
         }
 
         ~Region()
@@ -319,8 +322,8 @@ public:
                 manager.deallocate(ptr);
             }
             manager.activeRegionsCount--;
-            std::cout << "Region destroyed. Active Regions: " << manager.getActiveRegionsCount()
-                      << "\n";
+            manager.log("Region destroyed. Active Regions: "
+                        + std::to_string(manager.getActiveRegionsCount()));
         }
 
         template<typename T, typename... Args>
@@ -359,8 +362,8 @@ public:
             , manager(mgr)
         {
             manager.activeLinearsCount++;
-            std::cout << "Linear object created. Active Linears: "
-                      << manager.getActiveLinearsCount() << "\n";
+            manager.log("Linear object created. Active Linears: "
+                        + std::to_string(manager.getActiveLinearsCount()));
         }
 
         Linear(const Linear &) = delete;
@@ -399,7 +402,7 @@ public:
 
         T *borrow() const
         {
-            std::cout << "Borrowing Linear resource.\n";
+            manager.log("Borrowing Linear resource.");
             return ptr;
         }
 
@@ -413,8 +416,8 @@ public:
                 ptr = nullptr;
                 ownsResource = false;
                 manager.activeLinearsCount--;
-                std::cout << "Linear object destroyed. Active Linears: "
-                          << manager.getActiveLinearsCount() << "\n";
+                manager.log("Linear object destroyed. Active Linears: "
+                            + std::to_string(manager.getActiveLinearsCount()));
             }
         }
     };
@@ -433,15 +436,17 @@ public:
             if (refCount) {
                 refCount->fetch_add(1, std::memory_order_relaxed);
                 manager.activeReferencesCount++;
-                std::cout << "Reference count incremented. Active References: "
-                          << manager.getActiveReferencesCount() << "\n";
+                manager.log("Reference count incremented. Active References: "
+                            + std::to_string(manager.getActiveReferencesCount()));
             }
         }
 
         void decrementRefCount()
         {
             if (refCount && refCount->fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                std::cout << "Destroying Ref object at " << static_cast<void *>(ref) << std::endl;
+                // std::cout << "Destroying Ref object at " << static_cast<void *>(ref) << std::endl;
+                manager.log("Destroying Ref object");
+                // manager.log("Destroying Ref object at " + std::to_string(*ref->data));
                 delete refCount;
                 if (ref) {
                     ref->~T(); // Call destructor
@@ -451,8 +456,8 @@ public:
                 region = nullptr;
                 refCount = nullptr;
                 manager.activeReferencesCount--;
-                std::cout << "Reference object destroyed. Active References: "
-                          << manager.getActiveReferencesCount() << "\n";
+                manager.log("Reference object destroyed. Active References: "
+                            + std::to_string(manager.getActiveReferencesCount()));
             }
         }
 
@@ -468,14 +473,14 @@ public:
             , refCount(nullptr)
         {}
 
-        Ref(Region &r, T *p, MemoryManager &mgr)
+        Ref(Region &r, T *p)
             : ref(p)
             , region(&r)
             , refCount(new std::atomic<int>(1))
         {
             manager.activeReferencesCount++;
-            std::cout << "Reference created. Active References: "
-                      << manager.getActiveReferencesCount() << "\n";
+            manager.log("Reference created. Active References: "
+                        + std::to_string(manager.getActiveReferencesCount()));
         }
 
         Ref(const Ref &other)
@@ -605,10 +610,10 @@ public:
             if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
                 auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
                 T *obj = region.template create<T>(*sharedPtr);
-                return Ref<T>(region, obj, *this);
+                return Ref<T>(region, obj);
             }
         }
-        return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...), *this);
+        return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...));
     }
 };
 
