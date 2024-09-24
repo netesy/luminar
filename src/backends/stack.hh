@@ -80,6 +80,7 @@ private:
     void push(const ValuePtr &valuePtr);
 
     ValuePtr pop();
+    void clearStack();
 };
 
 #endif // STACK_BACKEND_HH

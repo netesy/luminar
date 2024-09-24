@@ -15,9 +15,14 @@ StackBackend::StackBackend(std::vector<Instruction> &program)
 
 StackBackend::~StackBackend()
 {
+    std::cout << "Starting StackBackend destruction" << std::endl;
+    clearStack();
+    memoryManager.printStatistics();
     while (!regionStack.empty()) {
+        //  std::cout << "Popping region" << std::endl;
         popRegion();
     }
+    std::cout << "StackBackend destruction complete" << std::endl;
 }
 
 void StackBackend::run(const std::vector<Instruction> &program)
@@ -29,8 +34,16 @@ void StackBackend::run(const std::vector<Instruction> &program)
         auto start_time = std::chrono::high_resolution_clock::now();
         while (pc < program.size()) {
             const Instruction &instruction = program[pc];
+
+            if (instruction.opcode == HALT) {
+                std::cout << "Program halted normally." << std::endl;
+                break;
+            }
             execute(instruction);
             pc++;
+        }
+        if (pc >= program.size()) {
+            std::cerr << "Warning: Reached end of program without HALT instruction." << std::endl;
         }
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -620,6 +633,10 @@ void StackBackend::handleJumpZero()
     auto offset = program[this->pc].value;
     auto condition = pop();
 
+    //    std::cout << "handleJumpZero: Current PC: " << this->pc << std::endl;
+    //    std::cout << "Current instruction: "
+    //              << program[this->pc].opcodeToString(program[this->pc].opcode) << std::endl;
+
     // Ensure condition is boolean
     if (!typeSystem.checkType(condition, typeSystem.BOOL_TYPE)) {
         if (typeSystem.isCompatible(condition->type, typeSystem.BOOL_TYPE)) {
@@ -641,14 +658,24 @@ void StackBackend::handleJumpZero()
     }
 
     bool conditionValue = std::get<bool>(condition->data);
+
     if (!conditionValue) {
         // Perform the jump
         if (std::holds_alternative<int64_t>(offset->data)) {
             int64_t offsetValue = std::get<int64_t>(offset->data);
+            //            std::cout << "Condition value: " << (conditionValue ? "true" : "false") << std::endl;
+            //            std::cout << "Jump offset value: " << offsetValue << std::endl;
+            //            std::cout << "Condition is false, jumping to PC: " << offsetValue << std::endl;
+            //            // Show the instruction at the offsetValue
+            //            std::cout << "Instruction at jump target: "
+            //                      << program[offsetValue].opcodeToString(program[offsetValue].opcode)
+            //                      << std::endl;
             pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
         } else {
             std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
         }
+        //        std::cout << "Next PC will be: " << (pc + 1) << std::endl;
+        //        std::cout << std::endl; // Add a blank line for readabili
     }
 }
 
@@ -659,9 +686,17 @@ void StackBackend::pushRegion()
 
 void StackBackend::popRegion()
 {
+    //    if (regionStack.size() > 1) { // Always keep the global region
+    //        delete regionStack.top();
+    //        regionStack.pop();
+    //    }
     if (regionStack.size() > 1) { // Always keep the global region
-        delete regionStack.top();
-        regionStack.pop();
+        try {
+            delete regionStack.top();
+            regionStack.pop();
+        } catch (const std::exception &e) {
+            std::cerr << "Error during region cleanup: " << e.what() << std::endl;
+        }
     }
 }
 
@@ -691,6 +726,18 @@ ValuePtr StackBackend::pop()
 
     // Convert MemoryManager<>::Ref<Value> to ValuePtr
     return std::make_shared<Value>(*refValue);
+}
+
+void StackBackend::clearStack()
+{
+    std::cout << "Clearing stack" << std::endl;
+    while (!stack.empty()) {
+        try {
+            stack.pop();
+        } catch (const std::exception &e) {
+            std::cerr << "Error clearing stack: " << e.what() << std::endl;
+        }
+    }
 }
 
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks)

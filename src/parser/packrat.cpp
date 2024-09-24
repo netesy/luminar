@@ -133,17 +133,17 @@ void PackratParser::while_statement()
     size_t jumpIfFalsePos = bytecode.size();
     emit(Opcode::JUMP_IF_FALSE,
          peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump
+         Value{std::make_shared<Type>(TypeTag::Int), 100}); // Placeholder jump
 
     consume(TokenType::LEFT_BRACE, "Expected '{' after while condition.");
     block();
     //fixed the issue with whileloops not working
-    int32_t jumpLocation = loopStart - bytecode.size() - 1;
-    std::cout << "Jump Location: " << jumpLocation << std::endl;
-    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), jumpLocation});
+    int32_t backJump = loopStart - bytecode.size() - 1;
+    emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), backJump});
     size_t loopEnd = bytecode.size();
 
-    int32_t forwardJump = loopEnd - jumpIfFalsePos - 1;
+    int32_t forwardJump = loopEnd;
+    //    int32_t forwardJump = static_cast<int32_t>(loopEnd - jumpIfFalsePos - 1);
     // Update the JUMP_IF_FALSE instruction with the correct jump location
     bytecode[jumpIfFalsePos].value = std::make_shared<Value>(
         Value{std::make_shared<Type>(TypeTag::Int), forwardJump});
@@ -214,21 +214,21 @@ void PackratParser::block()
 
 void PackratParser::var_declaration()
 {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "Starting variable declaration" << std::endl;
+    //    auto start = std::chrono::high_resolution_clock::now();
+    //    std::cout << "Starting variable declaration" << std::endl;
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected variable name.");
 
     TypePtr type = std::make_shared<Type>(TypeTag::Int);
     if (match(TokenType::COLON)) {
-        std::cout << "Variable initialization found for " << name.lexeme << std::endl;
+        //        std::cout << "Variable initialization found for " << name.lexeme << std::endl;
         Token typeToken = peek();
         advance(); //This should check against all the types
         //consume(TokenType::IDENTIFIER, "Expected type name.");
         type = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
-    std::cout << "declaration of variables initiated" << std::endl;
+    //    std::cout << "declaration of variables initiated" << std::endl;
     declareVariable(name, type);
 
     if (match(TokenType::EQUAL)) {
@@ -242,9 +242,9 @@ void PackratParser::var_declaration()
 
     consume(TokenType::SEMICOLON, "Expected ';' after variable declaration.");
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
+    //    auto end = std::chrono::high_resolution_clock::now();
+    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    //    std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
 }
 
 void PackratParser::var_call(const Token &name)
@@ -663,15 +663,15 @@ void PackratParser::declareVariable(const Token &name,
                                     const TypePtr &type,
                                     std::optional<ValuePtr> defaultValue)
 {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "Declaring variable " << name.lexeme << std::endl;
+    //    auto start = std::chrono::high_resolution_clock::now();
+    //    std::cout << "Declaring variable " << name.lexeme << std::endl;
     int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
     emit(Opcode::DECLARE_VARIABLE,
          name.line,
          Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << "Time taken by <declareVar>: " << duration << " microseconds\n";
+    //    auto end = std::chrono::high_resolution_clock::now();
+    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    //    std::cout << "Time taken by <declareVar>: " << duration << " microseconds\n";
 }
 
 int32_t PackratParser::getVariableMemoryLocation(const Token &name)
@@ -913,7 +913,11 @@ bool PackratParser::check(TokenType type)
 
 bool PackratParser::isAtEnd()
 {
-    return peek().type == TokenType::EOF_TOKEN;
+    bool result = peek().type == TokenType::EOF_TOKEN;
+    if (result) {
+        emit(Opcode::HALT, peek().line);
+    }
+    return result;
 }
 
 bool PackratParser::isExpression(TokenType type)
