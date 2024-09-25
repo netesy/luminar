@@ -153,6 +153,8 @@ struct Instruction
             return "FOR_LOOP";
         case Opcode::WHILE_LOOP:
             return "WHILE_LOOP";
+        case Opcode::MAKE_RANGE:
+            return "MAKE_RANGE";
 
             // Error handling operations
         case Opcode::ATTEMPT:

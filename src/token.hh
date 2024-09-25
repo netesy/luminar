@@ -12,6 +12,7 @@ enum class TokenType {
     RIGHT_BRACKET, // ]
     COMMA,         // ,
     DOT,           // .
+    DOT_DOT,       // '..'
     COLON,         // :
     SEMICOLON,     // ;
     QUESTION,      // ?
@@ -82,6 +83,7 @@ enum class TokenType {
     ELIF,       // elif
     ELSE,       // else
     ENUM,       // enum
+    RANGE,      // range
     ASYNC,      // async
     AWAIT,      // await
     CLASS,      // class

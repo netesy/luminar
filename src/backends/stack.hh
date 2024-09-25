@@ -81,6 +81,7 @@ private:
 
     ValuePtr pop();
     void clearStack();
+    ValuePtr createRange(const ValuePtr &start, const ValuePtr &end, const ValuePtr &step);
 };
 
 #endif // STACK_BACKEND_HH

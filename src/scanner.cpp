@@ -46,7 +46,7 @@ void Scanner::scanToken()
         addToken(TokenType::COMMA);
         break;
     case '.':
-        addToken(TokenType::DOT);
+        addToken(match('.') ? TokenType::DOT_DOT : TokenType::DOT);
         break;
     case '-':
         if (match('=')) {
@@ -427,6 +427,8 @@ TokenType Scanner::checkKeyword(const std::string &identifier) const
         return TokenType::VAR;
     if (identifier == "while")
         return TokenType::WHILE;
+    if (identifier == "range")
+        return TokenType::RANGE;
     if (identifier == "attempt")
         return TokenType::ATTEMPT;
     if (identifier == "handle")
