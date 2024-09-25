@@ -354,6 +354,10 @@ public:
     const TypePtr FLOAT64_TYPE = std::make_shared<Type>(TypeTag::Float64);
     const TypePtr STRING_TYPE = std::make_shared<Type>(TypeTag::String);
     const TypePtr ANY_TYPE = std::make_shared<Type>(TypeTag::Any);
+    const TypePtr LIST_TYPE = std::make_shared<Type>(TypeTag::List);
+    const TypePtr DICT_TYPE = std::make_shared<Type>(TypeTag::Dict);
+    const TypePtr ENUM_TYPE = std::make_shared<Type>(TypeTag::Enum);
+    const TypePtr SUM_TYPE = std::make_shared<Type>(TypeTag::Sum);
 
     ValuePtr createValue(TypePtr type)
     {

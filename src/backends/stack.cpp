@@ -124,6 +124,17 @@ void StackBackend::execute(const Instruction &instruction)
     case JUMP_IF_FALSE:
         handleJumpZero();
         break;
+    case Opcode::MAKE_RANGE: {
+        // Assume top three items on the stack are: step, end, start
+        ValuePtr step = pop();
+        ValuePtr end = pop();
+        ValuePtr start = pop();
+
+        // Perform range loop initialization (push range object to the stack if needed)
+        ValuePtr range = createRange(start, end, step);
+        push(range); // Push the range for iteration
+        break;
+    }
     case PARALLEL:
         handleParallel(std::get<int32_t>(instruction.value->data));
         break;
@@ -495,6 +506,30 @@ void StackBackend::handlePrint()
         auto managedValue = memoryManager.makeLinear<Value>(currentRegion(), *value);
         std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
                    managedValue->data);
+    } else if (value->type == typeSystem.LIST_TYPE) {
+        // Handle lists recursively
+        auto list = std::get<ListValue>(value->data);
+        std::cout << "[";
+        for (size_t i = 0; i < list.elements.size(); ++i) {
+            auto element = list.elements[i];
+            if (element->type == typeSystem.INT_TYPE) {
+                // Directly handle int type
+                std::cout << std::get<int64_t>(element->data);
+            } else if (element->type == typeSystem.STRING_TYPE) {
+                // Handle string type
+                std::cout << std::get<std::string>(element->data);
+            } else if (element->type == typeSystem.LIST_TYPE) {
+                // Handle nested lists
+                handlePrint(); // Recursively handle nested list
+            } else {
+                std::cout << "Unknown type";
+            }
+
+            if (i < list.elements.size() - 1) {
+                std::cout << ", "; // Add commas between elements
+            }
+        }
+        std::cout << "]" << std::endl;
     } else {
         std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
                    value->data);
@@ -633,10 +668,6 @@ void StackBackend::handleJumpZero()
     auto offset = program[this->pc].value;
     auto condition = pop();
 
-    //    std::cout << "handleJumpZero: Current PC: " << this->pc << std::endl;
-    //    std::cout << "Current instruction: "
-    //              << program[this->pc].opcodeToString(program[this->pc].opcode) << std::endl;
-
     // Ensure condition is boolean
     if (!typeSystem.checkType(condition, typeSystem.BOOL_TYPE)) {
         if (typeSystem.isCompatible(condition->type, typeSystem.BOOL_TYPE)) {
@@ -663,19 +694,10 @@ void StackBackend::handleJumpZero()
         // Perform the jump
         if (std::holds_alternative<int64_t>(offset->data)) {
             int64_t offsetValue = std::get<int64_t>(offset->data);
-            //            std::cout << "Condition value: " << (conditionValue ? "true" : "false") << std::endl;
-            //            std::cout << "Jump offset value: " << offsetValue << std::endl;
-            //            std::cout << "Condition is false, jumping to PC: " << offsetValue << std::endl;
-            //            // Show the instruction at the offsetValue
-            //            std::cout << "Instruction at jump target: "
-            //                      << program[offsetValue].opcodeToString(program[offsetValue].opcode)
-            //                      << std::endl;
             pc = offsetValue - 1; // Subtract 1 because pc will be incremented after this function
         } else {
             std::cerr << "Error: After conversion, offset is still not Int64" << std::endl;
         }
-        //        std::cout << "Next PC will be: " << (pc + 1) << std::endl;
-        //        std::cout << std::endl; // Add a blank line for readabili
     }
 }
 
@@ -686,10 +708,6 @@ void StackBackend::pushRegion()
 
 void StackBackend::popRegion()
 {
-    //    if (regionStack.size() > 1) { // Always keep the global region
-    //        delete regionStack.top();
-    //        regionStack.pop();
-    //    }
     if (regionStack.size() > 1) { // Always keep the global region
         try {
             delete regionStack.top();
@@ -709,8 +727,7 @@ void StackBackend::push(const ValuePtr &valuePtr)
 {
     auto refValue = memoryManager.makeRef<Value>(currentRegion(), *valuePtr);
 
-    // Push the converted value onto the stack
-    stack.push(refValue);
+    stack.push(refValue); // Push the converted value onto the stack
 }
 
 ValuePtr StackBackend::pop()
@@ -720,12 +737,10 @@ ValuePtr StackBackend::pop()
         return nullptr;
     }
 
-    // Pop the value from the stack
-    auto refValue = stack.top();
+    auto refValue = stack.top(); // Pop the value from the stack
     stack.pop();
 
-    // Convert MemoryManager<>::Ref<Value> to ValuePtr
-    return std::make_shared<Value>(*refValue);
+    return std::make_shared<Value>(*refValue); // Convert MemoryManager<>::Ref<Value> to ValuePtr
 }
 
 void StackBackend::clearStack()
@@ -740,15 +755,39 @@ void StackBackend::clearStack()
     }
 }
 
+ValuePtr StackBackend::createRange(const ValuePtr &start, const ValuePtr &end, const ValuePtr &step)
+{
+    auto range = std::make_shared<Value>();
+    range->type = std::make_shared<Type>(TypeTag::List); // Treat range as a list
+
+    ListValue rangeList;
+    int64_t begin = std::get<int64_t>(start->data);
+    int64_t finish = std::get<int64_t>(end->data);
+    int64_t stepValue = std::get<int32_t>(step->data);
+
+    if (stepValue > 0) {
+        for (int64_t i = begin; i <= finish; i += stepValue) {
+            rangeList.elements.push_back(
+                std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), i}));
+        }
+    } else {
+        for (int64_t i = begin; i >= finish; i += stepValue) {
+            rangeList.elements.push_back(
+                std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), i}));
+        }
+    }
+
+    range->data = rangeList;
+    return range;
+}
+
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
 {
-    // Start threads for each task
-    for (auto &task : tasks) {
+    for (auto &task : tasks) { // Start threads for each task
         threads.emplace_back(task);
     }
 
-    // Join all threads
-    for (auto &thread : threads) {
+    for (auto &thread : threads) { // Join all threads
         if (thread.joinable()) {
             thread.join();
         }
@@ -779,12 +818,10 @@ void StackBackend::handleParallel(int32_t taskCount)
 void StackBackend::handleConcurrent(int32_t taskCount)
 {
     std::vector<std::function<void()>> tasks;
-
     // Calculate the number of instructions per task
     unsigned int instructionsPerTask = program.size() / taskCount;
 
-    // Create tasks for each part of the program
-    for (int32_t i = 0; i < taskCount; ++i) {
+    for (int32_t i = 0; i < taskCount; ++i) { // Create tasks for each part of the program
         tasks.push_back([this, i, instructionsPerTask]() {
             int32_t start = i * instructionsPerTask;
             int32_t end = (i + 1) * instructionsPerTask;

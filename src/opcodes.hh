@@ -52,6 +52,7 @@ enum Opcode {
     // Loop operations
     FOR_LOOP,
     WHILE_LOOP,
+    MAKE_RANGE,
 
     // Error handling operations
     ATTEMPT,

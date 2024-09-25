@@ -67,6 +67,8 @@ void PackratParser::statement()
         }
         consume(TokenType::SEMICOLON, "Expected ';' after return statement.");
         emit(Opcode::RETURN, peek().line);
+    } else if (match(TokenType::RANGE)) {
+        range_function();
     } else if (match(TokenType::CLASS)) {
         class_declaration();
     } else {
@@ -448,12 +450,12 @@ void PackratParser::equality_expression()
 
 void PackratParser::comparison_expression()
 {
-    additive_expression();
+    range_expression();
 
     while (match(TokenType::GREATER) || match(TokenType::GREATER_EQUAL) || match(TokenType::LESS)
            || match(TokenType::LESS_EQUAL)) {
         TokenType operatorType = previous().type;
-        additive_expression();
+        range_expression();
 
         switch (operatorType) {
         case TokenType::GREATER:
@@ -616,6 +618,53 @@ std::vector<Token> PackratParser::tokenizeExpression(const std::string &expr)
     }
 
     return exprTokens;
+}
+
+void PackratParser::range_function()
+{
+    match(TokenType::RANGE);
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'range'.");
+    expression(); // Parse the beginning value
+    consume(TokenType::COMMA, "Expected ',' after beginning value.");
+    expression(); // Parse the ending value
+
+    // Optional step value (default to 1 if not provided)
+    if (match(TokenType::COMMA)) {
+        expression(); // Parse the step value
+    } else {
+        // Emit a constant step value of 1
+        emit(Opcode::LOAD_CONST, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 1});
+    }
+
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after range arguments.");
+
+    // Emit a custom opcode to handle the range iteration in the VM
+    emit(Opcode::MAKE_RANGE,
+         peek().line,
+         Value{}); // No specific value, just to signal range construction
+}
+
+void PackratParser::range_expression()
+{
+    additive_expression();
+    // Handle the simple form: begin..end
+
+    if (match(TokenType::DOT_DOT)) { // Match '..' for range
+        // Parse the end expression
+        additive_expression();
+
+        // Optional step expression if we use something like '..<step>'
+        if (match(TokenType::DOT_DOT)) {
+            additive_expression();
+        } else {
+            // Emit a constant step value of 1
+            emit(Opcode::LOAD_CONST, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 1});
+        }
+        // Emit a custom opcode to handle the range iteration in the VM
+        emit(Opcode::MAKE_RANGE,
+             peek().line,
+             Value{}); // No specific value, just to signal range construction
+    }
 }
 
 void PackratParser::handle_identifier()
