@@ -2,7 +2,7 @@
 // memory.hh
 
 #include <algorithm>
-#include <atomic> // For atomic reference counting
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -17,45 +17,34 @@
 #include <unordered_map>
 #include <vector>
 
-// Compile-time stack trace macros
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 #define CURRENT_FUNCTION __FUNCTION__
 #define CURRENT_LINE __LINE__
-
 #define TRACE_INFO() (std::string(CURRENT_FUNCTION) + " at line " + TOSTRING(CURRENT_LINE))
 
-// Default allocator (unchanged)
 class DefaultAllocator
 {
 public:
     void *allocate(size_t size, size_t alignment)
     {
         void *ptr = nullptr;
-
 #ifdef _WIN32
-        // Windows-specific alignment allocation
         ptr = _aligned_malloc(size, alignment);
-        if (!ptr) {
+        if (!ptr)
             throw std::bad_alloc();
-        }
 #else
-        // POSIX-specific alignment allocation
-        if (posix_memalign(&ptr, alignment, size) != 0) {
+        if (posix_memalign(&ptr, alignment, size) != 0)
             throw std::bad_alloc();
-        }
 #endif
-
         return ptr;
     }
 
     void deallocate(void *ptr) noexcept
     {
 #ifdef _WIN32
-        // Windows-specific deallocation
         _aligned_free(ptr);
 #else
-        // POSIX-specific deallocation
         free(ptr);
 #endif
     }
@@ -65,9 +54,35 @@ template<typename Allocator = DefaultAllocator>
 class MemoryManager
 {
 private:
-    //std::ofstream logFile;
     mutable std::ofstream logFile;
     mutable std::mutex logMutex;
+    bool auditMode;
+    Allocator allocator;
+
+    struct AllocationInfo
+    {
+        size_t size;
+        std::chrono::steady_clock::time_point timestamp;
+        std::string stackTrace;
+        size_t generation;
+
+        AllocationInfo(size_t s, const std::string &st, size_t gen)
+            : size(s)
+            , timestamp(std::chrono::steady_clock::now())
+            , stackTrace(st)
+            , generation(gen)
+        {}
+    };
+
+    std::unordered_map<void *, std::unique_ptr<AllocationInfo>> allocations;
+    size_t totalAllocated;
+    size_t peakMemoryUsage;
+    size_t allocationCount;
+    size_t deallocationCount;
+    size_t largestAllocation;
+    std::atomic<size_t> activeRegionsCount{0};
+    std::atomic<size_t> activeReferencesCount{0};
+    std::atomic<size_t> activeLinearsCount{0};
 
     void log(const std::string &message)
     {
@@ -76,34 +91,8 @@ private:
             logFile << "[" << getTimestamp() << "] " << message << std::endl;
             logFile.flush();
         }
+        //std::cout << "[" << getTimestamp() << "] " << message << std::endl;
     }
-    struct AllocationInfo
-    {
-        size_t size;
-        std::chrono::steady_clock::time_point timestamp;
-        std::string stackTrace;
-
-        AllocationInfo(size_t s, const std::string &st)
-            : size(s)
-            , timestamp(std::chrono::steady_clock::now())
-            , stackTrace(st)
-        {}
-    };
-
-    std::unordered_map<void *, std::unique_ptr<AllocationInfo>> allocations;
-    bool auditMode;
-    Allocator allocator;
-
-    // Memory statistics
-    size_t totalAllocated;
-    size_t peakMemoryUsage;
-    size_t allocationCount;
-    size_t deallocationCount;
-    size_t largestAllocation;
-
-    std::atomic<size_t> activeRegionsCount{0};
-    std::atomic<size_t> activeReferencesCount{0};
-    std::atomic<size_t> activeLinearsCount{0};
 
     std::string getTimestamp()
     {
@@ -117,11 +106,13 @@ private:
     void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
         void *ptr = allocator.allocate(size, alignment);
-        // std::cout << "Allocated " << size << " bytes at " << ptr << std::endl;
         log("Allocated " + std::to_string(size) + " bytes at "
             + std::to_string(reinterpret_cast<uintptr_t>(ptr)));
 
-        auto info = std::make_unique<AllocationInfo>(size, auditMode ? TRACE_INFO() : "");
+        size_t generation = 1; // Initial generation
+        auto info = std::make_unique<AllocationInfo>(size,
+                                                     auditMode ? TRACE_INFO() : "",
+                                                     generation);
 
         if (auditMode) {
             log("[AUDIT] Allocation: " + std::to_string(size) + " bytes at "
@@ -131,7 +122,6 @@ private:
 
         allocations[ptr] = std::move(info);
 
-        // Update statistics
         totalAllocated += size;
         peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
         allocationCount++;
@@ -142,8 +132,6 @@ private:
 
     void deallocate(void *ptr)
     {
-        std::cout << "Deallocating memory at " << ptr << std::endl;
-        // log("Deallocating memory at " + std::to_string(ptr));
         auto it = allocations.find(ptr);
         if (it != allocations.end()) {
             if (auditMode) {
@@ -156,7 +144,6 @@ private:
                     + "ms");
             }
 
-            // Update statistics
             totalAllocated -= it->second->size;
             deallocationCount++;
 
@@ -165,40 +152,7 @@ private:
         }
     }
 
-    // Non-const log function
-    void logToFile()
-    {
-        std::ofstream logFile("memory_manager.log", std::ios::app);
-        if (logFile.is_open()) {
-            logFile << "=======================================\n"
-                    << "Memory Manager Statistics:\n"
-                    << "---------------------------------------\n"
-                    << "  Current Total Allocated: " << totalAllocated << " bytes\n"
-                    << "  Peak Memory Usage: " << peakMemoryUsage << " bytes\n"
-                    << "  Number of Allocations: " << allocationCount << "\n"
-                    << "  Number of Deallocations: " << deallocationCount << "\n"
-                    << "  Largest Allocation: " << largestAllocation << " bytes\n"
-                    << "  Active Regions: " << getActiveRegionsCount() << "\n"
-                    << "  Active References: " << getActiveReferencesCount() << "\n"
-                    << "  Active Linears: " << getActiveLinearsCount() << "\n";
-
-            if (allocationCount > 0) {
-                logFile << "  Average Allocation Size: " << std::fixed << std::setprecision(2)
-                        << static_cast<double>(totalAllocated) / allocationCount << " bytes\n";
-            } else {
-                logFile << "  Average Allocation Size: N/A (no allocations)\n";
-            }
-
-            logFile << "=======================================\n";
-        }
-    }
-
 public:
-    // New methods to get active counts
-    size_t getActiveRegionsCount() const { return activeRegionsCount.load(); }
-    size_t getActiveReferencesCount() const { return activeReferencesCount.load(); }
-    size_t getActiveLinearsCount() const { return activeLinearsCount.load(); }
-
     MemoryManager(bool enableAuditMode = false, const Allocator &alloc = Allocator())
         : auditMode(enableAuditMode)
         , allocator(alloc)
@@ -215,16 +169,17 @@ public:
         log("MemoryManager initialized");
     }
 
+    ~MemoryManager()
+    {
+        reportLeaks();
+        log("MemoryManager destroyed");
+        logFile.close();
+    }
+
     void setAuditMode(bool enable)
     {
         auditMode = enable;
         log("Audit mode " + std::string(enable ? "enabled" : "disabled"));
-    }
-
-    static void logMemoryUsage(const std::string &msg)
-    {
-        std::ofstream logFile("memory.log", std::ios::app);
-        logFile << "[MemoryManager] " << msg << std::endl;
     }
 
     void reportLeaks()
@@ -247,35 +202,18 @@ public:
         }
     }
 
-    size_t getTotalAllocatedMemory() const { return totalAllocated; }
-
-    size_t getPeakMemoryUsage() const { return peakMemoryUsage; }
-
-    size_t getAllocationCount() const { return allocationCount; }
-
-    size_t getDeallocationCount() const { return deallocationCount; }
-
-    size_t getLargestAllocation() const { return largestAllocation; }
-
-    double getAverageAllocationSize() const
-    {
-        return allocationCount > 0 ? static_cast<double>(totalAllocated) / allocationCount : 0.0;
-    }
-
-    void printStatistics()
+    void printStatistics() const
     {
         std::stringstream ss;
-        ss << "=======================================\n"
-           << "Memory Manager Statistics:\n"
-           << "---------------------------------------\n"
+        ss << "Memory Manager Statistics:\n"
            << "  Current Total Allocated: " << totalAllocated << " bytes\n"
            << "  Peak Memory Usage: " << peakMemoryUsage << " bytes\n"
            << "  Number of Allocations: " << allocationCount << "\n"
            << "  Number of Deallocations: " << deallocationCount << "\n"
            << "  Largest Allocation: " << largestAllocation << " bytes\n"
-           << "  Active Regions: " << getActiveRegionsCount() << "\n"
-           << "  Active References: " << getActiveReferencesCount() << "\n"
-           << "  Active Linears: " << getActiveLinearsCount() << "\n";
+           << "  Active Regions: " << activeRegionsCount << "\n"
+           << "  Active References: " << activeReferencesCount << "\n"
+           << "  Active Linears: " << activeLinearsCount << "\n";
 
         if (allocationCount > 0) {
             ss << "  Average Allocation Size: " << std::fixed << std::setprecision(2)
@@ -284,46 +222,35 @@ public:
             ss << "  Average Allocation Size: N/A (no allocations)\n";
         }
 
-        ss << "=======================================\n";
-
-        std::string result = ss.str();
-        log(result);
-        std::cout << result;
-        // Log the statistics to a file
-        logToFile();
-    }
-
-    ~MemoryManager()
-    {
-        reportLeaks();
-        log("MemoryManager destroyed");
-        logFile.close();
-        // printStatistics();
+        //log(ss.str());
+        std::cout << ss.str();
     }
 
     class Region
     {
     private:
         MemoryManager &manager;
-        std::vector<void *> regionAllocations;
+        std::unordered_map<void *, size_t> objectGenerations;
+        size_t currentGeneration;
 
     public:
         explicit Region(MemoryManager &mgr)
             : manager(mgr)
+            , currentGeneration(0)
         {
             manager.activeRegionsCount++;
             manager.log("Region created. Active Regions: "
-                        + std::to_string(manager.getActiveRegionsCount()));
+                        + std::to_string(manager.activeRegionsCount));
         }
 
         ~Region()
         {
-            for (void *ptr : regionAllocations) {
+            for (const auto &[ptr, gen] : objectGenerations) {
                 manager.deallocate(ptr);
             }
             manager.activeRegionsCount--;
             manager.log("Region destroyed. Active Regions: "
-                        + std::to_string(manager.getActiveRegionsCount()));
+                        + std::to_string(manager.activeRegionsCount));
         }
 
         template<typename T, typename... Args>
@@ -331,17 +258,24 @@ public:
         {
             void *memory = manager.allocate(sizeof(T), alignof(T));
             T *obj = new (memory) T(std::forward<Args>(args)...);
-            regionAllocations.push_back(memory);
+            size_t generation = ++currentGeneration;
+            objectGenerations[memory] = generation;
             return obj;
         }
 
         void deallocate(void *ptr)
         {
-            auto it = std::find(regionAllocations.begin(), regionAllocations.end(), ptr);
-            if (it != regionAllocations.end()) {
+            auto it = objectGenerations.find(ptr);
+            if (it != objectGenerations.end()) {
                 manager.deallocate(ptr);
-                regionAllocations.erase(it);
+                objectGenerations.erase(it);
             }
+        }
+
+        size_t getGeneration(void *ptr) const
+        {
+            auto it = objectGenerations.find(ptr);
+            return (it != objectGenerations.end()) ? it->second : 0;
         }
     };
 
@@ -363,7 +297,7 @@ public:
         {
             manager.activeLinearsCount++;
             manager.log("Linear object created. Active Linears: "
-                        + std::to_string(manager.getActiveLinearsCount()));
+                        + std::to_string(manager.activeLinearsCount));
         }
 
         Linear(const Linear &) = delete;
@@ -411,13 +345,13 @@ public:
         void release()
         {
             if (ptr && ownsResource) {
-                ptr->~T(); // Call destructor
+                ptr->~T();
                 region->deallocate(ptr);
                 ptr = nullptr;
                 ownsResource = false;
                 manager.activeLinearsCount--;
                 manager.log("Linear object destroyed. Active Linears: "
-                            + std::to_string(manager.getActiveLinearsCount()));
+                            + std::to_string(manager.activeLinearsCount));
             }
         }
     };
@@ -426,10 +360,11 @@ public:
     class Ref
     {
     private:
-        T *ref;
+        T *ptr;
         Region *region;
-        std::atomic<int> *refCount; // Atomic reference counter
-        MemoryManager manager;
+        size_t expectedGeneration;
+        std::atomic<int> *refCount;
+        MemoryManager &manager;
 
         void incrementRefCount()
         {
@@ -437,56 +372,55 @@ public:
                 refCount->fetch_add(1, std::memory_order_relaxed);
                 manager.activeReferencesCount++;
                 manager.log("Reference count incremented. Active References: "
-                            + std::to_string(manager.getActiveReferencesCount()));
+                            + std::to_string(manager.activeReferencesCount));
             }
         }
 
         void decrementRefCount()
         {
             if (refCount && refCount->fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                // std::cout << "Destroying Ref object at " << static_cast<void *>(ref) << std::endl;
                 manager.log("Destroying Ref object");
-                // manager.log("Destroying Ref object at " + std::to_string(*ref->data));
                 delete refCount;
-                if (ref) {
-                    ref->~T(); // Call destructor
-                    region->deallocate(ref);
+                if (ptr && isValid()) {
+                    ptr->~T();
+                    region->deallocate(ptr);
                 }
-                ref = nullptr;
+                ptr = nullptr;
                 region = nullptr;
                 refCount = nullptr;
                 manager.activeReferencesCount--;
-                manager.log("Reference object destroyed. Active References: "
-                            + std::to_string(manager.getActiveReferencesCount()));
+                manager.log("Ref object destroyed. Active References: "
+                            + std::to_string(manager.activeReferencesCount));
             }
         }
 
     public:
-        T *operator->() const { return ref; }
-        T &operator*() const { return *ref; }
-        T *get() const { return ref; }
-        Region &getRegion() const { return *region; }
-
         Ref()
-            : ref(nullptr)
+            : ptr(nullptr)
             , region(nullptr)
+            , expectedGeneration(0)
             , refCount(nullptr)
+            , manager(MemoryManager::getInstance())
         {}
 
         Ref(Region &r, T *p)
-            : ref(p)
+            : ptr(p)
             , region(&r)
+            , expectedGeneration(r.getGeneration(p))
             , refCount(new std::atomic<int>(1))
+            , manager(MemoryManager::getInstance())
         {
             manager.activeReferencesCount++;
-            manager.log("Reference created. Active References: "
-                        + std::to_string(manager.getActiveReferencesCount()));
+            manager.log("Ref created. Active References: "
+                        + std::to_string(manager.activeReferencesCount));
         }
 
         Ref(const Ref &other)
-            : ref(other.ref)
+            : ptr(other.ptr)
             , region(other.region)
+            , expectedGeneration(other.expectedGeneration)
             , refCount(other.refCount)
+            , manager(other.manager)
         {
             incrementRefCount();
         }
@@ -495,8 +429,9 @@ public:
         {
             if (this != &other) {
                 decrementRefCount();
-                ref = other.ref;
+                ptr = other.ptr;
                 region = other.region;
+                expectedGeneration = other.expectedGeneration;
                 refCount = other.refCount;
                 incrementRefCount();
             }
@@ -504,11 +439,13 @@ public:
         }
 
         Ref(Ref &&other) noexcept
-            : ref(other.ref)
+            : ptr(other.ptr)
             , region(other.region)
+            , expectedGeneration(other.expectedGeneration)
             , refCount(other.refCount)
+            , manager(other.manager)
         {
-            other.ref = nullptr;
+            other.ptr = nullptr;
             other.region = nullptr;
             other.refCount = nullptr;
         }
@@ -517,10 +454,11 @@ public:
         {
             if (this != &other) {
                 decrementRefCount();
-                ref = other.ref;
+                ptr = other.ptr;
                 region = other.region;
+                expectedGeneration = other.expectedGeneration;
                 refCount = other.refCount;
-                other.ref = nullptr;
+                other.ptr = nullptr;
                 other.region = nullptr;
                 other.refCount = nullptr;
             }
@@ -528,7 +466,44 @@ public:
         }
 
         ~Ref() { decrementRefCount(); }
+
+        T *operator->() const
+        {
+            if (!isValid()) {
+                throw std::runtime_error("Accessing invalid generational reference");
+            }
+            return ptr;
+        }
+
+        T &operator*() const
+        {
+            if (!isValid()) {
+                throw std::runtime_error("Accessing invalid generational reference");
+            }
+            return *ptr;
+        }
+
+        T *get() const { return ptr; }
+        bool isValid() const
+        {
+            return ptr != nullptr && region->getGeneration(ptr) == expectedGeneration;
+        }
+        Region &getRegion() const { return *region; }
     };
+
+    template<typename T, typename... Args>
+    Linear<T> makeLinear(Region &region, Args &&...args)
+    {
+        T *obj = region.template create<T>(std::forward<Args>(args)...);
+        return Linear<T>(region, obj, *this);
+    }
+
+    template<typename T, typename... Args>
+    Ref<T> makeRef(Region &region, Args &&...args)
+    {
+        T *obj = region.template create<T>(std::forward<Args>(args)...);
+        return Ref<T>(region, obj);
+    }
 
     class Unsafe
     {
@@ -587,168 +562,10 @@ public:
         }
     };
 
-    template<typename T, typename... Args>
-    Linear<T> makeLinear(Region &region, Args &&...args)
+    // Singleton instance
+    static MemoryManager &getInstance()
     {
-        if constexpr (sizeof...(Args) == 1) {
-            using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
-            if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
-                const auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
-                T *obj = region.template create<T>(*sharedPtr);
-                return Linear<T>(region, obj, *this);
-            }
-        }
-        return Linear<T>(region, region.template create<T>(std::forward<Args>(args)...), *this);
-    }
-
-    template<typename T, typename... Args>
-    Ref<T> makeRef(Region &region, Args &&...args)
-    {
-        // Handle regular case
-        if constexpr (sizeof...(Args) == 1) {
-            using FirstArg = std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
-            if constexpr (std::is_same_v<FirstArg, std::shared_ptr<T>>) {
-                auto &sharedPtr = std::get<0>(std::forward_as_tuple(args...));
-                T *obj = region.template create<T>(*sharedPtr);
-                return Ref<T>(region, obj);
-            }
-        }
-        return Ref<T>(region, region.template create<T>(std::forward<Args>(args)...));
+        static MemoryManager instance;
+        return instance;
     }
 };
-
-// Example usage
-//int main()
-//{
-//    // Enable audit mode to show memory allocations and deallocations
-//    MemoryManager<> memoryManager(true);
-//    MemoryManager<>::Region globalRegion(memoryManager); // Global region to handle memory
-
-//    // Safe code demonstration with linear types and regions
-//    {
-//        std::cout << "\n--- Safe Code: Linear Types and Regions Demonstration ---\n";
-
-//        // Create a linear object in the global region
-//        auto linearInt = memoryManager.makeLinear<int>(globalRegion, 42);
-//        std::cout << "Linear int value: " << *linearInt << "\n";
-
-//        // Create a more complex linear object
-//        struct ComplexObject
-//        {
-//            int x;
-//            double y;
-//            ComplexObject(int x, double y)
-//                : x(x)
-//                , y(y)
-//            {}
-//        };
-
-//        auto linearComplex = memoryManager.makeLinear<ComplexObject>(globalRegion, 10, 3.14);
-//        std::cout << "Linear complex object: x = " << linearComplex->x
-//                  << ", y = " << linearComplex->y << "\n";
-
-//        // Create a reference to an int in the global region
-//        auto refInt = memoryManager.makeRef<int>(globalRegion, 100);
-//        std::cout << "Reference int value: " << *refInt << "\n";
-
-//        // Borrow the value from a linear object (safe borrowing)
-//        int *borrowedInt = linearInt.borrow();
-//        std::cout << "Borrowed int value: " << *borrowedInt << "\n";
-
-//        // Demonstrate move semantics with linear types (safe move)
-//        auto movedLinearInt = std::move(linearInt);
-//        std::cout << "Moved linear int value: " << *movedLinearInt << "\n";
-
-//        // Report total allocated memory in safe code
-//        std::cout << "Total allocated memory: " << memoryManager.getTotalAllocatedMemory()
-//                  << " bytes\n";
-
-//        // Objects will be automatically deallocated when the region is destroyed
-//    }
-
-//    // Unsafe code demonstration
-//    std::cout << "\n--- Unsafe Memory Operations Demonstration ---\n";
-
-//    // 1. Allocate memory (unsafe)
-//    std::cout << "Allocating 100 bytes using unsafe allocate...\n";
-//    void *unsafeMemory = MemoryManager<>::Unsafe::allocate(100);
-
-//    // 2. Set memory to a value (unsafe)
-//    std::cout << "Setting all bytes to 'A'...\n";
-//    MemoryManager<>::Unsafe::set(unsafeMemory, 'A', 100);
-
-//    // 3. Copy memory (unsafe)
-//    std::cout << "Allocating another 100 bytes...\n";
-//    void *unsafeCopyMemory = MemoryManager<>::Unsafe::allocate(100);
-//    std::cout << "Copying memory content to new block...\n";
-//    MemoryManager<>::Unsafe::copy(unsafeCopyMemory, unsafeMemory, 100);
-
-//    // 4. Compare memory (unsafe)
-//    std::cout << "Comparing the two blocks...\n";
-//    if (MemoryManager<>::Unsafe::compare(unsafeMemory, unsafeCopyMemory, 100) == 0) {
-//        std::cout << "Memory blocks are identical.\n";
-//    } else {
-//        std::cout << "Memory blocks are different.\n";
-//    }
-
-//    // 5. Resize memory (unsafe, can lead to leaks)
-//    std::cout << "Resizing the first block to 200 bytes (possible leak if not handled)...\n";
-//    void *resizedMemory = MemoryManager<>::Unsafe::resize(unsafeMemory, 200);
-
-//    // 6. Move memory (unsafe)
-//    std::cout << "Moving content from the second block to a third block...\n";
-//    void *unsafeMoveMemory = MemoryManager<>::Unsafe::allocate(100);
-//    MemoryManager<>::Unsafe::move(unsafeMoveMemory, unsafeCopyMemory, 100);
-
-//    // Incorrect usage leading to memory leak:
-//    std::cout << "\n--- Incorrect Usage: Memory Leak ---\n";
-//    std::cout << "Forgetting to deallocate the original second block...\n";
-//    // Memory leak here, since the second block is not deallocated before overwriting.
-
-//    // Correct usage: Deallocate all the blocks
-//    std::cout << "\n--- Correct Usage: Cleaning Up ---\n";
-//    MemoryManager<>::Unsafe::deallocate(resizedMemory);    // Properly deallocate resized memory
-//    MemoryManager<>::Unsafe::deallocate(unsafeCopyMemory); // Deallocate copy memory
-//    MemoryManager<>::Unsafe::deallocate(unsafeMoveMemory); // Deallocate moved memory
-
-//    std::cout << "All memory blocks have been properly deallocated.\n";
-
-//    // Unsafe memory management with linear types and references
-//    std::cout << "\n--- Unsafe Memory Management with Linear Types and References ---\n";
-
-//    // 1. Allocate memory using linear types
-//    {
-//        // Use a region to handle memory
-//        MemoryManager<>::Region region(memoryManager);
-
-//        // Create objects with potential circular references
-//        struct Node
-//        {
-//            int value;
-//            Node *next;
-//            Node(int v)
-//                : value(v)
-//                , next(nullptr)
-//            {}
-//        };
-
-//        // Create two nodes with a circular reference
-//        auto node1 = memoryManager.makeLinear<Node>(region, 1);
-//        auto node2 = memoryManager.makeLinear<Node>(region, 2);
-
-//        // Circular reference assignment
-//        node1->next = node2.get();
-//        node2->next = node1.get();
-
-//        std::cout << "Node1 value: " << node1->value << "\n";
-//        std::cout << "Node2 value: " << node2->value << "\n";
-
-//        // Explicitly handle circular references:
-//        node1->next = nullptr; // Break the cycle
-//        node2->next = nullptr;
-
-//        // Clean up is handled automatically by the region
-//    }
-
-//    return 0;
-//}
