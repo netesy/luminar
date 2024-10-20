@@ -2,7 +2,6 @@
 #include <chrono>
 #include <cmath>
 #include <iostream>
-#include <stdexcept>
 #include <type_traits>
 
 StackBackend::StackBackend(std::vector<Instruction> &program)
@@ -500,40 +499,40 @@ void StackBackend::handlePrint()
 
     auto value = pop();
 
-    // Ensure that the value is managed by the memory manager
-    if (value->type == typeSystem.STRING_TYPE) {
-        // Example: Perform a memory management operation
-        auto managedValue = memoryManager.makeLinear<Value>(currentRegion(), *value);
-        std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
-                   managedValue->data);
-    } else if (value->type == typeSystem.LIST_TYPE) {
-        // Handle lists recursively
-        auto list = std::get<ListValue>(value->data);
+    auto printValue = [](const ValuePtr &val) {
+        std::visit(
+            [](const auto &v) {
+                using T = std::decay_t<decltype(v)>;
+                if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, double>) {
+                    std::cout << v;
+                } else if constexpr (std::is_same_v<T, std::string>) {
+                    std::cout << "\"" << v << "\"";
+                } else if constexpr (std::is_same_v<T, bool>) {
+                    std::cout << (v ? "true" : "false");
+                } else if constexpr (std::is_same_v<T, ListValue>) {
+                    // This case should not be reached in this context
+                    std::cout << "[nested list]";
+                } else {
+                    std::cout << "Unknown type";
+                }
+            },
+            val->data);
+    };
+
+    if (value->type->tag == TypeTag::List) {
+        const auto &list = std::get<ListValue>(value->data);
         std::cout << "[";
         for (size_t i = 0; i < list.elements.size(); ++i) {
-            auto element = list.elements[i];
-            if (element->type == typeSystem.INT_TYPE) {
-                // Directly handle int type
-                std::cout << std::get<int64_t>(element->data);
-            } else if (element->type == typeSystem.STRING_TYPE) {
-                // Handle string type
-                std::cout << std::get<std::string>(element->data);
-            } else if (element->type == typeSystem.LIST_TYPE) {
-                // Handle nested lists
-                handlePrint(); // Recursively handle nested list
-            } else {
-                std::cout << "Unknown type";
-            }
-
+            printValue(list.elements[i]);
             if (i < list.elements.size() - 1) {
-                std::cout << ", "; // Add commas between elements
+                std::cout << ", ";
             }
         }
-        std::cout << "]" << std::endl;
+        std::cout << "]";
     } else {
-        std::visit([](const auto &val) { std::cout << "The result: " << val << std::endl; },
-                   value->data);
+        printValue(value);
     }
+    std::cout << std::endl;
 }
 
 void StackBackend::handleHalt()
