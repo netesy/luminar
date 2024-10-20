@@ -1,5 +1,4 @@
 #pragma once
-// memory.hh
 
 #include <algorithm>
 #include <atomic>
@@ -9,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -19,9 +19,7 @@
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define CURRENT_FUNCTION __FUNCTION__
-#define CURRENT_LINE __LINE__
-#define TRACE_INFO() (std::string(CURRENT_FUNCTION) + " at line " + TOSTRING(CURRENT_LINE))
+#define TRACE_INFO() (std::string(__FUNCTION__) + " at line " + TOSTRING(__LINE__))
 
 class DefaultAllocator
 {
@@ -50,6 +48,58 @@ public:
     }
 };
 
+struct AllocationInfo
+{
+    size_t size;
+    std::chrono::steady_clock::time_point timestamp;
+    std::string stackTrace;
+    size_t generation;
+};
+
+class AllocationTracker
+{
+    std::map<size_t, std::vector<void *>> sizeTree;
+    std::unordered_map<void *, std::unique_ptr<AllocationInfo>> skiplist;
+    std::mutex mutex;
+
+public:
+    void add(void *ptr, size_t size, const std::string &stackTrace, size_t generation)
+    {
+        std::lock_guard lock(mutex);
+        auto info = std::make_unique<AllocationInfo>(
+            AllocationInfo{size, std::chrono::steady_clock::now(), stackTrace, generation});
+        sizeTree[size].push_back(ptr);
+        skiplist[ptr] = std::move(info);
+    }
+
+    void remove(void *ptr)
+    {
+        std::lock_guard lock(mutex);
+        if (auto it = skiplist.find(ptr); it != skiplist.end()) {
+            sizeTree[it->second->size].erase(std::remove(sizeTree[it->second->size].begin(),
+                                                         sizeTree[it->second->size].end(),
+                                                         ptr),
+                                             sizeTree[it->second->size].end());
+            if (sizeTree[it->second->size].empty())
+                sizeTree.erase(it->second->size);
+            skiplist.erase(it);
+        }
+    }
+
+    AllocationInfo *get(void *ptr)
+    {
+        std::lock_guard lock(mutex);
+        auto it = skiplist.find(ptr);
+        return it != skiplist.end() ? it->second.get() : nullptr;
+    }
+
+    // Add these methods to make AllocationTracker iterable
+    auto begin() const { return skiplist.begin(); }
+    auto end() const { return skiplist.end(); }
+    auto begin() { return skiplist.begin(); }
+    auto end() { return skiplist.end(); }
+};
+
 template<typename Allocator = DefaultAllocator>
 class MemoryManager
 {
@@ -58,43 +108,22 @@ private:
     mutable std::mutex logMutex;
     bool auditMode;
     Allocator allocator;
+    AllocationTracker tracker;
 
-    struct AllocationInfo
+    std::atomic<size_t> activeRegionsCount{0}, activeReferencesCount{0}, activeLinearsCount{0};
+    size_t totalAllocated = 0, peakMemoryUsage = 0, allocationCount = 0;
+    size_t deallocationCount = 0, largestAllocation = 0;
+
+    void log(const std::string &message) const
     {
-        size_t size;
-        std::chrono::steady_clock::time_point timestamp;
-        std::string stackTrace;
-        size_t generation;
-
-        AllocationInfo(size_t s, const std::string &st, size_t gen)
-            : size(s)
-            , timestamp(std::chrono::steady_clock::now())
-            , stackTrace(st)
-            , generation(gen)
-        {}
-    };
-
-    std::unordered_map<void *, std::unique_ptr<AllocationInfo>> allocations;
-    size_t totalAllocated;
-    size_t peakMemoryUsage;
-    size_t allocationCount;
-    size_t deallocationCount;
-    size_t largestAllocation;
-    std::atomic<size_t> activeRegionsCount{0};
-    std::atomic<size_t> activeReferencesCount{0};
-    std::atomic<size_t> activeLinearsCount{0};
-
-    void log(const std::string &message)
-    {
-        std::lock_guard<std::mutex> lock(logMutex);
+        std::lock_guard lock(logMutex);
         if (logFile.is_open()) {
             logFile << "[" << getTimestamp() << "] " << message << std::endl;
             logFile.flush();
         }
-        //std::cout << "[" << getTimestamp() << "] " << message << std::endl;
     }
 
-    std::string getTimestamp()
+    std::string getTimestamp() const
     {
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -103,75 +132,18 @@ private:
         return ss.str();
     }
 
-    void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
-    {
-        void *ptr = allocator.allocate(size, alignment);
-        log("Allocated " + std::to_string(size) + " bytes at "
-            + std::to_string(reinterpret_cast<uintptr_t>(ptr)));
-
-        size_t generation = 1; // Initial generation
-        auto info = std::make_unique<AllocationInfo>(size,
-                                                     auditMode ? TRACE_INFO() : "",
-                                                     generation);
-
-        if (auditMode) {
-            log("[AUDIT] Allocation: " + std::to_string(size) + " bytes at "
-                + std::to_string(reinterpret_cast<uintptr_t>(ptr))
-                + " (alignment: " + std::to_string(alignment) + ") " + " (" + getTimestamp() + ")");
-        }
-
-        allocations[ptr] = std::move(info);
-
-        totalAllocated += size;
-        peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
-        allocationCount++;
-        largestAllocation = std::max(largestAllocation, size);
-
-        return ptr;
-    }
-
-    void deallocate(void *ptr)
-    {
-        auto it = allocations.find(ptr);
-        if (it != allocations.end()) {
-            if (auditMode) {
-                auto duration = std::chrono::steady_clock::now() - it->second->timestamp;
-                log("[AUDIT] Deallocation: " + std::to_string(it->second->size) + " bytes at "
-                    + std::to_string(reinterpret_cast<uintptr_t>(ptr)) + " (" + getTimestamp()
-                    + "), lived for "
-                    + std::to_string(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(duration).count())
-                    + "ms");
-            }
-
-            totalAllocated -= it->second->size;
-            deallocationCount++;
-
-            allocator.deallocate(ptr);
-            allocations.erase(it);
-        }
-    }
-
 public:
-    MemoryManager(bool enableAuditMode = false, const Allocator &alloc = Allocator())
-        : auditMode(enableAuditMode)
-        , allocator(alloc)
-        , totalAllocated(0)
-        , peakMemoryUsage(0)
-        , allocationCount(0)
-        , deallocationCount(0)
-        , largestAllocation(0)
+    MemoryManager(bool enableAudit = false)
+        : auditMode(enableAudit)
     {
         logFile.open("memory.log", std::ios::app);
-        if (!logFile.is_open()) {
-            throw std::runtime_error("Failed to open memory.log file");
-        }
+        if (!logFile)
+            throw std::runtime_error("Failed to open memory.log");
         log("MemoryManager initialized");
     }
 
     ~MemoryManager()
     {
-        reportLeaks();
         log("MemoryManager destroyed");
         logFile.close();
     }
@@ -182,23 +154,38 @@ public:
         log("Audit mode " + std::string(enable ? "enabled" : "disabled"));
     }
 
-    void reportLeaks()
+    void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
-        if (allocations.empty()) {
-            log("No memory leaks detected.");
-            return;
-        }
+        void *ptr = allocator.allocate(size, alignment);
+        tracker.add(ptr, size, auditMode ? TRACE_INFO() : "", 1);
+        totalAllocated += size;
+        peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
+        allocationCount++;
+        largestAllocation = std::max(largestAllocation, size);
+        log("Allocated " + std::to_string(size) + " bytes at "
+            + std::to_string(reinterpret_cast<uintptr_t>(ptr)));
+        return ptr;
+    }
 
-        log("Memory leaks detected:\n");
-        for (const auto &[ptr, info] : allocations) {
+    void deallocate(void *ptr)
+    {
+        if (auto *info = tracker.get(ptr)) {
+            totalAllocated -= info->size;
+            deallocationCount++;
+            allocator.deallocate(ptr);
+            tracker.remove(ptr);
+        }
+    }
+
+    void reportLeaks() const
+    {
+        log("Memory leaks detected:");
+        for (const auto &[ptr, info] : this->tracker) {
             auto duration = std::chrono::steady_clock::now() - info->timestamp;
             log("- Leak: " + std::to_string(info->size) + " bytes at "
                 + std::to_string(reinterpret_cast<uintptr_t>(ptr)) + ", allocated "
                 + std::to_string(std::chrono::duration_cast<std::chrono::seconds>(duration).count())
                 + " seconds ago");
-            if (auditMode && !info->stackTrace.empty()) {
-                log("  Stack trace:\n" + info->stackTrace);
-            }
         }
     }
 

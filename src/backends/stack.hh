@@ -5,13 +5,11 @@
 #include "../types.hh"
 #include "backend.hh"
 #include <functional>
-#include <iostream>
 #include <map>
 #include <mutex>
 #include <stack>
 #include <string>
 #include <thread>
-#include <variant>
 #include <vector>
 
 class StackBackend : public Backend

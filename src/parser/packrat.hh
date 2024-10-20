@@ -5,17 +5,11 @@
 #include "../types.hh"
 #include "../variable.hh"
 #include "algorithm.hh"
-#include <any>
 #include <array>
 #include <cstdint>
-#include <functional>
-#include <map>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 // Define a vector type to hold bytecode instructions
