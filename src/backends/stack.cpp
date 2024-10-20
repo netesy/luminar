@@ -38,6 +38,7 @@ void StackBackend::run(const std::vector<Instruction> &program)
                 std::cout << "Program halted normally." << std::endl;
                 break;
             }
+            instruction.debug();
             execute(instruction);
             pc++;
         }
@@ -762,7 +763,7 @@ ValuePtr StackBackend::createRange(const ValuePtr &start, const ValuePtr &end, c
     ListValue rangeList;
     int64_t begin = std::get<int64_t>(start->data);
     int64_t finish = std::get<int64_t>(end->data);
-    int64_t stepValue = std::get<int32_t>(step->data);
+    int64_t stepValue = std::get<int64_t>(step->data);
 
     if (stepValue > 0) {
         for (int64_t i = begin; i <= finish; i += stepValue) {
