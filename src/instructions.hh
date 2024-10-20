@@ -147,6 +147,8 @@ struct Instruction
             return "INVOKE_FUNCTION";
         case Opcode::RETURN_VALUE:
             return "RETURN_VALUE";
+        case Opcode::PUSH_ARGS:
+            return "PUSH_ARGS";
 
             // Loop operations
         case Opcode::FOR_LOOP:

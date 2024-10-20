@@ -257,22 +257,6 @@ struct Value
                  SumValue,
                  UserDefinedValue>
         data;
-    //    // Default constructor
-    //    Value() = default;
-
-    //    // Constructor from std::shared_ptr<Value>
-    //    Value(const std::shared_ptr<Value> &other)
-    //        : type(other->type)
-    //        , data(other->data)
-    //    {}
-
-    //    // Constructor from MemoryManager<>::Ref<Value>
-    //    template<typename T>
-    //    Value(const MemoryManager<T>::Ref<Value> &ref)
-    //        : type(ref->type)
-    //        , data(ref->data)
-    //    {}
-
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
 };
 
