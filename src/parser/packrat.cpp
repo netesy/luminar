@@ -2,7 +2,9 @@
 #include "../debugger.hh"
 #include <iostream>
 #include <regex>
+#include <set>
 #include <sstream>
+#include <unordered_set>
 
 PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
     : scanner(scanner)
@@ -10,6 +12,7 @@ PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeS
     , typeSystem(typeSystem)
 {
     tokens = scanner.scanTokens();
+    scanner.toString();
     pos = 0;
 }
 
@@ -634,7 +637,7 @@ void PackratParser::range_function()
         expression(); // Parse the step value
     } else {
         // Emit a constant step value of 1
-        emit(Opcode::LOAD_CONST, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 1});
+        emit(Opcode::LOAD_CONST, peek().line, setValue(std::make_shared<Type>(TypeTag::Int64), "1"));
     }
 
     consume(TokenType::RIGHT_PAREN, "Expected ')' after range arguments.");
@@ -659,7 +662,9 @@ void PackratParser::range_expression()
             additive_expression();
         } else {
             // Emit a constant step value of 1
-            emit(Opcode::LOAD_CONST, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 1});
+            emit(Opcode::LOAD_CONST,
+                 peek().line,
+                 setValue(std::make_shared<Type>(TypeTag::Int64), "1"));
         }
         // Emit a custom opcode to handle the range iteration in the VM
         emit(Opcode::MAKE_RANGE,
@@ -713,7 +718,7 @@ void PackratParser::method_call(const Token &object)
 Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-    //' instruction.debug();
+    // instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -761,9 +766,9 @@ void PackratParser::error(const std::string &message)
 void PackratParser::optimize()
 {
     constantFolding();
-    constantPropagation();
-    earlyInlineExpansion();
-    deadCodeElimination();
+    // constantPropagation();
+    // earlyInlineExpansion();
+    // deadCodeElimination();
 }
 
 void PackratParser::constantFolding()
@@ -842,8 +847,21 @@ void PackratParser::deadCodeElimination()
 {
     std::vector<bool> reachable(bytecode.size(), false);
     std::vector<size_t> stack;
-    stack.push_back(0);
+    std::unordered_set<std::string> definedFunctions;
+    std::unordered_set<std::string> calledFunctions;
 
+    // First pass: mark all defined functions and initial reachable instructions
+    for (size_t i = 0; i < bytecode.size(); ++i) {
+        if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
+            definedFunctions.insert(std::get<std::string>(bytecode[i].value->data));
+            reachable[i] = true;
+        }
+        // } else if (i == 0 || bytecode[i].opcode == Opcode::MAIN) {
+        //     stack.push_back(i);
+        // }
+    }
+
+    // Second pass: traverse the bytecode and mark reachable instructions
     while (!stack.empty()) {
         size_t current = stack.back();
         stack.pop_back();
@@ -853,18 +871,48 @@ void PackratParser::deadCodeElimination()
 
         reachable[current] = true;
 
-        if (bytecode[current].opcode == Opcode::JUMP) {
+        switch (bytecode[current].opcode) {
+        case Opcode::JUMP: {
             int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
             stack.push_back(current + jumpOffset);
-        } else if (bytecode[current].opcode == Opcode::JUMP_IF_FALSE) {
+        } break;
+        case Opcode::JUMP_IF_FALSE:
+        case Opcode::JUMP_IF_TRUE: {
             int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
             stack.push_back(current + jumpOffset);
             stack.push_back(current + 1);
-        } else {
+        } break;
+        case Opcode::INVOKE_FUNCTION: {
+            std::string funcName = std::get<std::string>(bytecode[current].value->data);
+            calledFunctions.insert(funcName);
+        }
+            // fallthrough
+        case Opcode::PRINT:
+        case Opcode::RETURN:
+        case Opcode::LOAD_VARIABLE:
+        case Opcode::STORE_VARIABLE:
+        case Opcode::DECLARE_VARIABLE:
+            // These operations have side effects or are crucial for program flow
             stack.push_back(current + 1);
+            break;
+        default:
+            // For all other operations, just move to the next instruction
+            stack.push_back(current + 1);
+            break;
         }
     }
 
+    // Third pass: ensure all called functions are marked as reachable
+    for (size_t i = 0; i < bytecode.size(); ++i) {
+        if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
+            std::string funcName = std::get<std::string>(bytecode[i].value->data);
+            if (calledFunctions.find(funcName) != calledFunctions.end()) {
+                reachable[i] = true;
+            }
+        }
+    }
+
+    // Final pass: remove unreachable code
     std::vector<Instruction> optimizedBytecode;
     for (size_t i = 0; i < bytecode.size(); ++i) {
         if (reachable[i]) {
@@ -873,6 +921,11 @@ void PackratParser::deadCodeElimination()
     }
 
     bytecode = optimizedBytecode;
+
+    // Log optimization results
+    size_t removedInstructions = bytecode.size() - optimizedBytecode.size();
+    std::cout << "Dead code elimination removed " << removedInstructions << " instructions."
+              << std::endl;
 }
 
 Value PackratParser::performOperation(const ValuePtr &a, const ValuePtr &b, Opcode op)
