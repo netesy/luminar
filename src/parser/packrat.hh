@@ -32,6 +32,8 @@ private:
     Scanner &scanner;
     Variables variable;
     std::shared_ptr<TypeSystem> typeSystem;
+    std::unordered_map<std::string, std::optional<Value>> constantValues;
+    std::unordered_map<std::string, std::vector<Instruction>> inlineFunctions;
 
     Instruction emit(Opcode opcode, uint32_t lineNumber);
     Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
@@ -44,6 +46,16 @@ private:
     void exitScope();
 
     void error(const std::string &message);
+    void optimize();
+    void constantFolding();
+
+    void constantPropagation();
+
+    void earlyInlineExpansion();
+
+    void deadCodeElimination();
+
+    Value performOperation(const ValuePtr &a, const ValuePtr &b, Opcode op);
 
     Value setValue(TypePtr type, const std::string &input);
     TypeTag inferType(const Token &token);

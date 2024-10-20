@@ -24,6 +24,7 @@ Bytecode PackratParser::parse()
         }
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        optimize();
         std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
         //std::cout << "Parsing debug " << toString() << std::endl;
         return bytecode;
@@ -712,7 +713,7 @@ void PackratParser::method_call(const Token &object)
 Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-    instruction.debug();
+    //' instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -721,7 +722,7 @@ Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber, Value &&valu
 {
     ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
     Instruction instruction(opcode, lineNumber, valuePtr);
-    instruction.debug();
+    // instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -730,15 +731,10 @@ void PackratParser::declareVariable(const Token &name,
                                     const TypePtr &type,
                                     std::optional<ValuePtr> defaultValue)
 {
-    //    auto start = std::chrono::high_resolution_clock::now();
-    //    std::cout << "Declaring variable " << name.lexeme << std::endl;
     int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
     emit(Opcode::DECLARE_VARIABLE,
          name.line,
          Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
-    //    auto end = std::chrono::high_resolution_clock::now();
-    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    //    std::cout << "Time taken by <declareVar>: " << duration << " microseconds\n";
 }
 
 int32_t PackratParser::getVariableMemoryLocation(const Token &name)
@@ -760,6 +756,154 @@ void PackratParser::error(const std::string &message)
 {
     hadError = true;
     Debugger::error(message, peek(), InterpretationStage::PARSING, scanner.getSource());
+}
+
+void PackratParser::optimize()
+{
+    constantFolding();
+    constantPropagation();
+    earlyInlineExpansion();
+    deadCodeElimination();
+}
+
+void PackratParser::constantFolding()
+{
+    for (size_t i = 0; i < bytecode.size(); ++i) {
+        if (i + 2 < bytecode.size()) {
+            if (bytecode[i].opcode == Opcode::LOAD_CONST
+                && bytecode[i + 1].opcode == Opcode::LOAD_CONST
+                && (bytecode[i + 2].opcode == Opcode::ADD
+                    || bytecode[i + 2].opcode == Opcode::SUBTRACT
+                    || bytecode[i + 2].opcode == Opcode::MULTIPLY
+                    || bytecode[i + 2].opcode == Opcode::MODULUS
+                    || bytecode[i + 2].opcode == Opcode::DIVIDE)) {
+                auto tempValue = std::make_shared<Value>(performOperation(bytecode[i].value,
+                                                                          bytecode[i + 1].value,
+                                                                          bytecode[i + 2].opcode));
+                Instruction instruction(Opcode::LOAD_CONST, bytecode[i].lineNumber, tempValue);
+                bytecode[i] = instruction;
+                bytecode.erase(bytecode.begin() + i + 1, bytecode.begin() + i + 3);
+            }
+        }
+    }
+}
+
+void PackratParser::constantPropagation()
+{
+    // for (const auto &instruction : bytecode) {
+    //     if (instruction.opcode == Opcode::STORE_VARIABLE) {
+    //         std::string varName = instruction.value->toString();
+    //         if (instruction.value->type->tag == TypeTag::Int
+    //             || instruction.value->type->tag == TypeTag::Float64
+    //             || instruction.value->type->tag == TypeTag::Bool) {
+    //             constantValues[varName] = *instruction.value;
+    //         } else {
+    //             constantValues[varName] = std::nullopt;
+    //         }
+    //     } else if (instruction.opcode == Opcode::LOAD_VARIABLE) {
+    //         std::string varName = instruction.value->toString();
+    //         if (constantValues.count(varName) && constantValues[varName].has_value()) {
+    //             instruction.opcode = Opcode::LOAD_CONST;
+    //             instruction.value = std::make_shared<Value>(*constantValues[varName]);
+    //         }
+    //     }
+    // }
+}
+
+void PackratParser::earlyInlineExpansion()
+{
+    // for (size_t i = 0; i < bytecode.size(); ++i) {
+    //     if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
+    //         std::string funcName = bytecode[i].value->toString();
+    //         std::vector<Instruction> funcBody;
+    //         size_t j = i + 1;
+    //         while (j < bytecode.size() && bytecode[j].opcode != Opcode::RETURN) {
+    //             funcBody.push_back(bytecode[j]);
+    //             ++j;
+    //         }
+    //         if (j < bytecode.size() && bytecode[j].opcode == Opcode::RETURN) {
+    //             funcBody.push_back(bytecode[j]);
+    //         }
+    //         inlineFunctions[funcName] = funcBody;
+    //     } else if (bytecode[i].opcode == Opcode::INVOKE_FUNCTION) {
+    //         std::string funcName = bytecode[i].value->toString();
+    //         if (inlineFunctions.count(funcName)) {
+    //             bytecode.erase(bytecode.begin() + i);
+    //             bytecode.insert(bytecode.begin() + i,
+    //                             inlineFunctions[funcName].begin(),
+    //                             inlineFunctions[funcName].end());
+    //             i += inlineFunctions[funcName].size() - 1;
+    //         }
+    //     }
+    // }
+}
+
+void PackratParser::deadCodeElimination()
+{
+    std::vector<bool> reachable(bytecode.size(), false);
+    std::vector<size_t> stack;
+    stack.push_back(0);
+
+    while (!stack.empty()) {
+        size_t current = stack.back();
+        stack.pop_back();
+
+        if (current >= bytecode.size() || reachable[current])
+            continue;
+
+        reachable[current] = true;
+
+        if (bytecode[current].opcode == Opcode::JUMP) {
+            int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
+            stack.push_back(current + jumpOffset);
+        } else if (bytecode[current].opcode == Opcode::JUMP_IF_FALSE) {
+            int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
+            stack.push_back(current + jumpOffset);
+            stack.push_back(current + 1);
+        } else {
+            stack.push_back(current + 1);
+        }
+    }
+
+    std::vector<Instruction> optimizedBytecode;
+    for (size_t i = 0; i < bytecode.size(); ++i) {
+        if (reachable[i]) {
+            optimizedBytecode.push_back(bytecode[i]);
+        }
+    }
+
+    bytecode = optimizedBytecode;
+}
+
+Value PackratParser::performOperation(const ValuePtr &a, const ValuePtr &b, Opcode op)
+{
+    if (a->type->tag == TypeTag::Int && b->type->tag == TypeTag::Int) {
+        int64_t valA = std::get<int64_t>(a->data);
+        int64_t valB = std::get<int64_t>(b->data);
+        int64_t result;
+        switch (op) {
+        case Opcode::ADD:
+            result = valA + valB;
+            break;
+        case Opcode::SUBTRACT:
+            result = valA - valB;
+            break;
+        case Opcode::MULTIPLY:
+            result = valA * valB;
+            break;
+        case Opcode::MODULUS:
+            result = valA % valB;
+            break;
+        case Opcode::DIVIDE:
+            result = valA / valB;
+            break;
+        default:
+            throw std::runtime_error("Unsupported operation");
+        }
+        return Value{std::make_shared<Type>(TypeTag::Int), result};
+    }
+    // Add similar logic for other types (Float64, Bool, etc.)
+    throw std::runtime_error("Unsupported types for constant folding");
 }
 
 Value PackratParser::setValue(TypePtr type, const std::string &input)
