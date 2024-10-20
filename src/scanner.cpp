@@ -383,9 +383,7 @@ void Scanner::identifier()
     }
 
     std::string identifier = source.substr(start, current + 1 - start - 1);
-    std::cout << "Identifying token: " << identifier << std::endl;
     TokenType type = checkKeyword(identifier);
-    std::cout << "Token type: " << tokenTypeToString(type, identifier) << std::endl;
     addToken(type, identifier);
 }
 
