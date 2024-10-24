@@ -47,13 +47,10 @@ private:
 
     void error(const std::string &message);
     void optimize();
-    void constantFolding();
-
-    void constantPropagation();
-
-    void earlyInlineExpansion();
-
-    void deadCodeElimination();
+    bool constantFolding();
+    bool constantPropagation();
+    bool earlyInlineExpansion();
+    bool deadCodeElimination();
 
     Value performOperation(const ValuePtr &a, const ValuePtr &b, Opcode op);
 

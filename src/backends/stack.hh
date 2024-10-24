@@ -12,6 +12,26 @@
 #include <thread>
 #include <vector>
 
+struct Function
+{
+    std::string name;
+    std::vector<std::pair<std::string, TypePtr>> parameters;
+    TypePtr returnType;
+    size_t startPC;
+    size_t endPC;
+
+    Function(const std::string &n,
+             const std::vector<std::pair<std::string, TypePtr>> &params,
+             TypePtr retType,
+             size_t start)
+        : name(n)
+        , parameters(params)
+        , returnType(retType)
+        , startPC(start)
+        , endPC(0)
+    {}
+};
+
 class StackBackend : public Backend
 {
 public:
@@ -29,6 +49,16 @@ private:
     //    std::stack<ValuePtr> stack;
     //    std::vector<ValuePtr> constants;
     //    std::vector<ValuePtr> variables;
+    std::unordered_map<std::string, Function> functionTable;
+    struct CallFrame
+    {
+        size_t returnPC;
+        size_t stackFrameBase;
+        std::string functionName;
+        std::unordered_map<std::string, ValuePtr> localVariables;
+    };
+    std::stack<CallFrame> callFrames;
+    std::stack<std::tuple<size_t, size_t>> callStack; // Stores PC and stack size
     std::stack<MemoryManager<>::Ref<Value>> stack;
     std::vector<MemoryManager<>::Ref<Value>> constants;
     std::vector<MemoryManager<>::Ref<Value>> variables;
@@ -58,6 +88,7 @@ private:
     void handleStoreVariable(int32_t variableIndex);
     void handleDeclareFunction(const std::string &functionName);
     void handleCallFunction(const std::string &functionName);
+    void handleReturnFuction();
     void handlePushArg(const Instruction &instruction);
     void handleJump();
     void handleJumpZero();
