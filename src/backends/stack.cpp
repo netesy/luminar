@@ -28,8 +28,17 @@ void StackBackend::run(const std::vector<Instruction> &program)
 {
     this->program = program;
     auto start_time = std::chrono::high_resolution_clock::now();
+    // Print all instructions
+    for (const Instruction &instruction : program) {
+        // Print the instruction in your desired format
+        instruction.debug();
+        // std::cout << instruction.debug() << std::endl;
+        std::cout << "================== end ====================" << std::endl;
+    }
     try {
         pc = 0;
+
+        //program[pc].debug();
         auto start_time = std::chrono::high_resolution_clock::now();
         while (pc < program.size()) {
             const Instruction &instruction = program[pc];
@@ -39,9 +48,11 @@ void StackBackend::run(const std::vector<Instruction> &program)
                 break;
             }
             instruction.debug();
+
             execute(instruction);
             pc++;
         }
+        /// program[pc].debug();
         if (pc >= program.size()) {
             std::cerr << "Warning: Reached end of program without HALT instruction." << std::endl;
         }
@@ -114,6 +125,9 @@ void StackBackend::execute(const Instruction &instruction)
         break;
     case INVOKE_FUNCTION:
         handleCallFunction(std::get<std::string>(instruction.value->data));
+        break;
+    case RETURN:
+        handleReturnFuction();
         break;
     case PUSH_ARGS:
         handlePushArg(instruction);
@@ -621,14 +635,57 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
 
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
-    pushRegion(); // Create a new region for the function call
-    if (functions.find(functionName) == functions.end()) {
-        std::cerr << "Error: Function not declared" << std::endl;
-        popRegion();
+    // pushRegion(); // Create a new region for the function call
+    // if (functions.find(functionName) == functions.end()) {
+    //     std::cerr << "Error: Function not declared" << std::endl;
+    //     popRegion();
+    //     return;
+    // }
+    // functions[functionName]();
+    // popRegion();
+
+    auto it = functions.find(functionName);
+    if (it == functions.end()) {
+        std::cerr << "Error: Function " << functionName << " not found" << std::endl;
         return;
     }
-    functions[functionName]();
-    popRegion();
+
+    // Save the current state (PC, stack frame size)
+    callStack.push({pc, stack.size()});
+
+    // Execute the function by calling the lambda stored in the `functions` map
+    std::cout << "Calling function: " << functionName << std::endl;
+    it->second(); // Invoke the function logic
+
+    // Optionally, check if a return value was provided on the stack
+    if (stack.empty()) {
+        std::cerr << "Warning: No return value from function: " << functionName << std::endl;
+    } else {
+        std::cout << "Function " << functionName << " returned: " << stack.top().get()
+                  << std::endl; // Assuming toString() is defined for Value
+    }
+}
+
+void StackBackend::handleReturnFuction()
+{
+    if (callStack.empty()) {
+        std::cerr << "Error: Return without a matching function call" << std::endl;
+        return;
+    }
+
+    // Pop the saved state from the call stack
+    auto [returnPC, stackFrameSize] = callStack.top();
+    callStack.pop();
+
+    // Restore the program counter (PC)
+    pc = returnPC;
+
+    // Clean up the stack to the previous state, leaving only the return value if any
+    while (stack.size() > stackFrameSize + 1) { // +1 to keep the return value
+        stack.pop();
+    }
+
+    std::cout << "Returned from function to PC: " << pc << std::endl;
 }
 
 void StackBackend::handlePushArg(const Instruction &instruction)
