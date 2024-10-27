@@ -68,6 +68,26 @@ public:
         return false;
     }
 
+    // Check if an item exists in the current scope only
+    bool existsInCurrentScope(const std::string &name) const
+    {
+        if (!scopes_.empty()) {
+            return scopes_.back()->count(name) > 0;
+        }
+        return false;
+    }
+
+    // Check if an item is visible in any current or outer scope
+    bool isVisibleInCurrentScope(const std::string &name) const
+    {
+        for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
+            if ((*it)->count(name) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Update an item in the nearest scope where it exists
     bool update(const std::string &name, const T &newItem)
     {
@@ -85,6 +105,16 @@ public:
     size_t getCurrentScopeDepth() const
     {
         return scopes_.size() - 1; // Subtract 1 to account for global scope
+    }
+
+    // Retrieve a copy of the current scope
+    std::unordered_map<std::string, T> getCurrentScope() const { return *scopes_.back(); }
+    std::shared_ptr<std::unordered_map<std::string, T>> getScopeAtDepth(size_t depth) const
+    {
+        if (depth >= scopes_.size()) {
+            return nullptr;
+        }
+        return scopes_[depth];
     }
 
 private:

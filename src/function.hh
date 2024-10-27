@@ -33,40 +33,33 @@ struct FunctionInfo
     int32_t endPC;
     bool isBuiltin;
     std::function<ValuePtr(const std::vector<ValuePtr> &)> nativeImpl;
-    size_t requiredParamCount; // Number of non-optional parameters
+    size_t requiredParamCount;
 
-    // Constructor for user-defined functions
+    // Add default constructor
+    FunctionInfo()
+        : name("")
+        , parameters()
+        , returnType(nullptr)
+        , startPC(-1)
+        , endPC(-1)
+        , isBuiltin(false)
+        , nativeImpl(nullptr)
+        , requiredParamCount(0)
+    {}
+
+    // Existing constructors...
     FunctionInfo(const std::string &n,
                  const std::vector<ParameterInfo> &params,
                  TypePtr ret,
                  int32_t start,
                  int32_t end,
-                 size_t reqCount)
-        : name(n)
-        , parameters(params)
-        , returnType(ret)
-        , startPC(start)
-        , endPC(end)
-        , isBuiltin(false)
-        , nativeImpl(nullptr)
-        , requiredParamCount(reqCount)
-    {}
+                 size_t reqCount);
 
-    // Constructor for built-in functions
     FunctionInfo(const std::string &n,
                  const std::vector<ParameterInfo> &params,
                  TypePtr ret,
                  std::function<ValuePtr(const std::vector<ValuePtr> &)> impl,
-                 size_t reqCount)
-        : name(n)
-        , parameters(params)
-        , returnType(ret)
-        , startPC(-1)
-        , endPC(-1)
-        , isBuiltin(true)
-        , nativeImpl(std::move(impl))
-        , requiredParamCount(reqCount)
-    {}
+                 size_t reqCount);
 };
 
 class Functions
@@ -235,6 +228,36 @@ public:
             return *funcInfo; // Dereference the shared_ptr to return FunctionInfo
         }
         return std::nullopt;
+    }
+
+    // Add method to update function endPC
+    void updateFunctionEndPC(const std::string &name, int32_t endPC)
+    {
+        auto funcInfo = scopeManager_.get(name);
+        if (!funcInfo) {
+            throw std::runtime_error("Function not found while updating endPC: " + name);
+        }
+
+        funcInfo->endPC = endPC;
+    }
+
+    // Enhanced function info retrieval with scope checking
+    std::optional<FunctionInfo> getFunctionInScope(const std::string &name, size_t scopeDepth = 0)
+    {
+        // Calculate the actual scope depth considering the global scope
+        size_t targetDepth = scopeManager_.getCurrentScopeDepth() - scopeDepth;
+        auto scope = scopeManager_.getScopeAtDepth(targetDepth);
+
+        if (scope && scope->count(name) > 0) {
+            return scope->at(name);
+        }
+        return std::nullopt;
+    }
+
+    // Add method to check if a function is in the current scope
+    bool isInCurrentScope(const std::string &name) const
+    {
+        return scopeManager_.getCurrentScope().count(name) > 0;
     }
 
     void enterScope() { scopeManager_.enterScope(); }

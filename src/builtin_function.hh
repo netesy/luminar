@@ -216,42 +216,42 @@ private:
                 output << "\"" << str << "\"";
                 break;
             }
-            case TypeTag::List: {
-                const auto &list = std::get<ListValue>(value->data);
-                output << "[";
-                for (size_t i = 0; i < list.size(); ++i) {
-                    if (i > 0)
-                        output << ", ";
-                    // Recursive debug call for each element
-                    std::vector<ValuePtr> recursiveArgs = {list[i], args[1]};
-                    auto elemDebug = debugImpl(recursiveArgs);
-                    output << std::get<std::string>(elemDebug->data);
-                }
-                output << "]";
-                break;
-            }
-            case TypeTag::Dict: {
-                const auto &dict = std::get<DictValue>(value->data);
-                output << "{";
-                bool first = true;
-                for (const auto &[key, val] : dict) {
-                    if (!first)
-                        output << ", ";
-                    output << "\"" << key << "\": ";
-                    // Recursive debug call for each value
-                    std::vector<ValuePtr> recursiveArgs = {val, args[1]};
-                    auto elemDebug = debugImpl(recursiveArgs);
-                    output << std::get<std::string>(elemDebug->data);
-                    first = false;
-                }
-                output << "}";
-                break;
-            }
-            case TypeTag::Function: {
-                const auto &func = std::get<FunctionValue>(value->data);
-                output << "<function " << func.name << ">";
-                break;
-            }
+                // case TypeTag::List: {
+                // const auto &list = std::get<ListValue>(value->data);
+                // output << "[";
+                // for (size_t i = 0; i < list.size(); ++i) {
+                //     if (i > 0)
+                //         output << ", ";
+                //     // Recursive debug call for each element
+                //     std::vector<ValuePtr> recursiveArgs = {list[i], args[1]};
+                //     auto elemDebug = debugImpl(recursiveArgs);
+                //     output << std::get<std::string>(elemDebug->data);
+                // }
+                // output << "]";
+                // break;
+                // }
+                // case TypeTag::Dict: {
+                //     const auto &dict = std::get<DictValue>(value->data);
+                //     output << "{";
+                //     bool first = true;
+                //     for (const auto &[key, val] : dict) {
+                //         if (!first)
+                //             output << ", ";
+                //         output << "\"" << key << "\": ";
+                //         // Recursive debug call for each value
+                //         std::vector<ValuePtr> recursiveArgs = {val, args[1]};
+                //         auto elemDebug = debugImpl(recursiveArgs);
+                //         output << std::get<std::string>(elemDebug->data);
+                //         first = false;
+                //     }
+                //     output << "}";
+                //     break;
+                // }
+                // case TypeTag::Function: {
+                //     const auto &func = std::get<FunctionValue>(value->data);
+                //     output << "<function " << func.name << ">";
+                //     break;
+                // }
             default:
                 output << "<unknown>";
             }
@@ -261,6 +261,7 @@ private:
 
         functions.addBuiltinFunction("debug", debugParams, makeType(TypeTag::String), debugImpl);
     }
+
     static void registerInput(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // input(prompt: string = "") -> string
@@ -629,7 +630,7 @@ private:
     static TypePtr makeListType(TypePtr elementType)
     {
         auto type = std::make_shared<Type>(TypeTag::List);
-        type->elementType = elementType;
+        type->extra = ListType{elementType}; // Use the ListType struct from the extra variant
         return type;
     }
 
