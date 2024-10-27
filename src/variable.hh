@@ -31,6 +31,10 @@ public:
                         bool isGlobal = false,
                         std::optional<ValuePtr> defaultValue = std::nullopt)
     {
+        if (!allowShadowing && scopeManager_.existsInCurrentScope(name)) {
+            throw std::runtime_error("Variable shadowing not allowed: " + name);
+        }
+
         static std::atomic<int32_t> nextMemoryLocation = 0;
         int32_t memoryLocation = nextMemoryLocation++;
 
@@ -109,6 +113,7 @@ public:
     void exitScope() { scopeManager_.exitScope(); }
 
 private:
+    bool allowShadowing = true;
     std::shared_ptr<TypeSystem> typeSystem_;
     ScopeManager<VariableInfo> scopeManager_;
 
