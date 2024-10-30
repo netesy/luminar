@@ -44,24 +44,24 @@ private:
     //         std::stringstream output;
 
     //         // Handle the value to print
-    //         if (args[0]->type->tag != TypeTag::Nil) {
-    //             switch (args[0]->type->tag) {
+    //         if (functions.getParameter("value")->type->tag != TypeTag::Nil) {
+    //             switch (functions.getParameter("value")->type->tag) {
     //             case TypeTag::Int:
     //             case TypeTag::Int32:
-    //                 output << std::get<int32_t>(args[0]->data);
+    //                 output << std::get<int32_t>(functions.getParameter("value")->data);
     //                 break;
     //             case TypeTag::Float32:
     //             case TypeTag::Float64:
-    //                 output << std::get<double>(args[0]->data);
+    //                 output << std::get<double>(functions.getParameter("value")->data);
     //                 break;
     //             case TypeTag::Bool:
-    //                 output << (std::get<bool>(args[0]->data) ? "true" : "false");
+    //                 output << (std::get<bool>(functions.getParameter("value")->data) ? "true" : "false");
     //                 break;
     //             case TypeTag::String:
-    //                 output << std::get<std::string>(args[0]->data);
+    //                 output << std::get<std::string>(functions.getParameter("value")->data);
     //                 break;
     //             case TypeTag::List: {
-    //                 const auto &list = std::get<ListValue>(args[0]->data);
+    //                 const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
     //                 output << "[";
     //                 for (size_t i = 0; i < list.size(); ++i) {
     //                     if (i > 0)
@@ -74,7 +74,7 @@ private:
     //                 break;
     //             }
     //             case TypeTag::Dict: {
-    //                 const auto &dict = std::get<DictValue>(args[0]->data);
+    //                 const auto &dict = std::get<DictValue>(functions.getParameter("value")->data);
     //                 output << "{";
     //                 bool first = true;
     //                 for (const auto &[key, value] : dict) {
@@ -95,7 +95,7 @@ private:
     //         }
 
     //         // Add the end string (usually newline)
-    //         output << std::get<std::string>(args[1]->data);
+    //         output << std::get<std::string>(functions.getParameter("value")->data);
 
     //         // Actually print to stdout
     //         std::cout << output.str();
@@ -114,8 +114,8 @@ private:
             ParameterInfo("value", makeAnyType(), false) // Required parameter
         };
 
-        auto lenImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = args[0];
+        auto lenImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            const auto &value = functions.getParameter("value");
             size_t length = 0;
 
             switch (value->type->tag) {
@@ -163,30 +163,24 @@ private:
     static void registerDebug(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // debug(value: any, showType: bool = true) -> string
-        std::vector<ParameterInfo> debugParams = {
-            ParameterInfo("value", makeAnyType(), false), // Required value to debug
-            ParameterInfo("showType",
-                          makeType(TypeTag::Bool),
-                          true,
-                          makeBoolValue(true)) // Optional flag to show type info
-        };
+        std::vector<ParameterInfo> debugParams
+            = {ParameterInfo("value", makeAnyType(), false),
+               ParameterInfo("showType", makeType(TypeTag::Bool), true, makeBoolValue(true))};
 
-        auto debugImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = args[0];
-            bool showType = std::get<bool>(args[1]->data);
+        auto debugImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            const auto &value = functions.getParameter("value");
+            bool showType = std::get<bool>(functions.getParameter("showType")->data);
 
             std::stringstream output;
-
-            // Helper function to format type information
             auto formatType = [](const TypePtr &type) -> std::string {
                 std::stringstream ss;
-                ss << "<" << typeTagToString(type->tag);
-                // if (type->elementType) {
-                //     ss << " of " << typeTagToString(type->elementType->tag);
-                // }
-                ss << ">";
+                ss << "<" << typeTagToString(type->tag) << ">";
                 return ss.str();
             };
+
+            if (showType) {
+                output << formatType(value->type) << ": ";
+            }
 
             // Add type information if requested
             if (showType) {
@@ -223,7 +217,7 @@ private:
                 //     if (i > 0)
                 //         output << ", ";
                 //     // Recursive debug call for each element
-                //     std::vector<ValuePtr> recursiveArgs = {list[i], args[1]};
+                //     std::vector<ValuePtr> recursiveArgs = {list[i], functions.getParameter("value")};
                 //     auto elemDebug = debugImpl(recursiveArgs);
                 //     output << std::get<std::string>(elemDebug->data);
                 // }
@@ -239,7 +233,7 @@ private:
                 //             output << ", ";
                 //         output << "\"" << key << "\": ";
                 //         // Recursive debug call for each value
-                //         std::vector<ValuePtr> recursiveArgs = {val, args[1]};
+                //         std::vector<ValuePtr> recursiveArgs = {val, functions.getParameter("value")};
                 //         auto elemDebug = debugImpl(recursiveArgs);
                 //         output << std::get<std::string>(elemDebug->data);
                 //         first = false;
@@ -268,9 +262,9 @@ private:
         std::vector<ParameterInfo> inputParams = {
             ParameterInfo("prompt", makeType(TypeTag::String), true, makeStringValue(""))};
 
-        auto inputImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+        auto inputImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             // Print prompt if provided
-            std::cout << std::get<std::string>(args[0]->data);
+            std::cout << std::get<std::string>(functions.getParameter("value")->data);
             std::cout.flush();
 
             std::string input;
@@ -287,8 +281,8 @@ private:
         std::vector<ParameterInfo> absParams = {
             ParameterInfo("x", makeType(TypeTag::Float64), false)};
 
-        auto absImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = args[0];
+        auto absImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            const auto &value = functions.getParameter("value");
             if (value->type->tag == TypeTag::Int || value->type->tag == TypeTag::Int32) {
                 int32_t val = std::get<int32_t>(value->data);
                 return makeIntValue(std::abs(val));
@@ -304,8 +298,8 @@ private:
         std::vector<ParameterInfo> sqrtParams = {
             ParameterInfo("x", makeType(TypeTag::Float64), false)};
 
-        auto sqrtImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double val = std::get<double>(args[0]->data);
+        auto sqrtImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            double val = std::get<double>(functions.getParameter("value")->data);
             if (val < 0) {
                 throw std::runtime_error("Math error: sqrt() domain error");
             }
@@ -322,7 +316,7 @@ private:
     //         ParameterInfo("list", makeListType(makeAnyType()), false)};
 
     //     auto minImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(args[0]->data);
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
     //         if (list.empty()) {
     //             throw std::runtime_error("min() arg is an empty sequence");
     //         }
@@ -343,7 +337,7 @@ private:
     //         ParameterInfo("list", makeListType(makeAnyType()), false)};
 
     //     auto maxImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(args[0]->data);
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
     //         if (list.empty()) {
     //             throw std::runtime_error("max() arg is an empty sequence");
     //         }
@@ -364,7 +358,7 @@ private:
     //         ParameterInfo("list", makeListType(makeType(TypeTag::Float64)), false)};
 
     //     auto sumImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(args[0]->data);
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
     //         double sum = 0.0;
     //         for (const auto &val : list) {
     //             if (val->type->tag == TypeTag::Int || val->type->tag == TypeTag::Int32) {
@@ -384,8 +378,8 @@ private:
         // type(value: any) -> string
         std::vector<ParameterInfo> typeParams = {ParameterInfo("value", makeAnyType(), false)};
 
-        auto typeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            return makeStringValue(typeTagToString(args[0]->type->tag));
+        auto typeImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            return makeStringValue(typeTagToString(functions.getParameter("value")->type->tag));
         };
 
         functions.addBuiltinFunction("type", typeParams, makeType(TypeTag::String), typeImpl);
@@ -398,9 +392,9 @@ private:
             = {ParameterInfo("condition", makeType(TypeTag::Bool), false),
                ParameterInfo("message", makeType(TypeTag::String), true, makeStringValue(""))};
 
-        auto assertImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            if (!std::get<bool>(args[0]->data)) {
-                std::string msg = std::get<std::string>(args[1]->data);
+        auto assertImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            if (!std::get<bool>(functions.getParameter("value")->data)) {
+                std::string msg = std::get<std::string>(functions.getParameter("value")->data);
                 throw std::runtime_error("Assertion failed" + (msg.empty() ? "" : ": " + msg));
             }
             return makeNilValue();
@@ -416,9 +410,9 @@ private:
             = {ParameterInfo("x", makeType(TypeTag::Float64), false),
                ParameterInfo("places", makeType(TypeTag::Int), true, makeIntValue(0))};
 
-        auto roundImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double value = std::get<double>(args[0]->data);
-            int32_t places = std::get<int32_t>(args[1]->data);
+        auto roundImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            double value = std::get<double>(functions.getParameter("value")->data);
+            int32_t places = std::get<int32_t>(functions.getParameter("value")->data);
 
             double multiplier = std::pow(10.0, places);
             double rounded = std::round(value * multiplier) / multiplier;
@@ -435,8 +429,8 @@ private:
         std::vector<ParameterInfo> sleepParams = {
             ParameterInfo("seconds", makeType(TypeTag::Float64), false)};
 
-        auto sleepImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double seconds = std::get<double>(args[0]->data);
+        auto sleepImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            double seconds = std::get<double>(functions.getParameter("value")->data);
             if (seconds < 0) {
                 throw std::runtime_error("Sleep time cannot be negative");
             }
@@ -470,8 +464,8 @@ private:
     //            ParameterInfo("mode", makeType(TypeTag::String), true, makeStringValue("r"))};
 
     //     auto openImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         std::string path = std::get<std::string>(args[0]->data);
-    //         std::string mode = std::get<std::string>(args[1]->data);
+    //         std::string path = std::get<std::string>(functions.getParameter("value")->data);
+    //         std::string mode = std::get<std::string>(functions.getParameter("value")->data);
 
     //         // Convert mode string to fstream flags
     //         std::ios_base::openmode flags = std::ios_base::binary; // Always use binary mode
@@ -515,8 +509,8 @@ private:
     //            ParameterInfo("size", makeType(TypeTag::Int), true, makeIntValue(-1))};
 
     //     auto readImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         auto handle = std::get<std::shared_ptr<FileHandle>>(args[0]->data);
-    //         int32_t size = std::get<int32_t>(args[1]->data);
+    //         auto handle = std::get<std::shared_ptr<FileHandle>>(functions.getParameter("value")->data);
+    //         int32_t size = std::get<int32_t>(functions.getParameter("value")->data);
 
     //         if (!handle->file.is_open()) {
     //             throw std::runtime_error("File is not open");
@@ -552,8 +546,8 @@ private:
     //                                                             false)};
 
     //     auto writeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         auto handle = std::get<std::shared_ptr<FileHandle>>(args[0]->data);
-    //         std::string data = std::get<std::string>(args[1]->data);
+    //         auto handle = std::get<std::shared_ptr<FileHandle>>(functions.getParameter("value")->data);
+    //         std::string data = std::get<std::string>(functions.getParameter("value")->data);
 
     //         if (!handle->file.is_open()) {
     //             throw std::runtime_error("File is not open");
@@ -577,7 +571,7 @@ private:
     //     std::vector<ParameterInfo> closeParams = {ParameterInfo("file", fileType, false)};
 
     //     auto closeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         auto handle = std::get<std::shared_ptr<FileHandle>>(args[0]->data);
+    //         auto handle = std::get<std::shared_ptr<FileHandle>>(functions.getParameter("value")->data);
 
     //         if (handle->file.is_open()) {
     //             handle->file.close();

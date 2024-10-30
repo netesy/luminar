@@ -149,8 +149,16 @@ struct Instruction
             return "RETURN_VALUE";
         case Opcode::PUSH_ARGS:
             return "PUSH_ARGS";
+        case Opcode::CREATE_PARAM_FRAME:
+            return "CREATE_PARAM_FRAME";
+        case Opcode::STORE_PARAM:
+            return "STORE_PARAM";
+        case Opcode::LOAD_PARAM:
+            return "LOAD_PARAM";
+        case Opcode::POP_PARAM_FRAME:
+            return "POP_PARAM_FRAME";
 
-            // Loop operations
+        // Loop operations
         case Opcode::FOR_LOOP:
             return "FOR_LOOP";
         case Opcode::WHILE_LOOP:

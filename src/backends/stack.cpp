@@ -1,4 +1,6 @@
 #include "stack.hh"
+#include "../builtin_function.hh"
+#include "../function.hh"
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -10,6 +12,8 @@ StackBackend::StackBackend(std::vector<Instruction> &program)
     , globalRegion(memoryManager)
 {
     regionStack.push(&globalRegion);
+    Functions functioned(typeSystems);
+    BuiltinFunctions::registerBuiltins(functioned, typeSystems);
 }
 
 StackBackend::~StackBackend()
@@ -132,6 +136,31 @@ void StackBackend::execute(const Instruction &instruction)
     case PUSH_ARGS:
         handlePushArg(instruction);
         break;
+    case Opcode::CREATE_PARAM_FRAME: {
+        std::string funcName = std::get<std::string>(instruction.value->data);
+        functions->pushParameterFrame(funcName, {});
+        break;
+    }
+
+    case Opcode::STORE_PARAM: {
+        std::string paramName = std::get<std::string>(instruction.value->data);
+        ValuePtr value = pop();
+
+        auto params = functions->getCurrentParameters();
+        params[paramName] = value;
+    }
+
+    case Opcode::LOAD_PARAM: {
+        std::string paramName = std::get<std::string>(instruction.value->data);
+        ValuePtr value = functions->getParameter(paramName);
+        push(value);
+        break;
+    }
+
+    case Opcode::POP_PARAM_FRAME: {
+        functions->popParameterFrame();
+        break;
+    }
     case JUMP:
         handleJump();
         break;
@@ -186,10 +215,10 @@ void StackBackend::dumpRegisters()
         std::cout << "\n";
     }
 
-    std::cout << "Functions:\n";
-    for (const auto &[name, _] : functions) {
-        std::cout << "Function: " << name << "\n";
-    }
+    // std::cout << "Functions:\n";
+    // for (const auto &[name, _] : functions) {
+    //     std::cout << "Function: " << name << "\n";
+    // }
     std::cout << "End of Dump Registers\n";
 }
 
@@ -605,85 +634,110 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
 
 void StackBackend::handleDeclareFunction(const std::string &functionName)
 {
-    if (functions.find(functionName) != functions.end()) {
-        std::cerr << "Error: Function " << functionName << " already declared" << std::endl;
-        return;
-    }
-    functions[functionName] = [this, functionName]() {
-        auto it = std::find_if(program.begin(),
-                               program.end(),
-                               [functionName](const Instruction &instr) {
-                                   return instr.opcode == Opcode::DEFINE_FUNCTION
-                                          && std::get<std::string>(instr.value->data)
-                                                 == functionName;
-                               });
+    // Get current instruction's position to mark function start
+    size_t functionStart = pc;
 
-        if (it != program.end()) {
-            size_t index = std::distance(program.begin(), it);
-            std::stack<MemoryManager<>::Ref<Value>> localStack;
-            std::swap(stack, localStack); // Save current stack state
-            for (size_t i = index + 1; i < program.size() && program[i].opcode != Opcode::HALT;
-                 ++i) {
-                execute(program[i]);
-            }
-            std::swap(stack, localStack); // Restore previous stack state
-        } else {
-            std::cerr << "Error: Function not found" << std::endl;
-        }
-    };
+    // Skip past the function body to find the end
+    size_t depth = 1;
+    size_t endPC = pc;
+
+    while (depth > 0 && endPC < program.size()) {
+        endPC++;
+        if (program[endPC].opcode == Opcode::DEFINE_FUNCTION)
+            depth++;
+        if (program[endPC].opcode == Opcode::RETURN)
+            depth--;
+    }
+
+    if (depth > 0) {
+        throw std::runtime_error("Unterminated function definition: " + functionName);
+    }
+
+    // Register function in the Functions manager
+    functions->updateFunctionEndPC(functionName, endPC);
+
+    // Skip past function body in main execution
+    pc = endPC + 1;
 }
 
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
-    // pushRegion(); // Create a new region for the function call
-    // if (functions.find(functionName) == functions.end()) {
-    //     std::cerr << "Error: Function not declared" << std::endl;
-    //     popRegion();
-    //     return;
-    // }
-    // functions[functionName]();
-    // popRegion();
-
-    auto it = functions.find(functionName);
-    if (it == functions.end()) {
-        std::cerr << "Error: Function " << functionName << " not found" << std::endl;
-        return;
+    // Get function info
+    auto functionInfo = functions->getFunction(functionName);
+    if (!functionInfo) {
+        throw std::runtime_error("Function not found: " + functionName);
     }
 
-    // Save the current state (PC, stack frame size)
+    // Save current execution context
     callStack.push({pc, stack.size()});
 
-    // Execute the function by calling the lambda stored in the `functions` map
-    std::cout << "Calling function: " << functionName << std::endl;
-    it->second(); // Invoke the function logic
+    // Get current parameter frame
+    auto params = functions->getCurrentParameters();
 
-    // Optionally, check if a return value was provided on the stack
-    if (stack.empty()) {
-        std::cerr << "Warning: No return value from function: " << functionName << std::endl;
+    // Create new stack frame for function execution
+    std::vector<ValuePtr> args;
+    for (const auto &param : functionInfo->parameters) {
+        // Look up parameter value from current frame
+        auto paramValue = params.find(param.name);
+        if (paramValue != params.end()) {
+            args.push_back(paramValue->second);
+        } else if (param.isOptional) {
+            args.push_back(param.defaultValue);
+        } else {
+            throw std::runtime_error("Missing required parameter: " + param.name);
+        }
+    }
+
+    if (functionInfo->isBuiltin) {
+        // Execute built-in function
+        ValuePtr result = functions->executeBuiltin(functionName, args);
+        if (result) {
+            push(result);
+        }
+        // Restore context immediately for built-ins
+        auto [savedPC, savedStackSize] = callStack.top();
+        callStack.pop();
+        pc = savedPC;
     } else {
-        std::cout << "Function " << functionName << " returned: " << stack.top().get()
-                  << std::endl; // Assuming toString() is defined for Value
+        // Set up new parameter frame
+        functions->pushParameterFrame(functionName, args);
+
+        // Jump to function start
+        pc = functionInfo->startPC;
     }
 }
 
 void StackBackend::handleReturnFuction()
 {
     if (callStack.empty()) {
-        std::cerr << "Error: Return without a matching function call" << std::endl;
-        return;
+        throw std::runtime_error("Return statement outside function");
     }
 
-    // Pop the saved state from the call stack
-    auto [returnPC, stackFrameSize] = callStack.top();
+    // Get return value if any
+    ValuePtr returnValue = nullptr;
+    if (!stack.empty()) {
+        returnValue = pop();
+    }
+
+    // Clean up parameter frame
+    functions->popParameterFrame();
+
+    // Restore previous context
+    auto [savedPC, savedStackSize] = callStack.top();
     callStack.pop();
 
-    // Restore the program counter (PC)
-    pc = returnPC;
-
-    // Clean up the stack to the previous state, leaving only the return value if any
-    while (stack.size() > stackFrameSize + 1) { // +1 to keep the return value
+    // Restore stack to previous size
+    while (stack.size() > savedStackSize) {
         stack.pop();
     }
+
+    // Push return value if exists
+    if (returnValue) {
+        push(returnValue);
+    }
+
+    // Update PC
+    pc = savedPC;
 
     std::cout << "Returned from function to PC: " << pc << std::endl;
 }
