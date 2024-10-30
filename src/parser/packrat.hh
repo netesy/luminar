@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../function.hh"
 #include "../instructions.hh"
 #include "../scanner.hh"
 #include "../types.hh"
@@ -31,6 +32,7 @@ private:
     Bytecode bytecode;
     Scanner &scanner;
     Variables variable;
+    Functions functions;
     std::shared_ptr<TypeSystem> typeSystem;
     std::unordered_map<std::string, std::optional<Value>> constantValues;
     std::unordered_map<std::string, std::vector<Instruction>> inlineFunctions;

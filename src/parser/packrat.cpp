@@ -1,5 +1,7 @@
 #include "packrat.hh"
 #include "../debugger.hh"
+#include "../function.hh"
+#include "../optimizer.hh"
 #include <iostream>
 #include <regex>
 #include <set>
@@ -9,6 +11,7 @@
 PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
     : scanner(scanner)
     , variable(typeSystem)
+    , functions(typeSystem)
     , typeSystem(typeSystem)
 {
     tokens = scanner.scanTokens();
@@ -27,8 +30,11 @@ Bytecode PackratParser::parse()
         }
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-        optimize();
+
         std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
+        bytecode = BytecodeOptimizer::optimize(bytecode);
+        std::cout << "Bytecode Optimizations completed in " << duration.count() << " microseconds."
+                  << std::endl;
         //std::cout << "Parsing debug " << toString() << std::endl;
         return bytecode;
     } catch (const std::exception &e) {
@@ -314,76 +320,116 @@ void PackratParser::function_declaration()
     consume(TokenType::IDENTIFIER, "Expected function name.");
     consume(TokenType::LEFT_PAREN, "Expected '(' after function name.");
 
-    std::vector<std::pair<std::string, TypePtr>> parameters;
+    std::vector<ParameterInfo> parameters;
+
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             Token paramName = peek();
             consume(TokenType::IDENTIFIER, "Expected parameter name.");
-            TypePtr paramType = nullptr;
+
+            TypePtr paramType = typeSystem->NIL_TYPE;
+            ValuePtr defaultValue = nullptr;
+            bool isOptional = false;
+
             if (match(TokenType::COLON)) {
                 Token typeToken = peek();
                 advance();
                 paramType = std::make_shared<Type>(stringToType(typeToken.lexeme));
             }
-            parameters.push_back({paramName.lexeme, paramType});
+
+            if (match(TokenType::EQUAL)) {
+                isOptional = true;
+                Token paramValue = peek();
+                defaultValue = std::make_shared<Value>(setValue(paramType, paramValue.lexeme));
+            }
+
+            parameters.emplace_back(paramName.lexeme, paramType, isOptional, defaultValue);
         } while (match(TokenType::COMMA));
     }
+
     consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
 
-    TypePtr returnType = nullptr;
+    TypePtr returnType = typeSystem->NIL_TYPE;
     if (match(TokenType::COLON)) {
         Token typeToken = peek();
-        advance(); //This should check against all the types
-        //consume(TokenType::IDENTIFIER, "Expected return type name.");
+        advance();
         returnType = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
-    consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
+    int32_t startPC = bytecode.size();
 
+    consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
     enterScope();
 
-    // Emit function definition
-    emit(Opcode::DEFINE_FUNCTION,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int), name.lexeme});
+    functions.addFunction(name.lexeme, parameters, returnType, startPC, -1);
 
-    // Add parameters to the current scope
-    for (const auto &param : parameters) {
-        declareVariable(Token{TokenType::IDENTIFIER, param.first}, param.second);
+    // Emit parameter frame creation
+    emit(Opcode::CREATE_PARAM_FRAME,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
+    // Set up parameters in the new frame
+    for (size_t i = 0; i < parameters.size(); i++) {
+        emit(Opcode::STORE_PARAM,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), parameters[i].name});
+        declareVariable(Token{TokenType::IDENTIFIER, parameters[i].name}, parameters[i].type);
     }
 
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         statement();
     }
-    // Emit return if not present
+
+    // Emit parameter frame cleanup before return
+    emit(Opcode::POP_PARAM_FRAME, peek().line);
+
     if (bytecode.back().opcode != Opcode::RETURN) {
-        if (returnType && returnType->tag != TypeTag::Nil) {
+        if (returnType->tag != TypeTag::Nil) {
             error("Function must return a value of type " + returnType->toString());
         }
         emit(Opcode::RETURN, peek().line);
     }
+
     consume(TokenType::RIGHT_BRACE, "Expected '}' after function block.");
+
+    int32_t endPC = bytecode.size() - 1;
+    functions.updateFunctionEndPC(name.lexeme, endPC);
 
     exitScope();
 }
 
 void PackratParser::function_call(const Token &name)
 {
-    std::vector<TypePtr> argTypes;
-    int argCount = 0;
+    std::vector<ValuePtr> arguments;
+
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             expression();
-            argCount++;
-            // You might want to infer and store argument types here
+            arguments.push_back(nullptr);
         } while (match(TokenType::COMMA));
     }
+
     consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
 
+    // Create parameter frame for the function call
+    emit(Opcode::CREATE_PARAM_FRAME,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
+    // Push arguments onto the parameter frame
+    for (size_t i = 0; i < arguments.size(); i++) {
+        emit(Opcode::STORE_PARAM,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+    }
+
+    // Invoke the function
     emit(Opcode::INVOKE_FUNCTION,
          peek().line,
          Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-    emit(Opcode::PUSH_ARGS, peek().line, Value{std::make_shared<Type>(TypeTag::Int), argCount});
+
+    // Cleanup parameter frame after function returns
+    emit(Opcode::POP_PARAM_FRAME, peek().line);
 }
 
 void PackratParser::class_declaration()
@@ -808,7 +854,7 @@ bool PackratParser::constantFolding()
 
 bool PackratParser::constantPropagation()
 {
-    // bool changesMade = false;
+    bool changesMade = false;
 
     // for (size_t i = 0; i < bytecode.size(); ++i) {
     //     auto &instruction = bytecode[i]; // Get a reference to the instruction
@@ -836,7 +882,7 @@ bool PackratParser::constantPropagation()
     //         }
     //     }
     // }
-    // return changesMade; // Return whether any changes were made
+    return changesMade; // Return whether any changes were made
 }
 
 bool PackratParser::earlyInlineExpansion()
@@ -865,6 +911,8 @@ bool PackratParser::earlyInlineExpansion()
     //         }
     //     }
     // }
+
+    return false;
 }
 
 bool PackratParser::deadCodeElimination()

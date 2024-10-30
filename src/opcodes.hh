@@ -48,6 +48,10 @@ enum Opcode {
     INVOKE_FUNCTION,
     PUSH_ARGS,
     RETURN_VALUE,
+    CREATE_PARAM_FRAME, // Create a new parameter frame
+    STORE_PARAM,        // Store a parameter in the current frame
+    LOAD_PARAM,         // Load a parameter from the current frame
+    POP_PARAM_FRAME,    // Remove the current parameter frame
 
     // Loop operations
     FOR_LOOP,

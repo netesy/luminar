@@ -1,6 +1,7 @@
 #ifndef STACK_HH
 #define STACK_HH
 
+#include "../function.hh"
 #include "../memory.hh"
 #include "../types.hh"
 #include "backend.hh"
@@ -11,26 +12,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-
-struct Function
-{
-    std::string name;
-    std::vector<std::pair<std::string, TypePtr>> parameters;
-    TypePtr returnType;
-    size_t startPC;
-    size_t endPC;
-
-    Function(const std::string &n,
-             const std::vector<std::pair<std::string, TypePtr>> &params,
-             TypePtr retType,
-             size_t start)
-        : name(n)
-        , parameters(params)
-        , returnType(retType)
-        , startPC(start)
-        , endPC(0)
-    {}
-};
 
 class StackBackend : public Backend
 {
@@ -49,25 +30,19 @@ private:
     //    std::stack<ValuePtr> stack;
     //    std::vector<ValuePtr> constants;
     //    std::vector<ValuePtr> variables;
-    std::unordered_map<std::string, Function> functionTable;
-    struct CallFrame
-    {
-        size_t returnPC;
-        size_t stackFrameBase;
-        std::string functionName;
-        std::unordered_map<std::string, ValuePtr> localVariables;
-    };
-    std::stack<CallFrame> callFrames;
-    std::stack<std::tuple<size_t, size_t>> callStack; // Stores PC and stack size
+    // std::unordered_map<std::string, Function> functionTable;
+    std::stack<std::pair<size_t, size_t>> callStack; // Stores (PC, stackSize) pairs
+    std::shared_ptr<Functions> functions;
     std::stack<MemoryManager<>::Ref<Value>> stack;
     std::vector<MemoryManager<>::Ref<Value>> constants;
     std::vector<MemoryManager<>::Ref<Value>> variables;
-    std::map<std::string, std::function<void()>> functions;
+    // Functions functions;
     std::vector<std::thread> threads;
     std::mutex mtx;
     std::vector<Instruction> program;
     size_t pc = 0;
     TypeSystem typeSystem;
+    std::shared_ptr<TypeSystem> typeSystems = std::make_shared<TypeSystem>();
     bool unsafeMode = false;
 
     // Add MemoryManager

@@ -38,6 +38,7 @@ add_executable(luminar src/main.cpp
     test/tst_scanner.cpp
     sample/sample.lm sample/sample_new.lm
     src/builtin_function.hh
+    src/optimizer.hh
 )
 
 include(GNUInstallDirs)
