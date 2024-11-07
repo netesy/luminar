@@ -1,9 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <atomic>
+#include <bitset>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -11,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -21,32 +26,184 @@
 #define TOSTRING(x) STRINGIFY(x)
 #define TRACE_INFO() (std::string(__FUNCTION__) + " at line " + TOSTRING(__LINE__))
 
+// Size classes for small allocations (in bytes)
+constexpr std::array<size_t, 8> SMALL_SIZES = {16, 32, 64, 128, 256, 512, 1024, 2048};
+constexpr size_t MAX_SMALL_SIZE = SMALL_SIZES.back();
+constexpr size_t BLOCK_SIZE = 64 * 1024; // 64KB blocks
+constexpr size_t MAX_BLOCKS_PER_CHUNK = 64;
+
 class DefaultAllocator
 {
+private:
+    struct Block
+    {
+        uint8_t *memory;
+        size_t size_class;
+        size_t objects_per_block;
+        std::bitset<MAX_BLOCKS_PER_CHUNK> free_list;
+        size_t free_count;
+
+        Block(size_t block_size, size_t obj_size)
+            : memory(new uint8_t[block_size])
+            , size_class(obj_size)
+            , objects_per_block(block_size / obj_size)
+            , free_count(objects_per_block)
+        {
+            free_list.set(); // Mark all slots as free
+        }
+
+        ~Block() { delete[] memory; }
+
+        bool has_free() const { return free_count > 0; }
+
+        void *allocate()
+        {
+            if (!has_free())
+                return nullptr;
+
+            // Find first free bit
+            size_t index = 0;
+            unsigned long long bits = free_list.to_ullong();
+            if (bits != 0) {
+                while ((bits & 1ULL) == 0) {
+                    bits >>= 1;
+                    ++index;
+                }
+            }
+
+            // Mark slot as used
+            free_list.reset(index);
+            free_count--;
+
+            // Calculate pointer to the allocated memory
+            return memory + (index * size_class);
+        }
+
+        bool owns(void *ptr) const
+        {
+            return ptr >= memory && ptr < memory + (objects_per_block * size_class);
+        }
+
+        bool deallocate(void *ptr)
+        {
+            if (!owns(ptr))
+                return false;
+
+            size_t index = (static_cast<uint8_t *>(ptr) - memory) / size_class;
+            free_list.set(index);
+            free_count++;
+            return true;
+        }
+    };
+
+    struct ThreadCache
+    {
+        std::vector<Block *> small_blocks[SMALL_SIZES.size()];
+        std::vector<std::pair<void *, size_t>> large_allocations;
+
+        ~ThreadCache()
+        {
+            for (auto &blocks : small_blocks) {
+                for (auto *block : blocks) {
+                    delete block;
+                }
+            }
+            for (auto &[ptr, size] : large_allocations) {
+                delete[] static_cast<uint8_t *>(ptr);
+            }
+        }
+    };
+
+    // Thread-local storage for per-thread caches
+    static thread_local ThreadCache thread_cache;
+
+    // Find the appropriate size class for small allocations
+    static size_t get_size_class(size_t size)
+    {
+        for (size_t i = 0; i < SMALL_SIZES.size(); i++) {
+            if (size <= SMALL_SIZES[i])
+                return i;
+        }
+        return static_cast<size_t>(-1);
+    }
+
+    // Get or create a block for the given size class
+    static Block *get_block(size_t size_class_index)
+    {
+        auto &blocks = thread_cache.small_blocks[size_class_index];
+
+        // Try existing blocks first
+        for (auto *block : blocks) {
+            if (block->has_free()) {
+                return block;
+            }
+        }
+
+        // Create new block if needed
+        if (blocks.size() < MAX_BLOCKS_PER_CHUNK) {
+            auto *new_block = new Block(BLOCK_SIZE, SMALL_SIZES[size_class_index]);
+            blocks.push_back(new_block);
+            return new_block;
+        }
+
+        return nullptr; // No space available
+    }
+
 public:
     void *allocate(size_t size, size_t alignment)
     {
-        void *ptr = nullptr;
-#ifdef _WIN32
-        ptr = _aligned_malloc(size, alignment);
+        // Handle alignment requirements
+        size = std::max(size, alignment);
+
+        // Small allocation path
+        if (size <= MAX_SMALL_SIZE) {
+            size_t size_class = get_size_class(size);
+            Block *block = get_block(size_class);
+
+            if (block) {
+                void *ptr = block->allocate();
+                if (ptr)
+                    return ptr;
+            }
+        }
+
+        // Large allocation path
+        size_t aligned_size = (size + alignment - 1) & ~(alignment - 1);
+        void *ptr = new (std::nothrow) uint8_t[aligned_size];
         if (!ptr)
             throw std::bad_alloc();
-#else
-        if (posix_memalign(&ptr, alignment, size) != 0)
-            throw std::bad_alloc();
-#endif
+
+        thread_cache.large_allocations.emplace_back(ptr, aligned_size);
         return ptr;
     }
 
     void deallocate(void *ptr) noexcept
     {
-#ifdef _WIN32
-        _aligned_free(ptr);
-#else
-        free(ptr);
-#endif
+        if (!ptr)
+            return;
+
+        // Try small allocation blocks first
+        for (size_t i = 0; i < SMALL_SIZES.size(); i++) {
+            for (Block *block : thread_cache.small_blocks[i]) {
+                if (block->deallocate(ptr)) {
+                    return;
+                }
+            }
+        }
+
+        // Check large allocations
+        auto &large_allocs = thread_cache.large_allocations;
+        for (auto it = large_allocs.begin(); it != large_allocs.end(); ++it) {
+            if (it->first == ptr) {
+                delete[] static_cast<uint8_t *>(ptr);
+                large_allocs.erase(it);
+                return;
+            }
+        }
     }
 };
+// Define the thread_local static member outside the class
+//thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
 struct AllocationInfo
 {
