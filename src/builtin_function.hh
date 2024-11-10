@@ -1,6 +1,7 @@
 // builtin_functions.hh
 #pragma once
 #include "function.hh"
+#include "types.hh"
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -8,106 +9,30 @@
 #include <sstream>
 #include <thread>
 
+template<typename FunctionRegistry>
 class BuiltinFunctions
 {
 public:
-    static void registerBuiltins(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerWith(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
-        // registerPrint(functions, typeSystem);
         registerLen(functions, typeSystem);
         registerTime(functions, typeSystem);
         registerDebug(functions, typeSystem);
         // Add new function registrations
         registerInput(functions, typeSystem);
         registerMathFunctions(functions, typeSystem);
-        //   registerListFunctions(functions, typeSystem);
+
         registerTypeFunction(functions, typeSystem);
         registerAssert(functions, typeSystem);
         registerRound(functions, typeSystem);
         registerSleep(functions, typeSystem);
+        // registerPrint(functions, typeSystem);
+        // registerListFunctions(functions, typeSystem);
         // registerFileOperations(functions, typeSystem);
     }
 
 private:
-    // static void registerPrint(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
-    // {
-    //     // print([value: any], end: string = "\n")
-    //     std::vector<ParameterInfo> printParams = {
-    //         ParameterInfo("value", makeAnyType(), true, makeNilValue()), // Optional value
-    //         ParameterInfo("end",
-    //                       makeType(TypeTag::String),
-    //                       true,
-    //                       makeStringValue("\n")) // Optional newline
-    //     };
-
-    //     auto printImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         std::stringstream output;
-
-    //         // Handle the value to print
-    //         if (functions.getParameter("value")->type->tag != TypeTag::Nil) {
-    //             switch (functions.getParameter("value")->type->tag) {
-    //             case TypeTag::Int:
-    //             case TypeTag::Int32:
-    //                 output << std::get<int32_t>(functions.getParameter("value")->data);
-    //                 break;
-    //             case TypeTag::Float32:
-    //             case TypeTag::Float64:
-    //                 output << std::get<double>(functions.getParameter("value")->data);
-    //                 break;
-    //             case TypeTag::Bool:
-    //                 output << (std::get<bool>(functions.getParameter("value")->data) ? "true" : "false");
-    //                 break;
-    //             case TypeTag::String:
-    //                 output << std::get<std::string>(functions.getParameter("value")->data);
-    //                 break;
-    //             case TypeTag::List: {
-    //                 const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
-    //                 output << "[";
-    //                 for (size_t i = 0; i < list.size(); ++i) {
-    //                     if (i > 0)
-    //                         output << ", ";
-    //                     // Recursive call to print for each element
-    //                     std::vector<ValuePtr> recursiveArgs = {list[i]};
-    //                     printImpl(recursiveArgs);
-    //                 }
-    //                 output << "]";
-    //                 break;
-    //             }
-    //             case TypeTag::Dict: {
-    //                 const auto &dict = std::get<DictValue>(functions.getParameter("value")->data);
-    //                 output << "{";
-    //                 bool first = true;
-    //                 for (const auto &[key, value] : dict) {
-    //                     if (!first)
-    //                         output << ", ";
-    //                     output << key << ": ";
-    //                     // Recursive call to print for each value
-    //                     std::vector<ValuePtr> recursiveArgs = {value};
-    //                     printImpl(recursiveArgs);
-    //                     first = false;
-    //                 }
-    //                 output << "}";
-    //                 break;
-    //             }
-    //             default:
-    //                 output << "<unprintable>";
-    //             }
-    //         }
-
-    //         // Add the end string (usually newline)
-    //         output << std::get<std::string>(functions.getParameter("value")->data);
-
-    //         // Actually print to stdout
-    //         std::cout << output.str();
-    //         std::cout.flush();
-
-    //         return makeNilValue();
-    //     };
-
-    //     functions.addBuiltinFunction("print", printParams, makeType(TypeTag::Nil), printImpl);
-    // }
-
-    static void registerLen(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerLen(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // len(value: string|list|dict) -> int
         std::vector<ParameterInfo> lenParams = {
@@ -139,28 +64,48 @@ private:
         functions.addBuiltinFunction("len", lenParams, makeType(TypeTag::Int), lenImpl);
     }
 
-    static void registerTime(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerTime(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
-        // time() -> float
-        // Returns current Unix timestamp in seconds with microsecond precision
+        // // time() -> float
+        // // Returns current Unix timestamp in seconds with microsecond precision
+        // std::vector<ParameterInfo> timeParams = {}; // No parameters
+
+        // auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+        //     auto now = std::chrono::system_clock::now();
+        //     auto duration = now.time_since_epoch();
+        //     auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+        //     double seconds = micros.count() / 1000000.0;
+
+        //     auto value = std::make_shared<Value>();
+        //     value->type = std::make_shared<Type>(TypeTag::Float64);
+        //     value->data = seconds;
+        //     return value;
+        // };
+
+        // functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::Float64), timeImpl);
+        // time() -> string
+        // Returns the current date and time as a human-readable string
         std::vector<ParameterInfo> timeParams = {}; // No parameters
 
         auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
             auto now = std::chrono::system_clock::now();
-            auto duration = now.time_since_epoch();
-            auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration);
-            double seconds = micros.count() / 1000000.0;
+            auto now_time_t = std::chrono::system_clock::to_time_t(now);
 
+            // Format the time to a human-readable string
+            std::ostringstream oss;
+            oss << std::put_time(std::localtime(&now_time_t), "%Y-%m-%d %H:%M:%S");
+
+            // Create a Value object to store the string
             auto value = std::make_shared<Value>();
-            value->type = std::make_shared<Type>(TypeTag::Float64);
-            value->data = seconds;
+            value->type = std::make_shared<Type>(TypeTag::String);
+            value->data = oss.str();
             return value;
         };
 
-        functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::Float64), timeImpl);
+        functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::String), timeImpl);
     }
 
-    static void registerDebug(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerDebug(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // debug(value: any, showType: bool = true) -> string
         std::vector<ParameterInfo> debugParams
@@ -256,7 +201,7 @@ private:
         functions.addBuiltinFunction("debug", debugParams, makeType(TypeTag::String), debugImpl);
     }
 
-    static void registerInput(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerInput(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // input(prompt: string = "") -> string
         std::vector<ParameterInfo> inputParams = {
@@ -275,7 +220,8 @@ private:
         functions.addBuiltinFunction("input", inputParams, makeType(TypeTag::String), inputImpl);
     }
 
-    static void registerMathFunctions(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerMathFunctions(FunctionRegistry &functions,
+                                      std::shared_ptr<TypeSystem> typeSystem)
     {
         // abs(x: int|float) -> int|float
         std::vector<ParameterInfo> absParams = {
@@ -309,71 +255,8 @@ private:
         functions.addBuiltinFunction("sqrt", sqrtParams, makeType(TypeTag::Float64), sqrtImpl);
     }
 
-    // static void registerListFunctions(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
-    // {
-    //     // min(list: list) -> any
-    //     std::vector<ParameterInfo> minParams = {
-    //         ParameterInfo("list", makeListType(makeAnyType()), false)};
-
-    //     auto minImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
-    //         if (list.empty()) {
-    //             throw std::runtime_error("min() arg is an empty sequence");
-    //         }
-
-    //         ValuePtr minVal = list[0];
-    //         for (size_t i = 1; i < list.size(); i++) {
-    //             if (compareValues(list[i], minVal) < 0) {
-    //                 minVal = list[i];
-    //             }
-    //         }
-    //         return minVal;
-    //     };
-
-    //     functions.addBuiltinFunction("min", minParams, makeAnyType(), minImpl);
-
-    //     // max(list: list) -> any
-    //     std::vector<ParameterInfo> maxParams = {
-    //         ParameterInfo("list", makeListType(makeAnyType()), false)};
-
-    //     auto maxImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
-    //         if (list.empty()) {
-    //             throw std::runtime_error("max() arg is an empty sequence");
-    //         }
-
-    //         ValuePtr maxVal = list[0];
-    //         for (size_t i = 1; i < list.size(); i++) {
-    //             if (compareValues(list[i], maxVal) > 0) {
-    //                 maxVal = list[i];
-    //             }
-    //         }
-    //         return maxVal;
-    //     };
-
-    //     functions.addBuiltinFunction("max", maxParams, makeAnyType(), maxImpl);
-
-    //     // sum(list: list) -> number
-    //     std::vector<ParameterInfo> sumParams = {
-    //         ParameterInfo("list", makeListType(makeType(TypeTag::Float64)), false)};
-
-    //     auto sumImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
-    //         double sum = 0.0;
-    //         for (const auto &val : list) {
-    //             if (val->type->tag == TypeTag::Int || val->type->tag == TypeTag::Int32) {
-    //                 sum += std::get<int32_t>(val->data);
-    //             } else {
-    //                 sum += std::get<double>(val->data);
-    //             }
-    //         }
-    //         return makeFloatValue(sum);
-    //     };
-
-    //     functions.addBuiltinFunction("sum", sumParams, makeType(TypeTag::Float64), sumImpl);
-    // }
-
-    static void registerTypeFunction(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerTypeFunction(FunctionRegistry &functions,
+                                     std::shared_ptr<TypeSystem> typeSystem)
     {
         // type(value: any) -> string
         std::vector<ParameterInfo> typeParams = {ParameterInfo("value", makeAnyType(), false)};
@@ -385,7 +268,7 @@ private:
         functions.addBuiltinFunction("type", typeParams, makeType(TypeTag::String), typeImpl);
     }
 
-    static void registerAssert(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerAssert(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // assert(condition: bool, message: string = "") -> nil
         std::vector<ParameterInfo> assertParams
@@ -403,7 +286,7 @@ private:
         functions.addBuiltinFunction("assert", assertParams, makeType(TypeTag::Nil), assertImpl);
     }
 
-    static void registerRound(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerRound(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // round(x: float, places: int = 0) -> float
         std::vector<ParameterInfo> roundParams
@@ -423,7 +306,7 @@ private:
         functions.addBuiltinFunction("round", roundParams, makeType(TypeTag::Float64), roundImpl);
     }
 
-    static void registerSleep(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    static void registerSleep(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // sleep(seconds: float) -> nil
         std::vector<ParameterInfo> sleepParams = {
@@ -581,6 +464,148 @@ private:
     //     };
 
     //     functions.addBuiltinFunction("close", closeParams, makeType(TypeTag::Nil), closeImpl);
+    // }
+
+    // static void registerPrint(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    // {
+    //     // print([value: any], end: string = "\n")
+    //     std::vector<ParameterInfo> printParams = {
+    //         ParameterInfo("value", makeAnyType(), true, makeNilValue()), // Optional value
+    //         ParameterInfo("end",
+    //                       makeType(TypeTag::String),
+    //                       true,
+    //                       makeStringValue("\n")) // Optional newline
+    //     };
+
+    //     auto printImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+    //         std::stringstream output;
+
+    //         // Handle the value to print
+    //         if (functions.getParameter("value")->type->tag != TypeTag::Nil) {
+    //             switch (functions.getParameter("value")->type->tag) {
+    //             case TypeTag::Int:
+    //             case TypeTag::Int32:
+    //                 output << std::get<int32_t>(functions.getParameter("value")->data);
+    //                 break;
+    //             case TypeTag::Float32:
+    //             case TypeTag::Float64:
+    //                 output << std::get<double>(functions.getParameter("value")->data);
+    //                 break;
+    //             case TypeTag::Bool:
+    //                 output << (std::get<bool>(functions.getParameter("value")->data) ? "true" : "false");
+    //                 break;
+    //             case TypeTag::String:
+    //                 output << std::get<std::string>(functions.getParameter("value")->data);
+    //                 break;
+    //             case TypeTag::List: {
+    //                 const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
+    //                 output << "[";
+    //                 for (size_t i = 0; i < list.size(); ++i) {
+    //                     if (i > 0)
+    //                         output << ", ";
+    //                     // Recursive call to print for each element
+    //                     std::vector<ValuePtr> recursiveArgs = {list[i]};
+    //                     printImpl(recursiveArgs);
+    //                 }
+    //                 output << "]";
+    //                 break;
+    //             }
+    //             case TypeTag::Dict: {
+    //                 const auto &dict = std::get<DictValue>(functions.getParameter("value")->data);
+    //                 output << "{";
+    //                 bool first = true;
+    //                 for (const auto &[key, value] : dict) {
+    //                     if (!first)
+    //                         output << ", ";
+    //                     output << key << ": ";
+    //                     // Recursive call to print for each value
+    //                     std::vector<ValuePtr> recursiveArgs = {value};
+    //                     printImpl(recursiveArgs);
+    //                     first = false;
+    //                 }
+    //                 output << "}";
+    //                 break;
+    //             }
+    //             default:
+    //                 output << "<unprintable>";
+    //             }
+    //         }
+
+    //         // Add the end string (usually newline)
+    //         output << std::get<std::string>(functions.getParameter("value")->data);
+
+    //         // Actually print to stdout
+    //         std::cout << output.str();
+    //         std::cout.flush();
+
+    //         return makeNilValue();
+    //     };
+
+    //     functions.addBuiltinFunction("print", printParams, makeType(TypeTag::Nil), printImpl);
+    // }
+
+    // static void registerListFunctions(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
+    // {
+    //     // min(list: list) -> any
+    //     std::vector<ParameterInfo> minParams = {
+    //         ParameterInfo("list", makeListType(makeAnyType()), false)};
+
+    //     auto minImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
+    //         if (list.empty()) {
+    //             throw std::runtime_error("min() arg is an empty sequence");
+    //         }
+
+    //         ValuePtr minVal = list[0];
+    //         for (size_t i = 1; i < list.size(); i++) {
+    //             if (compareValues(list[i], minVal) < 0) {
+    //                 minVal = list[i];
+    //             }
+    //         }
+    //         return minVal;
+    //     };
+
+    //     functions.addBuiltinFunction("min", minParams, makeAnyType(), minImpl);
+
+    //     // max(list: list) -> any
+    //     std::vector<ParameterInfo> maxParams = {
+    //         ParameterInfo("list", makeListType(makeAnyType()), false)};
+
+    //     auto maxImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
+    //         if (list.empty()) {
+    //             throw std::runtime_error("max() arg is an empty sequence");
+    //         }
+
+    //         ValuePtr maxVal = list[0];
+    //         for (size_t i = 1; i < list.size(); i++) {
+    //             if (compareValues(list[i], maxVal) > 0) {
+    //                 maxVal = list[i];
+    //             }
+    //         }
+    //         return maxVal;
+    //     };
+
+    //     functions.addBuiltinFunction("max", maxParams, makeAnyType(), maxImpl);
+
+    //     // sum(list: list) -> number
+    //     std::vector<ParameterInfo> sumParams = {
+    //         ParameterInfo("list", makeListType(makeType(TypeTag::Float64)), false)};
+
+    //     auto sumImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+    //         const auto &list = std::get<ListValue>(functions.getParameter("value")->data);
+    //         double sum = 0.0;
+    //         for (const auto &val : list) {
+    //             if (val->type->tag == TypeTag::Int || val->type->tag == TypeTag::Int32) {
+    //                 sum += std::get<int32_t>(val->data);
+    //             } else {
+    //                 sum += std::get<double>(val->data);
+    //             }
+    //         }
+    //         return makeFloatValue(sum);
+    //     };
+
+    //     functions.addBuiltinFunction("sum", sumParams, makeType(TypeTag::Float64), sumImpl);
     // }
 
     // Helper function for value comparison
