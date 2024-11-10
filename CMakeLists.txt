@@ -29,7 +29,7 @@ add_executable(luminar src/main.cpp
     src/token.hh
     src/backends/yasm.hh src/backends/yasm.cpp
     src/scope.hh
-    src/function.hh
+    src/function.hh src/builtin_function.hh
     src/parser/packrat.hh src/parser/packrat.cpp
     src/parser/pratt.hh src/parser/pratt.cpp
     src/parser/algorithm.hh
@@ -37,9 +37,8 @@ add_executable(luminar src/main.cpp
     test/tst_parser.cpp
     test/tst_scanner.cpp
     sample/sample.lm sample/sample_new.lm
-    src/builtin_function.hh
     src/optimizer.hh
-    src/function.cpp
+
 )
 
 include(GNUInstallDirs)
