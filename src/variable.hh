@@ -14,7 +14,7 @@ struct VariableInfo
 {
     int32_t memoryLocation;
     bool isMutable;
-    ValuePtr value;
+    mutable ValuePtr value;
     TypePtr type;
 };
 
