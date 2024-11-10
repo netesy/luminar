@@ -27,12 +27,9 @@ public:
     bool isUnsafeMode() const { return unsafeMode; }
 
 private:
-    //    std::stack<ValuePtr> stack;
-    //    std::vector<ValuePtr> constants;
-    //    std::vector<ValuePtr> variables;
-    // std::unordered_map<std::string, Function> functionTable;
     std::stack<std::pair<size_t, size_t>> callStack; // Stores (PC, stackSize) pairs
-    std::shared_ptr<Functions> functions;
+    // std::shared_ptr<Functions> functions;
+    Functions function;
     std::stack<MemoryManager<>::Ref<Value>> stack;
     std::vector<MemoryManager<>::Ref<Value>> constants;
     std::vector<MemoryManager<>::Ref<Value>> variables;

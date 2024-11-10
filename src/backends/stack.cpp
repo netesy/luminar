@@ -9,13 +9,13 @@
 thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
 StackBackend::StackBackend(std::vector<Instruction> &program)
-    : program(program)
+    : function(std::make_shared<TypeSystem>())
+    , program(program)
     , memoryManager(true)
     , globalRegion(memoryManager)
 {
     regionStack.push(&globalRegion);
-    Functions functioned(typeSystems);
-    BuiltinFunctions::registerBuiltins(functioned, typeSystems);
+    // Functions function(typeSystems);
 }
 
 StackBackend::~StackBackend()
@@ -140,7 +140,7 @@ void StackBackend::execute(const Instruction &instruction)
         break;
     case Opcode::CREATE_PARAM_FRAME: {
         std::string funcName = std::get<std::string>(instruction.value->data);
-        functions->pushParameterFrame(funcName, {});
+        function.pushParameterFrame(funcName, {});
         break;
     }
 
@@ -148,19 +148,19 @@ void StackBackend::execute(const Instruction &instruction)
         std::string paramName = std::get<std::string>(instruction.value->data);
         ValuePtr value = pop();
 
-        auto params = functions->getCurrentParameters();
+        auto params = function.getCurrentParameters();
         params[paramName] = value;
     }
 
     case Opcode::LOAD_PARAM: {
         std::string paramName = std::get<std::string>(instruction.value->data);
-        ValuePtr value = functions->getParameter(paramName);
+        ValuePtr value = function.getParameter(paramName);
         push(value);
         break;
     }
 
     case Opcode::POP_PARAM_FRAME: {
-        functions->popParameterFrame();
+        function.popParameterFrame();
         break;
     }
     case JUMP:
@@ -626,7 +626,6 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
     if (valuePtr) {
         // Extract the Value from ValuePtr
         const Value &value = *valuePtr;
-
         // Use the extracted Value to create a Ref<Value>
         variables[variableIndex] = memoryManager.makeRef<Value>(currentRegion(), value);
     } else {
@@ -656,7 +655,7 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
     }
 
     // Register function in the Functions manager
-    functions->updateFunctionEndPC(functionName, endPC);
+    function.updateFunctionEndPC(functionName, endPC);
 
     // Skip past function body in main execution
     pc = endPC + 1;
@@ -664,48 +663,68 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
 
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
-    // Get function info
-    auto functionInfo = functions->getFunction(functionName);
-    if (!functionInfo) {
-        throw std::runtime_error("Function not found: " + functionName);
-    }
+    if (function.hasFunction(functionName)) {
+        // Get function info
+        auto functionInfo = function.getFunction(functionName);
+        if (!functionInfo) {
+            throw std::runtime_error("Function not found: " + functionName);
+        }
 
-    // Save current execution context
-    callStack.push({pc, stack.size()});
+        // Save current execution context
+        callStack.push({pc, stack.size()});
 
-    // Get current parameter frame
-    auto params = functions->getCurrentParameters();
+        // Create new stack frame for function execution
+        std::vector<ValuePtr> args;
+        // Get current parameter frame
+        if (function.hasParameter(functionName)) {
+            auto params = function.getCurrentParameters();
 
-    // Create new stack frame for function execution
-    std::vector<ValuePtr> args;
-    for (const auto &param : functionInfo->parameters) {
-        // Look up parameter value from current frame
-        auto paramValue = params.find(param.name);
-        if (paramValue != params.end()) {
-            args.push_back(paramValue->second);
-        } else if (param.isOptional) {
-            args.push_back(param.defaultValue);
+            for (const auto &param : functionInfo->parameters) {
+                // Look up parameter value from current frame
+                auto paramValue = params.find(param.name);
+                if (paramValue != params.end()) {
+                    args.push_back(paramValue->second);
+                } else if (param.isOptional) {
+                    args.push_back(param.defaultValue);
+                } else {
+                    throw std::runtime_error("Missing required parameter: " + param.name);
+                }
+            }
+        }
+
+        if (functionInfo->isBuiltin) {
+            // Execute built-in function
+            ValuePtr result = function.executeBuiltin(functionName, args);
+            // if (result) {
+            //     push(result);
+            // }
+            if (result) {
+                // Create a linear copy of the result in the current region
+                auto linearResult = memoryManager.makeLinear<Value>(currentRegion(), *result);
+                auto sharedResult = std::make_shared<Value>(*linearResult);
+                push(sharedResult); // Explicitly push result to stack
+            }
+
+            // For debugging
+            std::cout << "Builtin function " << functionName << " executed" << std::endl;
+            if (result) {
+                std::cout << "Result: ";
+                std::visit([](const auto &v) { std::cout << v; }, result->data);
+                std::cout << std::endl;
+            }
+            // Restore context immediately for built-ins
+            auto [savedPC, savedStackSize] = callStack.top();
+            callStack.pop();
+            pc = savedPC;
         } else {
-            throw std::runtime_error("Missing required parameter: " + param.name);
-        }
-    }
+            // Set up new parameter frame
+            function.pushParameterFrame(functionName, args);
 
-    if (functionInfo->isBuiltin) {
-        // Execute built-in function
-        ValuePtr result = functions->executeBuiltin(functionName, args);
-        if (result) {
-            push(result);
+            // Jump to function start
+            pc = functionInfo->startPC;
         }
-        // Restore context immediately for built-ins
-        auto [savedPC, savedStackSize] = callStack.top();
-        callStack.pop();
-        pc = savedPC;
     } else {
-        // Set up new parameter frame
-        functions->pushParameterFrame(functionName, args);
-
-        // Jump to function start
-        pc = functionInfo->startPC;
+        throw std::runtime_error("Function not found: " + functionName);
     }
 }
 
@@ -722,7 +741,7 @@ void StackBackend::handleReturnFuction()
     }
 
     // Clean up parameter frame
-    functions->popParameterFrame();
+    function.popParameterFrame();
 
     // Restore previous context
     auto [savedPC, savedStackSize] = callStack.top();
