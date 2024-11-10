@@ -39,6 +39,7 @@ add_executable(luminar src/main.cpp
     sample/sample.lm sample/sample_new.lm
     src/builtin_function.hh
     src/optimizer.hh
+    src/function.cpp
 )
 
 include(GNUInstallDirs)
