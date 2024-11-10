@@ -4,9 +4,7 @@
 #include "../optimizer.hh"
 #include <iostream>
 #include <regex>
-#include <set>
 #include <sstream>
-#include <unordered_set>
 
 PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
     : scanner(scanner)
@@ -400,36 +398,71 @@ void PackratParser::function_declaration()
 
 void PackratParser::function_call(const Token &name)
 {
-    std::vector<ValuePtr> arguments;
-
-    if (!check(TokenType::RIGHT_PAREN)) {
-        do {
-            expression();
-            arguments.push_back(nullptr);
-        } while (match(TokenType::COMMA));
-    }
-
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-
-    // Create parameter frame for the function call
-    emit(Opcode::CREATE_PARAM_FRAME,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-    // Push arguments onto the parameter frame
-    for (size_t i = 0; i < arguments.size(); i++) {
-        emit(Opcode::STORE_PARAM,
+    // Check if the function is a built-in function
+    if (functions.hasFunction(name.lexeme)) {
+        auto funcInfo = functions.getFunction(name.lexeme);
+        if (funcInfo->parameters.empty()) {
+            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+            // Invoke the function without arguments
+            emit(Opcode::INVOKE_FUNCTION,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+        } else {
+            // Handle built-in functions with parameters
+            std::cout << "Builtin fn with param" << std::endl;
+            std::vector<ValuePtr> arguments;
+            if (!check(TokenType::RIGHT_PAREN)) {
+                do {
+                    expression();
+                    arguments.push_back(nullptr);
+                } while (match(TokenType::COMMA));
+            }
+            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+            // Invoke the function
+            emit(Opcode::INVOKE_FUNCTION,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+            // Create parameter frame for the function call
+            emit(Opcode::CREATE_PARAM_FRAME,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+            // Push arguments onto the parameter frame
+            for (size_t i = 0; i < arguments.size(); i++) {
+                emit(Opcode::STORE_PARAM,
+                     peek().line,
+                     Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+            }
+            // Cleanup parameter frame after function returns
+            emit(Opcode::POP_PARAM_FRAME, peek().line);
+        }
+    } else {
+        // Handle user-defined functions
+        std::cout << "user defined fn " << std::endl;
+        std::vector<ValuePtr> arguments;
+        if (!check(TokenType::RIGHT_PAREN)) {
+            do {
+                expression();
+                arguments.push_back(nullptr);
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+        // Invoke the function
+        emit(Opcode::INVOKE_FUNCTION,
              peek().line,
-             Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+        // Create parameter frame for the function call
+        emit(Opcode::CREATE_PARAM_FRAME,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+        // Push arguments onto the parameter frame
+        for (size_t i = 0; i < arguments.size(); i++) {
+            emit(Opcode::STORE_PARAM,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+        }
+        // Cleanup parameter frame after function returns
+        emit(Opcode::POP_PARAM_FRAME, peek().line);
     }
-
-    // Invoke the function
-    emit(Opcode::INVOKE_FUNCTION,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-    // Cleanup parameter frame after function returns
-    emit(Opcode::POP_PARAM_FRAME, peek().line);
 }
 
 void PackratParser::class_declaration()
@@ -807,254 +840,6 @@ void PackratParser::error(const std::string &message)
 {
     hadError = true;
     Debugger::error(message, peek(), InterpretationStage::PARSING, scanner.getSource());
-}
-
-void PackratParser::optimize()
-{
-    bool changesMade;
-    do {
-        changesMade = false;
-
-        // Make the constant folding recursive until done
-        changesMade |= constantFolding();
-        // changesMade |= constantPropagation(); // Uncomment when implemented
-        // changesMade |= earlyInlineExpansion(); // Uncomment when implemented
-        changesMade |= deadCodeElimination(); // Uncomment when implemented
-    } while (changesMade);
-}
-
-bool PackratParser::constantFolding()
-{
-    bool changesMade = false;
-
-    for (size_t i = 0; i < bytecode.size(); ++i) {
-        if (i + 2 < bytecode.size()) {
-            if (bytecode[i].opcode == Opcode::LOAD_CONST
-                && bytecode[i + 1].opcode == Opcode::LOAD_CONST
-                && (bytecode[i + 2].opcode == Opcode::ADD
-                    || bytecode[i + 2].opcode == Opcode::SUBTRACT
-                    || bytecode[i + 2].opcode == Opcode::MULTIPLY
-                    || bytecode[i + 2].opcode == Opcode::MODULUS
-                    || bytecode[i + 2].opcode == Opcode::DIVIDE)) {
-                auto tempValue = std::make_shared<Value>(performOperation(bytecode[i].value,
-                                                                          bytecode[i + 1].value,
-                                                                          bytecode[i + 2].opcode));
-                Instruction instruction(Opcode::LOAD_CONST, bytecode[i].lineNumber, tempValue);
-                bytecode[i] = instruction;
-                bytecode.erase(bytecode.begin() + i + 1, bytecode.begin() + i + 3);
-
-                changesMade = true; // A change was made, indicating folding occurred
-                // Restart the loop since we've modified the bytecode
-                i = std::max((size_t) 0, i - 1); // Ensure we stay within bounds
-            }
-        }
-    }
-    return changesMade; // Return whether any changes were made
-}
-
-bool PackratParser::constantPropagation()
-{
-    bool changesMade = false;
-
-    // for (size_t i = 0; i < bytecode.size(); ++i) {
-    //     auto &instruction = bytecode[i]; // Get a reference to the instruction
-
-    //     if (instruction.opcode == Opcode::STORE_VARIABLE) {
-    //         int64_t varName = instruction.value; // Access the name correctly
-    //         if (instruction.value->type->tag == TypeTag::Int
-    //             || instruction.value->type->tag == TypeTag::Float64
-    //             || instruction.value->type->tag == TypeTag::Bool) {
-    //             constantValues[varName] = *instruction.value; // Store the value
-    //             changesMade = true;                           // A change was made
-    //         } else {
-    //             constantValues[varName] = std::nullopt; // Handle non-constant types
-    //         }
-    //     } else if (instruction.opcode == Opcode::LOAD_VARIABLE) {
-    //         int64_t varName = instruction.value; // Access the name correctly
-    //         if (constantValues.count(varName) && constantValues[varName].has_value()) {
-    //             Instruction newInstruction;                 // Create a new Instruction
-    //             newInstruction.opcode = Opcode::LOAD_CONST; // Set the opcode
-    //             newInstruction.value = std::make_shared<Value>(
-    //                 *constantValues[varName]); // Create shared_ptr for constant
-
-    //             bytecode[i] = newInstruction; // Replace old instruction with the new one
-    //             changesMade = true;           // A change was made
-    //         }
-    //     }
-    // }
-    return changesMade; // Return whether any changes were made
-}
-
-bool PackratParser::earlyInlineExpansion()
-{
-    // for (size_t i = 0; i < bytecode.size(); ++i) {
-    //     if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
-    //         std::string funcName = bytecode[i].value->toString();
-    //         std::vector<Instruction> funcBody;
-    //         size_t j = i + 1;
-    //         while (j < bytecode.size() && bytecode[j].opcode != Opcode::RETURN) {
-    //             funcBody.push_back(bytecode[j]);
-    //             ++j;
-    //         }
-    //         if (j < bytecode.size() && bytecode[j].opcode == Opcode::RETURN) {
-    //             funcBody.push_back(bytecode[j]);
-    //         }
-    //         inlineFunctions[funcName] = funcBody;
-    //     } else if (bytecode[i].opcode == Opcode::INVOKE_FUNCTION) {
-    //         std::string funcName = bytecode[i].value->toString();
-    //         if (inlineFunctions.count(funcName)) {
-    //             bytecode.erase(bytecode.begin() + i);
-    //             bytecode.insert(bytecode.begin() + i,
-    //                             inlineFunctions[funcName].begin(),
-    //                             inlineFunctions[funcName].end());
-    //             i += inlineFunctions[funcName].size() - 1;
-    //         }
-    //     }
-    // }
-
-    return false;
-}
-
-bool PackratParser::deadCodeElimination()
-{
-    bool changesMade = false; // Track whether any changes were made
-    std::vector<bool> reachable(bytecode.size(), false);
-    std::vector<size_t> stack;
-    std::unordered_set<std::string> definedFunctions;
-    std::unordered_set<std::string> calledFunctions;
-
-    // First pass: mark all defined functions and the entry point as reachable
-    for (size_t i = 0; i < bytecode.size(); ++i) {
-        if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
-            definedFunctions.insert(std::get<std::string>(bytecode[i].value->data));
-            reachable[i] = true; // Mark the function definition itself as reachable
-        } else if (i == 0) {
-            stack.push_back(i); // Start with the first instruction
-        }
-    }
-
-    // Second pass: traverse the bytecode and mark reachable instructions
-    while (!stack.empty()) {
-        size_t current = stack.back();
-        stack.pop_back();
-
-        if (current >= bytecode.size() || reachable[current])
-            continue;
-
-        reachable[current] = true;
-
-        switch (bytecode[current].opcode) {
-        case Opcode::JUMP: {
-            int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
-            stack.push_back(current + jumpOffset);
-        } break;
-
-        case Opcode::JUMP_IF_FALSE:
-        case Opcode::JUMP_IF_TRUE: {
-            int32_t jumpOffset = std::get<int32_t>(bytecode[current].value->data);
-            stack.push_back(current + jumpOffset);
-            stack.push_back(current + 1); // Next instruction is reachable
-        } break;
-
-        case Opcode::INVOKE_FUNCTION: {
-            std::string funcName = std::get<std::string>(bytecode[current].value->data);
-            calledFunctions.insert(funcName);
-            // Fallthrough to make next instruction reachable
-        }
-        // For the following instructions, make them reachable
-        case Opcode::PRINT:
-        case Opcode::RETURN:
-        case Opcode::LOAD_VARIABLE:
-        case Opcode::STORE_VARIABLE:
-        case Opcode::DECLARE_VARIABLE:
-            stack.push_back(current + 1);
-            break;
-
-            // case Opcode::LOAD_FUNCTION: {
-            //     std::string funcName = std::get<std::string>(bytecode[current].value->data);
-            //     if (definedFunctions.count(funcName)) {
-            //         stack.push_back(current + 1);
-            //     }
-            // } break;
-
-            // Add handling for any other opcodes that affect reachability
-        default:
-            stack.push_back(current + 1); // Move to the next instruction
-            break;
-        }
-    }
-
-    // Third pass: ensure all called functions are marked as reachable
-    for (size_t i = 0; i < bytecode.size(); ++i) {
-        if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
-            std::string funcName = std::get<std::string>(bytecode[i].value->data);
-            if (calledFunctions.find(funcName) != calledFunctions.end()) {
-                reachable[i] = true; // Mark called functions as reachable
-            }
-        }
-    }
-
-    // Fourth pass: ensure function parameters are marked as reachable
-    for (size_t i = 0; i < bytecode.size(); ++i) {
-        if (bytecode[i].opcode == Opcode::DEFINE_FUNCTION) {
-            size_t j = i + 1; // Start checking after the function definition
-            while (j < bytecode.size() && bytecode[j].opcode != Opcode::RETURN) {
-                reachable[j] = true; // Mark parameters as reachable
-                ++j;
-            }
-        }
-    }
-
-    // Final pass: remove unreachable code
-    std::vector<Instruction> optimizedBytecode;
-    for (size_t i = 0; i < bytecode.size(); ++i) {
-        if (reachable[i]) {
-            optimizedBytecode.push_back(bytecode[i]);
-        } else {
-            changesMade = true; // A change was made, indicating dead code was eliminated
-        }
-    }
-
-    // Log optimization results
-    size_t removedInstructions = bytecode.size() - optimizedBytecode.size();
-    if (removedInstructions > 0) {
-        std::cout << "Dead code elimination removed " << removedInstructions << " instructions."
-                  << std::endl;
-    }
-
-    bytecode = std::move(optimizedBytecode); // Update the bytecode
-    return changesMade;                      // Return whether any changes were made
-}
-
-Value PackratParser::performOperation(const ValuePtr &a, const ValuePtr &b, Opcode op)
-{
-    if (a->type->tag == TypeTag::Int && b->type->tag == TypeTag::Int) {
-        int64_t valA = std::get<int64_t>(a->data);
-        int64_t valB = std::get<int64_t>(b->data);
-        int64_t result;
-        switch (op) {
-        case Opcode::ADD:
-            result = valA + valB;
-            break;
-        case Opcode::SUBTRACT:
-            result = valA - valB;
-            break;
-        case Opcode::MULTIPLY:
-            result = valA * valB;
-            break;
-        case Opcode::MODULUS:
-            result = valA % valB;
-            break;
-        case Opcode::DIVIDE:
-            result = valA / valB;
-            break;
-        default:
-            throw std::runtime_error("Unsupported operation");
-        }
-        return Value{std::make_shared<Type>(TypeTag::Int), result};
-    }
-    // Add similar logic for other types (Float64, Bool, etc.)
-    throw std::runtime_error("Unsupported types for constant folding");
 }
 
 Value PackratParser::setValue(TypePtr type, const std::string &input)
