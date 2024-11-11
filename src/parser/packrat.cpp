@@ -409,7 +409,6 @@ void PackratParser::function_call(const Token &name)
                  Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
         } else {
             // Handle built-in functions with parameters
-            std::cout << "Builtin fn with param" << std::endl;
             // First create the parameter frame
             emit(Opcode::CREATE_PARAM_FRAME,
                  peek().line,
@@ -442,7 +441,6 @@ void PackratParser::function_call(const Token &name)
         }
     } else {
         // Handle user-defined functions
-        std::cout << "user defined fn " << std::endl;
         auto funcInfo = functions.getFunction(name.lexeme);
         // First create the parameter frame
         emit(Opcode::CREATE_PARAM_FRAME,
