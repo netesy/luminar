@@ -47,6 +47,8 @@ private:
             case TypeTag::String:
                 length = std::get<std::string>(value->data).length();
                 break;
+            // case TypeTag::Int:
+            //     length = std::get<>(value->data).size();
             // case TypeTag::List:
             //     length = std::get<ListValue>(value->data).size();
             //     break;
@@ -209,7 +211,7 @@ private:
 
         auto inputImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             // Print prompt if provided
-            std::cout << std::get<std::string>(functions.getParameter("value")->data);
+            std::cout << std::get<std::string>(functions.getParameter("prompt")->data);
             std::cout.flush();
 
             std::string input;
@@ -225,7 +227,7 @@ private:
     {
         // abs(x: int|float) -> int|float
         std::vector<ParameterInfo> absParams = {
-            ParameterInfo("x", makeType(TypeTag::Float64), false)};
+            ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto absImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             const auto &value = functions.getParameter("value");
@@ -242,7 +244,7 @@ private:
 
         // sqrt(x: float) -> float
         std::vector<ParameterInfo> sqrtParams = {
-            ParameterInfo("x", makeType(TypeTag::Float64), false)};
+            ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto sqrtImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             double val = std::get<double>(functions.getParameter("value")->data);
@@ -276,8 +278,8 @@ private:
                ParameterInfo("message", makeType(TypeTag::String), true, makeStringValue(""))};
 
         auto assertImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            if (!std::get<bool>(functions.getParameter("value")->data)) {
-                std::string msg = std::get<std::string>(functions.getParameter("value")->data);
+            if (!std::get<bool>(functions.getParameter("condition")->data)) {
+                std::string msg = std::get<std::string>(functions.getParameter("message")->data);
                 throw std::runtime_error("Assertion failed" + (msg.empty() ? "" : ": " + msg));
             }
             return makeNilValue();
@@ -288,14 +290,14 @@ private:
 
     static void registerRound(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
-        // round(x: float, places: int = 0) -> float
+        // round(value: float, places: int = 0) -> float
         std::vector<ParameterInfo> roundParams
-            = {ParameterInfo("x", makeType(TypeTag::Float64), false),
+            = {ParameterInfo("value", makeType(TypeTag::Float64), false),
                ParameterInfo("places", makeType(TypeTag::Int), true, makeIntValue(0))};
 
         auto roundImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             double value = std::get<double>(functions.getParameter("value")->data);
-            int32_t places = std::get<int32_t>(functions.getParameter("value")->data);
+            int64_t places = std::get<int64_t>(functions.getParameter("places")->data);
 
             double multiplier = std::pow(10.0, places);
             double rounded = std::round(value * multiplier) / multiplier;
@@ -313,7 +315,7 @@ private:
             ParameterInfo("seconds", makeType(TypeTag::Float64), false)};
 
         auto sleepImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double seconds = std::get<double>(functions.getParameter("value")->data);
+            double seconds = std::get<double>(functions.getParameter("seconds")->data);
             if (seconds < 0) {
                 throw std::runtime_error("Sleep time cannot be negative");
             }
