@@ -410,56 +410,67 @@ void PackratParser::function_call(const Token &name)
         } else {
             // Handle built-in functions with parameters
             std::cout << "Builtin fn with param" << std::endl;
-            std::vector<ValuePtr> arguments;
-            if (!check(TokenType::RIGHT_PAREN)) {
-                do {
-                    expression();
-                    arguments.push_back(nullptr);
-                } while (match(TokenType::COMMA));
-            }
-            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-            // Invoke the function
-            emit(Opcode::INVOKE_FUNCTION,
-                 peek().line,
-                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-            // Create parameter frame for the function call
+            // First create the parameter frame
             emit(Opcode::CREATE_PARAM_FRAME,
                  peek().line,
                  Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-            // Push arguments onto the parameter frame
-            for (size_t i = 0; i < arguments.size(); i++) {
-                emit(Opcode::STORE_PARAM,
-                     peek().line,
-                     Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+
+            // Handle arguments
+            size_t argIndex = 0;
+            if (!check(TokenType::RIGHT_PAREN)) {
+                do {
+                    expression(); // This puts the argument value on the stack
+                    // Store parameter using the parameter name from function info
+                    if (argIndex < funcInfo->parameters.size()) {
+                        emit(Opcode::STORE_PARAM,
+                             peek().line,
+                             Value{std::make_shared<Type>(TypeTag::String),
+                                   funcInfo->parameters[argIndex].name});
+                    }
+                    argIndex++;
+                } while (match(TokenType::COMMA));
             }
+            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+
+            // Now invoke the function after parameters are set up
+            emit(Opcode::INVOKE_FUNCTION,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
             // Cleanup parameter frame after function returns
             emit(Opcode::POP_PARAM_FRAME, peek().line);
         }
     } else {
         // Handle user-defined functions
         std::cout << "user defined fn " << std::endl;
-        std::vector<ValuePtr> arguments;
-        if (!check(TokenType::RIGHT_PAREN)) {
-            do {
-                expression();
-                arguments.push_back(nullptr);
-            } while (match(TokenType::COMMA));
-        }
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-        // Invoke the function
-        emit(Opcode::INVOKE_FUNCTION,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-        // Create parameter frame for the function call
+        auto funcInfo = functions.getFunction(name.lexeme);
+        // First create the parameter frame
         emit(Opcode::CREATE_PARAM_FRAME,
              peek().line,
              Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-        // Push arguments onto the parameter frame
-        for (size_t i = 0; i < arguments.size(); i++) {
-            emit(Opcode::STORE_PARAM,
-                 peek().line,
-                 Value{std::make_shared<Type>(TypeTag::Int), static_cast<int>(i)});
+
+        // Handle arguments
+        size_t argIndex = 0;
+        if (!check(TokenType::RIGHT_PAREN)) {
+            do {
+                expression(); // This puts the argument value on the stack
+                // Store parameter using the parameter name from function info
+                if (argIndex < funcInfo->parameters.size()) {
+                    emit(Opcode::STORE_PARAM,
+                         peek().line,
+                         Value{std::make_shared<Type>(TypeTag::String),
+                               funcInfo->parameters[argIndex].name});
+                }
+                argIndex++;
+            } while (match(TokenType::COMMA));
         }
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+
+        // Now invoke the function after parameters are set up
+        emit(Opcode::INVOKE_FUNCTION,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
         // Cleanup parameter frame after function returns
         emit(Opcode::POP_PARAM_FRAME, peek().line);
     }
