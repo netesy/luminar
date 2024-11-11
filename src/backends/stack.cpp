@@ -144,13 +144,57 @@ void StackBackend::execute(const Instruction &instruction)
         break;
     }
 
-    case Opcode::STORE_PARAM: {
-        std::string paramName = std::get<std::string>(instruction.value->data);
-        ValuePtr value = pop();
+    case Opcode::STORE_PARAM:
+        try {
+            std::string paramName = std::get<std::string>(instruction.value->data);
+            ValuePtr value = pop();
 
-        auto params = function.getCurrentParameters();
-        params[paramName] = value;
-    }
+            // // Debug output
+            // std::cout << "Storing parameter: " << paramName << " with value: ";
+            // std::visit([](const auto &v) { std::cout << v; }, value->data);
+            // std::cout << std::endl;
+
+            std::string currentFunc = function.getCurrentFunctionName();
+
+            // // Debug output
+            // std::cout << "Current function: " << currentFunc << "();" << std::endl;
+
+            auto funcInfo = function.getFunction(currentFunc);
+            if (!funcInfo) {
+                throw std::runtime_error("Function not found: " + currentFunc);
+            }
+
+            // Debug output
+            // std::cout << "Function parameters:" << std::endl;
+            // for (const auto &param : funcInfo->parameters) {
+            //     std::cout << "  - " << param.name << std::endl;
+            // }
+
+            // Get current parameters
+            auto currentParams = function.getCurrentParameters();
+            currentParams[paramName] = value;
+
+            std::vector<ValuePtr> orderedParams;
+            for (const auto &param : funcInfo->parameters) {
+                auto it = currentParams.find(param.name);
+                if (it != currentParams.end()) {
+                    orderedParams.push_back(it->second);
+                } else {
+                    std::cout << "Missing parameter: " << param.name << std::endl;
+                }
+            }
+
+            // Replace parameter frame
+            function.popParameterFrame();
+            function.pushParameterFrame(currentFunc, orderedParams);
+
+            // Debug output
+            // std::cout << "Updated parameter frame for " << currentFunc << std::endl;
+
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Error storing parameter: " + std::string(e.what()));
+        }
+        break;
 
     case Opcode::LOAD_PARAM: {
         std::string paramName = std::get<std::string>(instruction.value->data);
@@ -663,66 +707,151 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
 
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
+    // if (function.hasFunction(functionName)) {
+    //     // Get function info
+    //     auto functionInfo = function.getFunction(functionName);
+    //     if (!functionInfo) {
+    //         throw std::runtime_error("Function not found: " + functionName);
+    //     }
+
+    //     // Save current execution context
+    //     callStack.push({pc, stack.size()});
+
+    //     // Create new stack frame for function execution
+    //     std::vector<ValuePtr> args;
+
+    //     // Get parameters from the current parameter frame
+    //     try {
+    //         auto currentParams = function.getCurrentParameters();
+
+    //         // Build args array in the order defined by function parameters
+    //         for (const auto &paramInfo : functionInfo->parameters) {
+    //             auto paramValue = currentParams.find(paramInfo.name);
+    //             if (paramValue != currentParams.end()) {
+    //                 args.push_back(paramValue->second);
+    //             } else if (paramInfo.isOptional) {
+    //                 args.push_back(paramInfo.defaultValue);
+    //             } else {
+    //                 throw std::runtime_error("Missing required parameter: " + paramInfo.name);
+    //             }
+    //         }
+    //     } catch (const std::exception &e) {
+    //         // If getCurrentParameters fails, it means we have no parameter frame
+    //         if (!functionInfo->parameters.empty()) {
+    //             throw std::runtime_error("No parameters provided for function: " + functionName);
+    //         }
+    //     }
+
+    //     if (functionInfo->isBuiltin) {
+    //         // Execute built-in function
+    //         ValuePtr result = function.executeBuiltin(functionName, args);
+    //         if (result) {
+    //             auto linearResult = memoryManager.makeLinear<Value>(currentRegion(), *result);
+    //             auto sharedResult = std::make_shared<Value>(*linearResult);
+    //             push(sharedResult);
+    //         }
+
+    //         // Restore context immediately for built-ins
+    //         auto [savedPC, savedStackSize] = callStack.top();
+    //         callStack.pop();
+    //         pc = savedPC;
+    //     } else {
+    //         // Set up new parameter frame for user-defined function
+    //         function.pushParameterFrame(functionName, args);
+    //         pc = functionInfo->startPC;
+    //     }
+    // } else {
+    //     throw std::runtime_error("Function not found: " + functionName);
+    // }
     if (function.hasFunction(functionName)) {
-        // Get function info
+        std::cout << "\n=== Function Call Debug: " << functionName << " ===\n";
+
         auto functionInfo = function.getFunction(functionName);
         if (!functionInfo) {
             throw std::runtime_error("Function not found: " + functionName);
         }
 
-        // Save current execution context
+        // Debug function parameters definition
+        std::cout << "Function Parameters Definition:\n";
+        for (const auto &param : functionInfo->parameters) {
+            std::cout << "  - Name: " << param.name
+                      << ", Optional: " << (param.isOptional ? "yes" : "no")
+                      << ", Type: " << param.type->toString() << "\n";
+        }
+
         callStack.push({pc, stack.size()});
-
-        // Create new stack frame for function execution
         std::vector<ValuePtr> args;
-        // Get current parameter frame
-        if (function.hasParameter(functionName)) {
-            auto params = function.getCurrentParameters();
 
-            for (const auto &param : functionInfo->parameters) {
-                // Look up parameter value from current frame
-                auto paramValue = params.find(param.name);
-                if (paramValue != params.end()) {
+        try {
+            auto currentParams = function.getCurrentParameters();
+
+            // Debug current parameter frame content
+            std::cout << "\nCurrent Parameter Frame Contents:\n";
+            for (const auto &[name, value] : currentParams) {
+                std::cout << "  - Name: " << name << ", Value: ";
+                std::visit([](const auto &v) { std::cout << v; }, value->data);
+                std::cout << "\n";
+            }
+
+            // Debug parameter matching process
+            std::cout << "\nParameter Matching Process:\n";
+            for (const auto &paramInfo : functionInfo->parameters) {
+                std::cout << "Looking for parameter: " << paramInfo.name << "\n";
+
+                auto paramValue = currentParams.find(paramInfo.name);
+                if (paramValue != currentParams.end()) {
+                    std::cout << "  Found value: ";
+                    std::visit([](const auto &v) { std::cout << v; }, paramValue->second->data);
+                    std::cout << "\n";
                     args.push_back(paramValue->second);
-                } else if (param.isOptional) {
-                    args.push_back(param.defaultValue);
                 } else {
-                    throw std::runtime_error("Missing required parameter: " + param.name);
+                    std::cout << "  Not found in current parameters\n";
+                    if (paramInfo.isOptional) {
+                        std::cout << "  Using default value\n";
+                        args.push_back(paramInfo.defaultValue);
+                    } else {
+                        std::cout << "  Required parameter missing!\n";
+                        throw std::runtime_error("Missing required parameter: " + paramInfo.name);
+                    }
                 }
+            }
+
+            std::cout << "\nFinal Arguments Array:\n";
+            for (size_t i = 0; i < args.size(); i++) {
+                std::cout << "  Arg[" << i << "]: ";
+                std::visit([](const auto &v) { std::cout << v; }, args[i]->data);
+                std::cout << "\n";
+            }
+
+        } catch (const std::exception &e) {
+            std::cout << "Error during parameter processing: " << e.what() << "\n";
+            if (!functionInfo->parameters.empty()) {
+                throw std::runtime_error("No parameters provided for function: " + functionName);
             }
         }
 
         if (functionInfo->isBuiltin) {
-            // Execute built-in function
+            std::cout << "\nExecuting builtin function with " << args.size() << " arguments\n";
             ValuePtr result = function.executeBuiltin(functionName, args);
-            // if (result) {
-            //     push(result);
-            // }
             if (result) {
-                // Create a linear copy of the result in the current region
                 auto linearResult = memoryManager.makeLinear<Value>(currentRegion(), *result);
                 auto sharedResult = std::make_shared<Value>(*linearResult);
-                push(sharedResult); // Explicitly push result to stack
+                push(sharedResult);
+                std::cout << "Builtin function returned a result\n";
+            } else {
+                std::cout << "Builtin function returned void\n";
             }
 
-            // For debugging
-            std::cout << "Builtin function " << functionName << " executed" << std::endl;
-            if (result) {
-                std::cout << "Result: ";
-                std::visit([](const auto &v) { std::cout << v; }, result->data);
-                std::cout << std::endl;
-            }
-            // Restore context immediately for built-ins
             auto [savedPC, savedStackSize] = callStack.top();
             callStack.pop();
             pc = savedPC;
         } else {
-            // Set up new parameter frame
+            std::cout << "\nExecuting user-defined function\n";
             function.pushParameterFrame(functionName, args);
-
-            // Jump to function start
             pc = functionInfo->startPC;
         }
+
+        std::cout << "=== End Function Call Debug ===\n\n";
     } else {
         throw std::runtime_error("Function not found: " + functionName);
     }
