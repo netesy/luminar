@@ -311,11 +311,15 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
     auto value1 = pop();
 
     // Get common type between the two values
+    // std::cout << "Error 1: "<< value1->type->toString() << std::endl;
+    // std::cout << "Error 2: "<< value2->type->toString() << std::endl;
     TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
     if (!commonType) {
         std::cerr << "Error: Incompatible types for binary operation" << std::endl;
         return;
     }
+
+  //std::cout << "Error 1: "<< commonType->tag;   <<std::endl
 
     ValuePtr result = std::make_shared<Value>();
     result->type = commonType;
@@ -653,8 +657,6 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
         std::cerr << "Error: value stack underflow" << std::endl;
         return;
     }
-    //    auto value = pop();
-    //    variables[variableIndex] = memoryManager.makeRef<Value>(currentRegion(), value);
     // Assuming pop returns ValuePtr
     ValuePtr valuePtr = pop();
 
@@ -689,7 +691,7 @@ void StackBackend::handleDeclareFunction(const std::string &functionName)
         throw std::runtime_error("Unterminated function definition: " + functionName);
     }
 
-    // Register function in the Functions manager
+    // Update the function's endPC in the Functions class
     function.updateFunctionEndPC(functionName, endPC);
 
     // Skip past function body in main execution
