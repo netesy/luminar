@@ -232,8 +232,6 @@ void PackratParser::block()
 
 void PackratParser::var_declaration()
 {
-    //    auto start = std::chrono::high_resolution_clock::now();
-    //    std::cout << "Starting variable declaration" << std::endl;
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected variable name.");
 
@@ -259,10 +257,6 @@ void PackratParser::var_declaration()
     }
 
     consume(TokenType::SEMICOLON, "Expected ';' after variable declaration.");
-
-    //    auto end = std::chrono::high_resolution_clock::now();
-    //    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    //    std::cout << "Time taken by <var_declaration>: " << duration << " microseconds\n";
 }
 
 void PackratParser::var_call(const Token &name)
@@ -275,8 +269,7 @@ void PackratParser::assignment()
 {
     auto start = std::chrono::high_resolution_clock::now();
     Token name = peek();
-    std::cout << "Starting assignment" << std::endl;
-    consume(TokenType::IDENTIFIER, "Expected variable name.");
+     consume(TokenType::IDENTIFIER, "Expected variable name.");
 
     TokenType assignmentType = TokenType::EQUAL;
     if (match(TokenType::PLUS_EQUAL)) {
@@ -287,7 +280,6 @@ void PackratParser::assignment()
         consume(TokenType::EQUAL, "Expected '=', '+=', or '-=' after variable name.");
     }
 
-    std::cout << "Variable " << name.lexeme << " assigned" << std::endl;
     expression();
     consume(TokenType::SEMICOLON, "Expected ';' after assignment.");
 
@@ -307,9 +299,6 @@ void PackratParser::assignment()
 
     emit(Opcode::STORE_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    std::cout << "Time taken by <assignment>: " << duration << " microseconds\n";
 }
 
 void PackratParser::function_declaration()
@@ -319,12 +308,10 @@ void PackratParser::function_declaration()
     consume(TokenType::LEFT_PAREN, "Expected '(' after function name.");
 
     std::vector<ParameterInfo> parameters;
-
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
             Token paramName = peek();
             consume(TokenType::IDENTIFIER, "Expected parameter name.");
-
             TypePtr paramType = typeSystem->NIL_TYPE;
             ValuePtr defaultValue = nullptr;
             bool isOptional = false;
@@ -338,13 +325,15 @@ void PackratParser::function_declaration()
             if (match(TokenType::EQUAL)) {
                 isOptional = true;
                 Token paramValue = peek();
+                advance();
                 defaultValue = std::make_shared<Value>(setValue(paramType, paramValue.lexeme));
+            } else {
+                defaultValue = typeSystem->createValue(paramType);
             }
 
             parameters.emplace_back(paramName.lexeme, paramType, isOptional, defaultValue);
         } while (match(TokenType::COMMA));
     }
-
     consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
 
     TypePtr returnType = typeSystem->NIL_TYPE;
@@ -356,31 +345,31 @@ void PackratParser::function_declaration()
 
     int32_t startPC = bytecode.size();
 
-    consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
-    enterScope();
-
     functions.addFunction(name.lexeme, parameters, returnType, startPC, -1);
 
-    // Emit parameter frame creation
+    // Create parameter frame at start of function execution
     emit(Opcode::CREATE_PARAM_FRAME,
          peek().line,
          Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
 
-    // Set up parameters in the new frame
-    for (size_t i = 0; i < parameters.size(); i++) {
-        emit(Opcode::STORE_PARAM,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), parameters[i].name});
-        declareVariable(Token{TokenType::IDENTIFIER, parameters[i].name}, parameters[i].type);
+    // Just declare the parameters as variables in the function scope
+    enterScope();
+    for (const auto &param : parameters) {
+        declareVariable(Token{TokenType::IDENTIFIER, param.name}, param.type, param.defaultValue);
+        auto val = param.defaultValue.get();
+        emit(Opcode::LOAD_CONST, peek().line, std::move(*val));
+        int32_t location = getVariableMemoryLocation(Token{TokenType::IDENTIFIER, param.name});
+         emit(Opcode::STORE_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
     }
 
+    // Process the function body
+    consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         statement();
     }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after function block.");
 
-    // Emit parameter frame cleanup before return
-    emit(Opcode::POP_PARAM_FRAME, peek().line);
-
+    // Ensure proper return handling
     if (bytecode.back().opcode != Opcode::RETURN) {
         if (returnType->tag != TypeTag::Nil) {
             error("Function must return a value of type " + returnType->toString());
@@ -388,8 +377,10 @@ void PackratParser::function_declaration()
         emit(Opcode::RETURN, peek().line);
     }
 
-    consume(TokenType::RIGHT_BRACE, "Expected '}' after function block.");
+    // Clean up parameter frame
+    emit(Opcode::POP_PARAM_FRAME, peek().line);
 
+    // Update the function's endPC in the Functions class
     int32_t endPC = bytecode.size() - 1;
     functions.updateFunctionEndPC(name.lexeme, endPC);
 
@@ -652,8 +643,6 @@ void PackratParser::interpolate_string(const std::string &str)
     std::string::const_iterator searchStart(str.cbegin());
     std::smatch match;
 
-    //    // Load the initial string part
-    //    emit(Opcode::LOAD_STR, peek().line, Value{std::make_shared<Type>(TypeTag::String), str});
     std::string interpolatedString = std::regex_replace(str, interpolation_regex, "{}");
     emit(Opcode::LOAD_STR,
          peek().line,
@@ -828,6 +817,9 @@ void PackratParser::declareVariable(const Token &name,
     emit(Opcode::DECLARE_VARIABLE,
          name.line,
          Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+    // if (defaultValue) {
+
+    // }
 }
 
 int32_t PackratParser::getVariableMemoryLocation(const Token &name)
