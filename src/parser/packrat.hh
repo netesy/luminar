@@ -19,7 +19,7 @@ using Bytecode = std::vector<Instruction>;
 class PackratParser : public Algorithm
 {
 public:
-    PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem);
+    PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem,Functions& funcs);
 
     Bytecode parse() override;
     std::string toString() const override;
@@ -32,7 +32,8 @@ private:
     Bytecode bytecode;
     Scanner &scanner;
     Variables variable;
-    Functions functions;
+    Functions& functions;
+   // Functions& functions;
     std::shared_ptr<TypeSystem> typeSystem;
     std::unordered_map<std::string, std::optional<Value>> constantValues;
     std::unordered_map<std::string, std::vector<Instruction>> inlineFunctions;

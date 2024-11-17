@@ -6,7 +6,6 @@
 #include "../types.hh"
 #include "backend.hh"
 #include <functional>
-#include <map>
 #include <mutex>
 #include <stack>
 #include <string>
@@ -16,7 +15,7 @@
 class StackBackend : public Backend
 {
 public:
-    explicit StackBackend(std::vector<Instruction> &program);
+    explicit StackBackend(std::vector<Instruction> &program, Functions& funcs);
     ~StackBackend();
 
     void run(const std::vector<Instruction> &program) override;
@@ -83,6 +82,7 @@ private:
     ValuePtr pop();
     void clearStack();
     ValuePtr createRange(const ValuePtr &start, const ValuePtr &end, const ValuePtr &step);
+    bool insideFunctionDefinition();
 };
 
 #endif // STACK_BACKEND_HH

@@ -6,10 +6,10 @@
 #include <regex>
 #include <sstream>
 
-PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
+PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem, Functions &funcs)
     : scanner(scanner)
     , variable(typeSystem)
-    , functions(typeSystem)
+    , functions(funcs)
     , typeSystem(typeSystem)
 {
     tokens = scanner.scanTokens();

@@ -20,6 +20,7 @@ private:
     std::unique_ptr<VM> vm;
     std::unique_ptr<Algorithm> parser;
     std::vector<Instruction> bytecode;
+    Functions functions;
     static std::string readInput();
     static std::string readFile(const std::string& filename);
     static void debug(const Scanner &scanner, const Algorithm &parser);

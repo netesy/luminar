@@ -1,21 +1,17 @@
 #include "stack.hh"
-#include "../builtin_function.hh"
 #include "../function.hh"
 #include <chrono>
-#include <cmath>
 #include <iostream>
-#include <type_traits>
 // Define the thread_local static member outside the class
 thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
-StackBackend::StackBackend(std::vector<Instruction> &program)
-    : function(std::make_shared<TypeSystem>())
+StackBackend::StackBackend(std::vector<Instruction> &program, Functions& funcs)
+    : function(funcs)
     , program(program)
     , memoryManager(true)
     , globalRegion(memoryManager)
 {
     regionStack.push(&globalRegion);
-    // Functions function(typeSystems);
 }
 
 StackBackend::~StackBackend()
@@ -23,7 +19,6 @@ StackBackend::~StackBackend()
     clearStack();
     memoryManager.printStatistics();
     while (!regionStack.empty()) {
-        //  std::cout << "Popping region" << std::endl;
         popRegion();
     }
 }
@@ -123,15 +118,34 @@ void StackBackend::execute(const Instruction &instruction)
     case INVOKE_FUNCTION:
         handleCallFunction(std::get<std::string>(instruction.value->data));
         break;
-    case RETURN:
-        handleReturnFuction();
+    case RETURN:{
+        // Only process returns if we're not inside a function definition
+        if (!insideFunctionDefinition()) {
+            handleReturnFuction();
+        }
         break;
+    }
     case PUSH_ARGS:
         handlePushArg(instruction);
         break;
-    case Opcode::CREATE_PARAM_FRAME: {
-        std::string funcName = std::get<std::string>(instruction.value->data);
-        function.pushParameterFrame(funcName, {});
+    case Opcode::CREATE_PARAM_FRAME:
+        // {
+        //     // Only process parameter frames if we're not inside a function definition
+        //     if (!insideFunctionDefinition()) {
+        //         std::string funcName = std::get<std::string>(instruction.value->data);
+        //         function.pushParameterFrame(funcName, {});
+        //     }else {
+        //         std::string funcName = std::get<std::string>(instruction.value->data);
+        //         function.pushParameterFrame(funcName, {});
+        //     }
+        //     break;
+        // }
+        {
+            std::string funcName = std::get<std::string>(instruction.value->data);
+            function.pushParameterFrame(funcName, {});
+            // if (!insideFunctionDefinition()) {
+            //     function.pushParameterFrame(funcName, {});
+            // }
         break;
     }
 
@@ -140,26 +154,27 @@ void StackBackend::execute(const Instruction &instruction)
             std::string paramName = std::get<std::string>(instruction.value->data);
             ValuePtr value = pop();
 
-            // // Debug output
-            // std::cout << "Storing parameter: " << paramName << " with value: ";
-            // std::visit([](const auto &v) { std::cout << v; }, value->data);
-            // std::cout << std::endl;
+            // Debug output
+            std::cout << "Storing parameter: " << paramName << " with value: ";
+            std::visit([](const auto &v) { std::cout << v; }, value->data);
+            std::cout << std::endl;
 
             std::string currentFunc = function.getCurrentFunctionName();
+            //std::string currentFunc = std::get<std::string>(program[pc - 2].value->data);
 
-            // // Debug output
-            // std::cout << "Current function: " << currentFunc << "();" << std::endl;
+            // Debug output
+            std::cout << "Current function: " << currentFunc << "();" << std::endl;
 
             auto funcInfo = function.getFunction(currentFunc);
             if (!funcInfo) {
                 throw std::runtime_error("Function not found: " + currentFunc);
             }
 
-            // Debug output
-            // std::cout << "Function parameters:" << std::endl;
-            // for (const auto &param : funcInfo->parameters) {
-            //     std::cout << "  - " << param.name << std::endl;
-            // }
+           // Debug output
+            std::cout << "Function parameters:" << std::endl;
+            for (const auto &param : funcInfo->parameters) {
+                std::cout << "  - " << param.name << std::endl;
+            }
 
             // Get current parameters
             auto currentParams = function.getCurrentParameters();
@@ -179,8 +194,8 @@ void StackBackend::execute(const Instruction &instruction)
             function.popParameterFrame();
             function.pushParameterFrame(currentFunc, orderedParams);
 
-            // Debug output
-            // std::cout << "Updated parameter frame for " << currentFunc << std::endl;
+           // Debug output
+            std::cout << "Updated parameter frame for " << currentFunc << std::endl;
 
         } catch (const std::exception &e) {
             throw std::runtime_error("Error storing parameter: " + std::string(e.what()));
@@ -195,7 +210,9 @@ void StackBackend::execute(const Instruction &instruction)
     }
 
     case Opcode::POP_PARAM_FRAME: {
-        function.popParameterFrame();
+        if (!insideFunctionDefinition()) {
+                   function.popParameterFrame();
+        }
         break;
     }
     case JUMP:
@@ -311,16 +328,11 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
     auto value1 = pop();
 
     // Get common type between the two values
-    // std::cout << "Error 1: "<< value1->type->toString() << std::endl;
-    // std::cout << "Error 2: "<< value2->type->toString() << std::endl;
     TypePtr commonType = typeSystem.getCommonType(value1->type, value2->type);
     if (!commonType) {
         std::cerr << "Error: Incompatible types for binary operation" << std::endl;
         return;
     }
-
-  //std::cout << "Error 1: "<< commonType->tag;   <<std::endl
-
     ValuePtr result = std::make_shared<Value>();
     result->type = commonType;
 
@@ -400,7 +412,6 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
     }
 
     auto value2 = pop();
-
     auto value1 = pop();
 
     // Ensure both values are of type bool
@@ -439,7 +450,6 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
     }
 
     auto value2 = pop();
-
     auto value1 = pop();
 
     // Get common type between the two values
@@ -519,7 +529,6 @@ void StackBackend::handleInterpolateString()
 
     // Pop the value to be interpolated
     auto value = pop();
-
     // Pop the template string
     auto templateStr = pop();
 
@@ -673,18 +682,29 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
 void StackBackend::handleDeclareFunction(const std::string &functionName)
 {
     // Get current instruction's position to mark function start
-    size_t functionStart = pc;
+   // size_t functionStart = pc;
 
     // Skip past the function body to find the end
     size_t depth = 1;
     size_t endPC = pc;
+    std::vector<Instruction> functionBody;
+
+    // Skip the CREATE_PARAM_FRAME instruction that precedes function body
+    pc++;
 
     while (depth > 0 && endPC < program.size()) {
         endPC++;
         if (program[endPC].opcode == Opcode::DEFINE_FUNCTION)
             depth++;
-        if (program[endPC].opcode == Opcode::RETURN)
+        else if (program[endPC].opcode == Opcode::RETURN){
             depth--;
+            if (depth == 0) break; // Found matching RETURN
+        }
+
+        // Collect function body instructions but don't execute them
+        if (depth > 0) {  // Don't include the final RETURN in function body
+            functionBody.push_back(program[endPC]);
+        }
     }
 
     if (depth > 0) {
@@ -713,6 +733,12 @@ void StackBackend::handleCallFunction(const std::string &functionName)
         // Create new stack frame for function execution
         std::vector<ValuePtr> args;
 
+        // Debug output
+        std::cout << "Function parameters:" << std::endl;
+        for (const auto &param : functionInfo->parameters) {
+            std::cout << "  - " << param.name << std::endl;
+        }
+
         // Get parameters from the current parameter frame
         try {
             auto currentParams = function.getCurrentParameters();
@@ -731,6 +757,7 @@ void StackBackend::handleCallFunction(const std::string &functionName)
         } catch (const std::exception &e) {
             // If getCurrentParameters fails, it means we have no parameter frame
             if (!functionInfo->parameters.empty()) {
+                function.popParameterFrame();
                 throw std::runtime_error("No parameters provided for function: " + functionName);
             }
         }
@@ -764,30 +791,32 @@ void StackBackend::handleReturnFuction()
         throw std::runtime_error("Return statement outside function");
     }
 
-    // Get return value if any
+    // Save return value if any
     ValuePtr returnValue = nullptr;
     if (!stack.empty()) {
         returnValue = pop();
     }
 
-    // Clean up parameter frame
-    function.popParameterFrame();
-
-    // Restore previous context
+    // Restore execution context
     auto [savedPC, savedStackSize] = callStack.top();
     callStack.pop();
 
-    // Restore stack to previous size
+    // Clean up current parameter frame
+    if (!function.getCurrentParameters().empty()) {
+        function.popParameterFrame();
+    }
+
+    // Restore stack to previous size but keep return value
     while (stack.size() > savedStackSize) {
         stack.pop();
     }
 
-    // Push return value if exists
+    // Push return value back if it exists
     if (returnValue) {
         push(returnValue);
     }
 
-    // Update PC
+    // Restore PC
     pc = savedPC;
 
     std::cout << "Returned from function to PC: " << pc << std::endl;
@@ -943,6 +972,17 @@ ValuePtr StackBackend::createRange(const ValuePtr &start, const ValuePtr &end, c
     return range;
 }
 
+bool StackBackend::insideFunctionDefinition()
+{
+    // Check if we're currently processing function definition
+    size_t depth = 0;
+    for (size_t i = 0; i <= pc; i++) {
+        if (program[i].opcode == DEFINE_FUNCTION) depth++;
+        if (program[i].opcode == RETURN) depth--;
+    }
+    return depth > 0;
+}
+
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
 {
     for (auto &task : tasks) { // Start threads for each task
@@ -957,6 +997,7 @@ void StackBackend::concurrent(std::vector<std::function<void()>> tasks)
 
     threads.clear();
 }
+
 void StackBackend::handleParallel(int32_t taskCount)
 {
     std::vector<std::function<void()>> tasks;
