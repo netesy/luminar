@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(luminar src/main.cpp
     src/debugger.cpp src/debugger.hh
-    src/parser.cpp src/parser.hh
+
     src/repl.cpp src/repl.hh
     src/scanner.cpp src/scanner.hh
     src/syntax.cpp src/syntax.hh

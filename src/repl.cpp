@@ -8,9 +8,10 @@
 #include <variant>
 
 REPL::REPL(std::unique_ptr<Algorithm> parser)
-    : backend(std::make_unique<StackBackend>(bytecode))
-    , vm(nullptr)
+    :backend(std::make_unique<StackBackend>(bytecode, functions)),
+     vm(nullptr)
     , parser(std::move(parser))
+    , functions(std::make_shared<TypeSystem>())
 {}
 
 void REPL::start(const std::string &filename = "test.lm")
@@ -50,14 +51,15 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
         // Tokenize input
     Scanner scanner(input, filename, filepath);
     std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
+    Functions functions(std::make_shared<TypeSystem>());
 
     // Create the parser inside the run method
-    std::unique_ptr<Algorithm> parser = std::make_unique<PackratParser>(scanner, typeSystem);
+    std::unique_ptr<Algorithm> parser = std::make_unique<PackratParser>(scanner, typeSystem, functions);
 
     parser->parse();
     // debug(scanner, *parser);
     std::vector<Instruction> bytecode = parser->getBytecode();
-    auto backend = std::make_unique<StackBackend>(bytecode); // passing by value
+    auto backend = std::make_unique<StackBackend>(bytecode, functions); // passing by value
     VM vm(*parser, std::move(backend));
 
     try {

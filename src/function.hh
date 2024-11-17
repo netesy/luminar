@@ -1,5 +1,5 @@
 #pragma once
-#include "builtin_function.hh" // Make sure to include this
+#include "builtin_function.hh" /* Make sure to include this */
 #include "scope.hh"
 #include "types.hh"
 #include <functional>
@@ -283,8 +283,7 @@ public:
 
         return funcInfo->nativeImpl(providedArgs); // Execute the native implementation
     }
-    // [Previous implementation of parameter stack methods and other utility functions...]
-    // Parameter stack management methods
+      // Parameter stack management methods
     void pushParameterFrame(const std::string &functionName, const std::vector<ValuePtr> &args)
     {
         // Add safety check
@@ -330,7 +329,7 @@ public:
     ValuePtr getParameter(const std::string &paramName) const
     {
         if (parameterStack_.empty()) {
-            throw std::runtime_error("No parameter found for active function call");
+            throw std::runtime_error("No parameter found for active function call, no parameter");
         }
 
         const auto &currentFrame = parameterStack_.top();
