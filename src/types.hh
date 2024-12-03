@@ -56,6 +56,24 @@ struct DictType
 struct EnumType
 {
     std::vector<std::string> values;
+
+    void addVariant(const std::string& name) {
+        if (std::find(values.begin(), values.end(), name) != values.end()) {
+            throw std::runtime_error("Enum variant already exists: " + name);
+        }
+        values.push_back(name);
+    }
+
+    std::string toString() const {
+        std::ostringstream oss;
+        oss << "Enum(";
+        for (auto it = values.begin(); it != values.end(); ++it) {
+            if (it != values.begin()) oss << ", ";
+            oss << *it;
+        }
+        oss << ")";
+        return oss.str();
+    }
 };
 
 struct FunctionType
@@ -236,6 +254,42 @@ struct SumValue
     ValuePtr value;
 };
 
+struct EnumValue {
+    std::string variantName;
+    ValuePtr associatedValue;
+
+    EnumValue() = default;
+
+    EnumValue(const std::string& name, const TypePtr& enumType, ValuePtr value = nullptr)
+        : variantName(name), associatedValue(value) {
+        // Validate variant name
+        const auto* enumTypeDetails = std::get_if<EnumType>(&enumType->extra);
+        if (!enumTypeDetails) {
+            throw std::runtime_error("Invalid enum type");
+        }
+
+        auto it = std::find(enumTypeDetails->values.begin(), enumTypeDetails->values.end(), name);
+        if (it == enumTypeDetails->values.end()) {
+            throw std::runtime_error("Unknown enum variant: " + name);
+        }
+    }
+
+    static ValuePtr create(const std::string& variantName, const TypePtr& enumType, ValuePtr associatedValue = nullptr);
+
+    std::string toString() const {
+        // if (associatedValue) {
+        //     return "Enum(" + variantName + ", " + associatedValue->toString() + ")";
+        // }
+        // return "Enum(" + variantName + ")";
+
+        if (associatedValue) {
+            // Use a generic representation if toString() is not available
+            return "Enum(" + variantName + ", <associated value>)";
+        }
+        return "Enum(" + variantName + ")";
+    }
+};
+
 struct Value
 {
     TypePtr type;
@@ -255,10 +309,24 @@ struct Value
                  ListValue,
                  DictValue,
                  SumValue,
+                 EnumValue,
                  UserDefinedValue>
         data;
+    // std::string toString() const {
+    //     return std::visit(overloaded{
+    //                                  [](const EnumValue& ev) { return ev.toString(); },
+    //                                  [](const auto&) { return "<unsupported type>"; }},
+    //                       data);
+    // }
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
 };
+
+inline ValuePtr EnumValue::create(const std::string& variantName, const TypePtr& enumType, ValuePtr associatedValue) {
+    return std::make_shared<Value>(Value{
+        enumType,
+        EnumValue(variantName, enumType, associatedValue)
+    });
+}
 
 class TypeSystem
 {
@@ -569,14 +637,14 @@ public:
             //        }
 
         case TypeTag::Enum: {
-            const auto &enumType = std::get<EnumType>(expectedType->extra);
-            if (const auto *intValue = std::get_if<int64_t>(&value->data)) {
-                // C++ style enum (integer-based)
-                return *intValue >= 0 && static_cast<size_t>(*intValue) < enumType.values.size();
-            } else if (const auto *strValue = std::get_if<std::string>(&value->data)) {
-                // Python style enum (string-based)
-                return std::find(enumType.values.begin(), enumType.values.end(), *strValue)
-                       != enumType.values.end();
+            if (const auto *enumType = std::get_if<EnumType>(&expectedType->extra)) {
+                if (!enumType->values.empty()) {
+                    value->data = EnumValue(enumType->values[0], expectedType);
+                } else {
+                    value->data = std::string(""); // Empty enum, use empty string as default
+                }
+            } else {
+                throw std::runtime_error("Invalid enum type");
             }
             break;
         }
@@ -1179,6 +1247,11 @@ inline std::ostream &operator<<(std::ostream &os, const std::monostate &)
     return os << "Nil";
 }
 
+// Update the operator<< for EnumValue
+inline std::ostream &operator<<(std::ostream &os, const EnumValue &ev) {
+    os << ev.toString();
+    return os;
+}
 // Define the operator<< for ValuePtr
 inline std::ostream &operator<<(std::ostream &os, const ValuePtr &valuePtr)
 {
