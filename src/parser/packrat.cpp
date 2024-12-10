@@ -26,14 +26,20 @@ Bytecode PackratParser::parse()
         if (pos >= tokens.size()) {
             error("Unexpected input at position " + std::to_string(pos + 1));
         }
+
+        // Measure time for bytecode optimization
+        auto optimization_start_time = std::chrono::high_resolution_clock::now();
+        bytecode = BytecodeOptimizer::optimize(bytecode);
+        auto optimization_end_time = std::chrono::high_resolution_clock::now();
+        auto optimization_duration = std::chrono::duration_cast<std::chrono::microseconds>(optimization_end_time - optimization_start_time);
+
+        std::cout << "Bytecode Optimizations completed in " << optimization_duration.count() << " microseconds." << std::endl;
+        //std::cout << "Parsing debug " << toString() << std::endl;
+
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
         std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
-        bytecode = BytecodeOptimizer::optimize(bytecode);
-        std::cout << "Bytecode Optimizations completed in " << duration.count() << " microseconds."
-                  << std::endl;
-        //std::cout << "Parsing debug " << toString() << std::endl;
         return bytecode;
     } catch (const std::exception &e) {
         std::cerr << "Parsing error: " << e.what() << std::endl;
@@ -68,6 +74,8 @@ void PackratParser::statement()
         assignment();
     } else if (match(TokenType::FN)) {
         function_declaration();
+    } else if (match(TokenType::MATCH)) {
+        match_statement();
     } else if (match(TokenType::RETURN)) {
         // return_statement();
         if (!check(TokenType::SEMICOLON)) {
@@ -212,6 +220,100 @@ void PackratParser::for_statement()
     }
 }
 
+void PackratParser::match_statement()
+{
+    // Parse the `match` expression.
+    expression(); // This will evaluate the value to be matched.
+    size_t matchValuePos = bytecode.size();
+
+    // Consume the LEFT_BRACE '{' after the match expression.
+    consume(TokenType::LEFT_BRACE, "Expected '{' after match expression.");
+
+    std::vector<size_t> caseJumpPositions; // Track positions to update jumps.
+    size_t defaultCaseJumpPos = 0;
+
+    // Parse individual cases
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        if (match(TokenType::IDENTIFIER)) {
+            Token caseType = previous(); // Get case type identifier (e.g., int, str, list<T>).
+
+            // Check for generics if the type can have them (e.g., list<T> or dict<K, V>).
+            // if (match(TokenType::LESS)) { // If '<' is present, it's a generic type.
+            //     // Parse the generic type (e.g., T in list<T> or K, V in dict<K, V>).
+            //     // This part can be extended for complex generic parsing.
+            //     parse_generic_type();
+            //     consume(TokenType::GREATER, "Expected '>' after generic type parameters.");
+            // }
+
+            // Emit code to check if `value` matches `caseType`.
+            size_t caseMatchJump = bytecode.size();
+            emit(Opcode::MATCH_TYPE,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String),
+                       caseType.lexeme}); // Placeholder for type check.
+
+            // Emit jump if the type doesn't match, to skip to the next case.
+            size_t caseSkipJump = bytecode.size();
+            emit(Opcode::JUMP_IF_FALSE,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
+
+            // Expect a block for the case
+            consume(TokenType::LEFT_BRACE, "Expected '{' after case pattern.");
+            block();
+
+            // Record position for future updates.
+            caseJumpPositions.push_back(caseSkipJump);
+
+            // Emit a jump to skip the rest of the match cases once matched.
+            size_t endMatchJump = bytecode.size();
+            emit(Opcode::JUMP,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
+            caseJumpPositions.push_back(endMatchJump);
+        } else if (match(TokenType::DEFAULT)) {
+            // Default case `_` - Handle unmatched patterns
+            consume(TokenType::LEFT_BRACE, "Expected '{' after default case.");
+            block();
+            defaultCaseJumpPos = bytecode.size(); // Record position for updating.
+        }
+    }
+
+    // After parsing all cases, update jumps for case endings.
+    size_t endMatch = bytecode.size();
+    for (size_t pos : caseJumpPositions) {
+        bytecode[pos].value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(TypeTag::Int), endMatch});
+    }
+
+    // Update default case jump to end of the match statement, if present.
+    if (defaultCaseJumpPos != 0) {
+        bytecode[defaultCaseJumpPos].value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(TypeTag::Int), endMatch});
+    }
+
+    // Consume the RIGHT_BRACE '}' to close the match block.
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after match cases.");
+}
+
+void PackratParser::parse_generic_type()
+{
+    // Parse generic types, e.g., T in list<T> or K, V in dict<K, V>.
+    // This function can be expanded as needed for complex generic handling.
+    if (match(TokenType::IDENTIFIER)) {
+        // Parse single generic type like T in list<T>
+        Token genericType = previous();
+        // Additional handling or storage can go here.
+    } else if (match(TokenType::IDENTIFIER)) {
+        // Parse pairs like K, V in dict<K, V>
+        Token keyType = previous();
+        consume(TokenType::COMMA, "Expected ',' between generic types.");
+        Token valueType = peek();
+        consume(TokenType::IDENTIFIER, "Expected value type after key type.");
+        // Additional handling or storage can go here.
+    }
+}
+
 void PackratParser::print_statement()
 {
     consume(TokenType::LEFT_PAREN, "Expected '(' before print expression.");
@@ -219,6 +321,235 @@ void PackratParser::print_statement()
     consume(TokenType::RIGHT_PAREN, "Expected ')' after print expression.");
     consume(TokenType::SEMICOLON, "Expected ';' after the print function.");
     emit(Opcode::PRINT, peek().line);
+}
+
+void PackratParser::list_statement()
+{
+    //  consume(TokenType::LEFT_BRACKET, "Expected '[' to start a list.");
+
+    // Assuming we have a list type prepared
+    TypePtr listType = std::make_shared<Type>(TypeTag::List,
+                                              ListType{/* no element type specified */});
+    ListValue elements;
+    Value value;
+    value.type = std::make_shared<Type>(TypeTag::List);
+
+    while (!check(TokenType::RIGHT_BRACKET) && !isAtEnd()) {
+        // Extract lexeme from token as string
+        std::string elementStr = peek().lexeme;
+
+        // Directly create a ValuePtr with appropriate type and data
+        ValuePtr element = std::make_shared<Value>(
+            Value{std::make_shared<Type>(inferType(peek())), // Example type
+                  peek().lexeme});
+
+        elements.elements.push_back(element);
+        // Parse each list element as an expression
+        expression();
+        if (!match(TokenType::COMMA))
+            break;
+    }
+
+    value.data = elements;
+
+    consume(TokenType::RIGHT_BRACKET, "Expected ']' to close the list.");
+
+    emit(Opcode::LOAD_VALUE, peek().line, Value{listType, elements});
+}
+
+void PackratParser::dict_statement() {
+  //  consume(TokenType::LEFT_BRACE, "Expected '{' to start a dictionary.");
+
+    // Assuming we have a dict type prepared
+    TypePtr dictType = std::make_shared<Type>(TypeTag::Dict);
+    DictValue keyValuePairs;
+
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        // Parse key
+        ValuePtr key = std::make_shared<Value>(
+            Value{std::make_shared<Type>(inferType(peek())),
+                  peek().lexeme}
+            );
+ expression();
+        consume(TokenType::COLON, "Expected ':' after dictionary key.");
+
+        // Parse value
+        ValuePtr dictValue = std::make_shared<Value>(
+            Value{std::make_shared<Type>(inferType(peek())),
+                  peek().lexeme}
+            );
+
+        keyValuePairs.elements[key] = dictValue;
+
+        // Parse each element as an expression
+        expression();
+
+        if (!match(TokenType::COMMA))
+            break;
+    }
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
+
+    emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
+}
+
+void PackratParser::parallel_statement()
+{
+    // consume(TokenType::PARALLEL, "Expected 'parallel' keyword.");
+    // consume(TokenType::LEFT_BRACE, "Expected '{' after 'parallel'.");
+    // std::vector<size_t> taskPositions;
+
+    // while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //     if (match(TokenType::IDENTIFIER)) {
+    //         Token identifier = previous();
+
+    //         if (identifier.lexeme == "tasks") {
+    //             // Parse task list
+    //             consume(TokenType::COLON, "Expected ':' after 'tasks'.");
+    //             consume(TokenType::LEFT_BRACKET, "Expected '[' to start task list.");
+
+    //             while (!check(TokenType::RIGHT_BRACKET) && !isAtEnd()) {
+    //                 consume(TokenType::LEFT_BRACE, "Expected '{' to start task.");
+    //                 size_t taskStart = bytecode.size();
+    //                 block(); // Parse the task body as a block
+    //                 size_t taskEnd = bytecode.size();
+    //                 ListValue rangeList;
+    //                 rangeList.elements.push_back(
+    //                             std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), taskStart}));
+    //                 rangeList.elements.push_back(
+    //                     std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), taskEnd}));
+    //                 emit(Opcode::TASK_PARALLEL, peek().line, rangeList);
+    //                 taskPositions.push_back(bytecode.size());
+    //                 consume(TokenType::RIGHT_BRACE, "Expected '}' to close task.");
+    //                 if (match(TokenType::COMMA))
+    //                     continue;
+    //             }
+
+    //             consume(TokenType::RIGHT_BRACKET, "Expected ']' to close task list.");
+    //         } else if (identifier.lexeme == "cores") {
+    //             // Parse cores configuration
+    //             consume(TokenType::COLON, "Expected ':' after 'cores'.");
+    //             Token value = consume(TokenType::IDENTIFIER, "Expected value for 'cores'.");
+    //             emit(Opcode::PARALLEL_CORES,
+    //                  identifier.line,
+    //                  Value{std::make_shared<Type>(TypeTag::Int), value.lexeme});
+    //         } else if (identifier.lexeme == "channels") {
+    //             // Parse channels configuration
+    //             consume(TokenType::COLON, "Expected ':' after 'channels'.");
+    //             consume(TokenType::LEFT_BRACE, "Expected '{' for channels configuration.");
+
+    //             while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //                 Token channel = peek();
+    //                 consume(TokenType::IDENTIFIER, "Expected channel name.");
+    //                 consume(TokenType::COLON, "Expected ':' after channel name.");
+    //                 Token channelType = peek();
+    //                 consume(TokenType::IDENTIFIER, "Expected channel type.");
+    //                 emit(Opcode::CHANNEL_DEFINE,
+    //                      channel.line,
+    //                      Value{channel.lexeme, channelType.lexeme});
+    //                 if (match(TokenType::COMMA))
+    //                     continue;
+    //             }
+
+    //             consume(TokenType::RIGHT_BRACE, "Expected '}' to close channels configuration.");
+    //         } else if (identifier.lexeme == "error") {
+    //             // Parse error strategy
+    //             consume(TokenType::COLON, "Expected ':' after 'error'.");
+    //             consume(TokenType::LEFT_BRACE, "Expected '{' for error strategy.");
+
+    //             while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //                 Token key = peek();
+    //                 consume(TokenType::IDENTIFIER, "Expected error strategy key.");
+    //                 consume(TokenType::COLON, "Expected ':' after key.");
+    //                 Token value = peek();
+    //                 expression(); // Parse value (e.g., `Continue`, 3, `30s`)
+    //                 emit(Opcode::ERROR_STRATEGY, key.line, Value{key.lexeme, value.lexeme});
+    //                 if (match(TokenType::COMMA))
+    //                     continue;
+    //             }
+
+    //             consume(TokenType::RIGHT_BRACE, "Expected '}' to close error strategy.");
+    //         } else {
+    //             std::string msg = "Unexpected identifier in 'parallel' block. identifier:  ";
+    //             msg.append(identifier.lexeme);
+    //             error(msg);
+    //         }
+    //     }
+    // }
+
+    // consume(TokenType::RIGHT_BRACE, "Expected '}' to close 'parallel' block.");
+    // emit(Opcode::PARALLEL_END, peek().line);
+}
+
+void PackratParser::concurrent_statement()
+{
+    // consume(TokenType::CONCURRENT, "Expected 'concurrent' keyword.");
+    // consume(TokenType::LEFT_BRACE, "Expected '{' after 'concurrent'.");
+    // std::vector<size_t> taskPositions;
+
+    // while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //     if (match(TokenType::IDENTIFIER)) {
+    //         Token identifier = previous();
+
+    //         if (identifier.lexeme == "worker") {
+    //             // Parse worker configuration
+    //             consume(TokenType::COLON, "Expected ':' after 'worker'.");
+    //             consume(TokenType::FN, "Expected 'fn' for worker function.");
+    //             consume(TokenType::LEFT_PAREN, "Expected '(' after 'fn'.");
+    //             Token param = peek();
+    //             consume(TokenType::IDENTIFIER, "Expected parameter name for worker function.");
+    //             consume(TokenType::RIGHT_PAREN, "Expected ')' after parameter.");
+    //             consume(TokenType::ARROW, "Expected '->' for worker function return type.");
+
+    //             Token returnType = peek();
+    //             consume(TokenType::IDENTIFIER, "Expected return type for worker function.");
+    //             consume(TokenType::LEFT_BRACE, "Expected '{' for worker function body.");
+
+    //             size_t functionStart = bytecode.size();
+    //             block();
+    //             size_t functionEnd = bytecode.size();
+    //             emit(Opcode::WORKER_FUNCTION,
+    //                  param.line,
+    //                  Value{functionStart, functionEnd, param.lexeme, returnType.lexeme});
+    //         } else if (identifier.lexeme == "input") {
+    //             // Parse input source
+    //             consume(TokenType::COLON, "Expected ':' after 'input'.");
+    //             Token inputSource = peek();
+    //             expression();
+    //             emit(Opcode::INPUT_SOURCE, inputSource.line, Value{inputSource.lexeme});
+    //         } else if (identifier.lexeme == "output") {
+    //             // Parse output channel
+    //             consume(TokenType::COLON, "Expected ':' after 'output'.");
+    //             Token outputChannel = peek();
+    //             expression();
+    //             emit(Opcode::OUTPUT_CHANNEL, outputChannel.line, Value{outputChannel.lexeme});
+    //         } else {
+    //             // Parse task function
+    //             if (match(TokenType::LEFT_PAREN)) {
+    //                 // Parse arguments for the function call
+    //                 std::vector<Value> arguments;
+    //                 while (!match(TokenType::RIGHT_PAREN)) {
+    //                      Token prev = peek();
+    //                     expression();
+    //                     arguments.push_back(prev);
+    //                     if (match(TokenType::COMMA)) continue;
+    //                 }
+    //                 emit(Opcode::TASK_CONCURRENT, identifier.line, Value{identifier.lexeme, arguments});
+    //             } else {
+    //                 std::string msg = "Expected '(' to begin function call or a valid configuration key. identifier:  ";
+    //                 msg.append(identifier.lexeme);
+    //                 error(msg);
+
+    //             }
+    //         }
+    //     }
+
+    //     // Optional comma for separating entries
+    //     if (match(TokenType::COMMA)) continue;
+    // }
+
+    // consume(TokenType::RIGHT_BRACE, "Expected '}' to close 'concurrent' block.");
+    // emit(Opcode::CONCURRENT_END, peek().line);
 }
 
 void PackratParser::block()
@@ -307,6 +638,10 @@ void PackratParser::function_declaration()
     consume(TokenType::IDENTIFIER, "Expected function name.");
     consume(TokenType::LEFT_PAREN, "Expected '(' after function name.");
 
+    // Create a temporary bytecode buffer
+    std::vector<Instruction> originalBytecode = std::move(bytecode);
+    bytecode.clear();  // Clear main bytecode temporarily
+
     std::vector<ParameterInfo> parameters;
     if (!check(TokenType::RIGHT_PAREN)) {
         do {
@@ -343,126 +678,177 @@ void PackratParser::function_declaration()
         returnType = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
 
+    // Enter new scope for function body
+    enterScope();
+
+    // Record the start of function body in bytecode
     int32_t startPC = bytecode.size();
 
-    functions.addFunction(name.lexeme, parameters, returnType, startPC, -1);
 
-    // Create parameter frame at start of function execution
-    emit(Opcode::CREATE_PARAM_FRAME,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-    // Just declare the parameters as variables in the function scope
-    enterScope();
-    for (const auto &param : parameters) {
+    // Register parameters as variables in function scope
+    for (const auto& param : parameters) {
         declareVariable(Token{TokenType::IDENTIFIER, param.name}, param.type, param.defaultValue);
-        auto val = param.defaultValue.get();
-        emit(Opcode::LOAD_CONST, peek().line, std::move(*val));
-        int32_t location = getVariableMemoryLocation(Token{TokenType::IDENTIFIER, param.name});
-         emit(Opcode::STORE_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
     }
 
-    // Process the function body
+    // Parse function body
     consume(TokenType::LEFT_BRACE, "Expected '{' before function body.");
+
+    // Store current function body instructions in a temporary vector
+    std::vector<Instruction> functionBody;
+
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         statement();
     }
+
+    // Store the function body instructions
+    functionBody = std::move(bytecode);
+    bytecode = std::move(originalBytecode);  // Restore main bytecode
+
     consume(TokenType::RIGHT_BRACE, "Expected '}' after function block.");
 
-    // Ensure proper return handling
-    if (bytecode.back().opcode != Opcode::RETURN) {
+    // Add implicit return if needed
+    if (functionBody.empty() || functionBody.back().opcode != Opcode::RETURN) {
         if (returnType->tag != TypeTag::Nil) {
             error("Function must return a value of type " + returnType->toString());
         }
-        emit(Opcode::RETURN, peek().line);
+        functionBody.push_back(Instruction{Opcode::RETURN, static_cast<uint32_t>(peek().line)});
     }
 
-    // Clean up parameter frame
-    emit(Opcode::POP_PARAM_FRAME, peek().line);
+    // Register function in the function table
+    functions.addFunction(name.lexeme, parameters, returnType, startPC, -1, functionBody);
 
-    // Update the function's endPC in the Functions class
-    int32_t endPC = bytecode.size() - 1;
+    // Update the function's endPC
+    int32_t endPC = startPC + functionBody.size() - 1;
     functions.updateFunctionEndPC(name.lexeme, endPC);
 
     exitScope();
+
+    // Emit only the function name for the VM
+    emit(Opcode::DEFINE_FUNCTION,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
 }
 
 void PackratParser::function_call(const Token &name)
 {
-    // Check if the function is a built-in function
-    if (functions.hasFunction(name.lexeme)) {
-        auto funcInfo = functions.getFunction(name.lexeme);
-        if (funcInfo->parameters.empty()) {
-            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-            // Invoke the function without arguments
-            emit(Opcode::INVOKE_FUNCTION,
-                 peek().line,
-                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-        } else {
-            // Handle built-in functions with parameters
-            // First create the parameter frame
-            emit(Opcode::CREATE_PARAM_FRAME,
-                 peek().line,
-                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-            // Handle arguments
-            size_t argIndex = 0;
-            if (!check(TokenType::RIGHT_PAREN)) {
-                do {
-                    expression(); // This puts the argument value on the stack
-                    // Store parameter using the parameter name from function info
-                    if (argIndex < funcInfo->parameters.size()) {
-                        emit(Opcode::STORE_PARAM,
-                             peek().line,
-                             Value{std::make_shared<Type>(TypeTag::String),
-                                   funcInfo->parameters[argIndex].name});
-                    }
-                    argIndex++;
-                } while (match(TokenType::COMMA));
-            }
-            consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-
-            // Now invoke the function after parameters are set up
-            emit(Opcode::INVOKE_FUNCTION,
-                 peek().line,
-                 Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-            // Cleanup parameter frame after function returns
-            emit(Opcode::POP_PARAM_FRAME, peek().line);
-        }
-    } else {
-        // Handle user-defined functions
-        auto funcInfo = functions.getFunction(name.lexeme);
-        // First create the parameter frame
-        emit(Opcode::CREATE_PARAM_FRAME,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-        // Handle arguments
-        size_t argIndex = 0;
-        if (!check(TokenType::RIGHT_PAREN)) {
-            do {
-                expression(); // This puts the argument value on the stack
-                // Store parameter using the parameter name from function info
-                if (argIndex < funcInfo->parameters.size()) {
-                    emit(Opcode::STORE_PARAM,
-                         peek().line,
-                         Value{std::make_shared<Type>(TypeTag::String),
-                               funcInfo->parameters[argIndex].name});
-                }
-                argIndex++;
-            } while (match(TokenType::COMMA));
-        }
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-
-        // Now invoke the function after parameters are set up
-        emit(Opcode::INVOKE_FUNCTION,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
-
-        // Cleanup parameter frame after function returns
-        emit(Opcode::POP_PARAM_FRAME, peek().line);
+    if (!functions.hasFunction(name.lexeme)) {
+        error("Undefined function '" + name.lexeme + "'");
+        return;
     }
+
+    auto funcInfo = functions.getFunction(name.lexeme);
+    if (!funcInfo) {
+        error("Invalid function info for '" + name.lexeme + "'");
+        return;
+    }
+
+    // Create parameter frame
+    emit(Opcode::CREATE_PARAM_FRAME,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
+    // Process arguments
+    std::vector<std::string> providedParams;
+    size_t argCount = 0;
+
+    if (!check(TokenType::RIGHT_PAREN)) {
+        do {
+            // Check for named parameter
+            bool isNamed = false;
+            std::string paramName;
+
+            if (check(TokenType::IDENTIFIER) && checkNext(TokenType::EQUAL)) {
+                Token paramToken = peek();
+                paramName = paramToken.lexeme;
+                advance(); // consume parameter name
+                advance(); // consume equals sign
+                isNamed = true;
+
+                // Validate parameter exists
+                bool found = false;
+                for (const auto &param : funcInfo->parameters) {
+                    if (param.name == paramName) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    error("Function '" + name.lexeme + "' has no parameter named '" + paramName
+                          + "'");
+                }
+                providedParams.push_back(paramName);
+            }
+
+            // Evaluate the argument expression
+            expression();
+
+            if (isNamed) {
+                emit(Opcode::STORE_PARAM,
+                     peek().line,
+                     Value{std::make_shared<Type>(TypeTag::String), paramName});
+            } else {
+                // Positional parameter
+                if (argCount >= funcInfo->parameters.size()) {
+                    error("Too many arguments provided to function '" + name.lexeme + "'");
+                }
+                std::string paramName = funcInfo->parameters[argCount].name;
+                providedParams.push_back(paramName);
+                emit(Opcode::STORE_PARAM,
+                     peek().line,
+                     Value{std::make_shared<Type>(TypeTag::String), paramName});
+            }
+
+            argCount++;
+        } while (match(TokenType::COMMA));
+    }
+
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments");
+
+    // Validate required parameters are provided
+    for (size_t i = 0; i < funcInfo->parameters.size(); i++) {
+        const auto &param = funcInfo->parameters[i];
+        if (!param.isOptional) {
+            bool provided = false;
+            for (const auto &providedParam : providedParams) {
+                if (providedParam == param.name) {
+                    provided = true;
+                    break;
+                }
+            }
+            if (!provided) {
+                error("Missing required parameter '" + param.name + "' in call to function '"
+                      + name.lexeme + "'");
+            }
+        }
+    }
+
+    // Add default values for non-provided optional parameters
+    for (const auto &param : funcInfo->parameters) {
+        bool provided = false;
+        for (const auto &providedParam : providedParams) {
+            if (providedParam == param.name) {
+                provided = true;
+                break;
+            }
+        }
+
+        if (!provided && param.isOptional) {
+            // Load and store default value
+            Value defaultVal = *param.defaultValue;
+            emit(Opcode::LOAD_CONST, peek().line, std::move(defaultVal));
+            emit(Opcode::STORE_PARAM,
+                 peek().line,
+                 Value{std::make_shared<Type>(TypeTag::String), param.name});
+        }
+    }
+
+    // Invoke function
+    emit(Opcode::INVOKE_FUNCTION,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+
+    // Cleanup parameter frame
+    emit(Opcode::POP_PARAM_FRAME, peek().line);
 }
 
 void PackratParser::class_declaration()
@@ -492,6 +878,7 @@ void PackratParser::expression_statement()
 
 void PackratParser::expression()
 {
+
     logical_or_expression();
 }
 
@@ -579,13 +966,15 @@ void PackratParser::multiplicative_expression()
 {
     unary_expression();
 
-    while (match(TokenType::STAR) || match(TokenType::SLASH)) {
+    while (match(TokenType::STAR) || match(TokenType::SLASH) || match(TokenType::MODULUS)) {
         TokenType operatorType = previous().type;
         unary_expression();
 
         if (operatorType == TokenType::STAR) {
             emit(Opcode::MULTIPLY, peek().line);
-        } else {
+        }else if(operatorType == TokenType::MODULUS) {
+            emit(Opcode::MODULUS, peek().line);
+        }else {
             emit(Opcode::DIVIDE, peek().line);
         }
     }
@@ -627,10 +1016,19 @@ void PackratParser::primary_expression()
     } else if (match(TokenType::LEFT_PAREN)) {
         expression();
         consume(TokenType::RIGHT_PAREN, "Expected ')' after expression.");
+    } else if (match(TokenType::COMMA)) {
+        advance();
+    }  else  if (match(TokenType::LEFT_BRACKET) || match(TokenType::RIGHT_BRACKET) ) {
+        // Parse a list
+        list_statement();
+    } else if (match(TokenType::LEFT_BRACE)) {
+        // Parse a dictionary
+        dict_statement();
     } else {
         error("Expected expression.");
     }
 }
+
 void PackratParser::parse_string()
 {
     Token stringToken = previous();
@@ -795,7 +1193,7 @@ void PackratParser::method_call(const Token &object)
 Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-    // instruction.debug();
+   // instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -804,7 +1202,7 @@ Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber, Value &&valu
 {
     ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
     Instruction instruction(opcode, lineNumber, valuePtr);
-    // instruction.debug();
+  //  instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -893,32 +1291,58 @@ Value PackratParser::setValue(TypePtr type, const std::string &input)
     case TypeTag::List:
         // Assuming input is a comma-separated list of values
         {
-            //                    ListValue listValue;
-            //                    std::istringstream iss(input);
-            //                    std::string item;
-            //                    while (std::getline(iss, item, ',')) {
-            //                        listValue.elements.push_back(setValue(type->elementType, item));
-            //                    }
-            //                    value.data = listValue;
+            ListValue listValue;
+            if (!input.empty() && input != "[]") {
+                std::string trimmedInput = input.substr(1, input.length() - 2); // Remove brackets
+                std::istringstream iss(trimmedInput);
+                std::string item;
+                while (std::getline(iss, item, ',')) {
+                    // Trim whitespace
+                    item.erase(0, item.find_first_not_of(" "));
+                    item.erase(item.find_last_not_of(" ") + 1);
+
+                    // Recursively convert each list item
+                 //listValue.elements.push_back(setValue(std::make_shared<Type>(type->tag), item));
+                listValue.elements.push_back(
+                        std::make_shared<Value>(setValue(std::get_if<ListType>(&type->extra)->elementType, item))
+                        );
+                }
+            }
+            value.data = listValue;
         }
         break;
     case TypeTag::Dict:
         // Assuming input is in the format "key1:value1,key2:value2"
         {
-            //                    DictValue dictValue;
-            //                    std::istringstream iss(input);
-            //                    std::string pair;
-            //                    while (std::getline(iss, pair, ',')) {
-            //                        size_t colonPos = pair.find(':');
-            //                        if (colonPos != std::string::npos) {
-            //                            std::string key = pair.substr(0, colonPos);
-            //                            std::string val = pair.substr(colonPos + 1);
-            //                            dictValue.elements[setValue(type->tag, key)] = setValue(type->tag, val);
-            //                        }
-            //                    }
-            //                    value.data = dictValue;
+            DictValue dictValue;
+            if (!input.empty() && input != "{}") {
+                std::string trimmedInput = input.substr(1, input.length() - 2); // Remove braces
+                std::istringstream iss(trimmedInput);
+                std::string pair;
+                while (std::getline(iss, pair, ',')) {
+                    size_t colonPos = pair.find(':');
+                    if (colonPos != std::string::npos) {
+                        std::string key = pair.substr(0, colonPos);
+                        std::string val = pair.substr(colonPos + 1);
+
+                        // Trim whitespace
+                        key.erase(0, key.find_first_not_of(" "));
+                        key.erase(key.find_last_not_of(" ") + 1);
+                        val.erase(0, val.find_first_not_of(" "));
+                        val.erase(val.find_last_not_of(" ") + 1);
+
+                        // Get key and value types from the Dict type
+                        auto* dictType = std::get_if<DictType>(&type->extra);
+                        if (dictType) {
+                            ValuePtr keyValue = std::make_shared<Value>(setValue(dictType->keyType, key));
+                            ValuePtr valValue = std::make_shared<Value>(setValue(dictType->valueType, val));
+                            dictValue.elements[keyValue] = valValue;
+                        }
+                    }
+                }
+            }
+            value.data = dictValue;
         }
-        break;
     case TypeTag::Sum:
     case TypeTag::UserDefined:
         error("Sum and UserDefined types are not supported in this setValue function");
@@ -1057,6 +1481,14 @@ bool PackratParser::check(TokenType type)
         return false;
     }
     return peek().type == type;
+}
+
+bool PackratParser::checkNext(TokenType type)
+{
+    if (isAtEnd()) {
+        return false;
+    }
+    return peekNext().type == type;
 }
 
 bool PackratParser::isAtEnd()
