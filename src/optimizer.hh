@@ -34,7 +34,7 @@ public:
         // Track optimization effectiveness
         size_t prevSize = optimizedBytecode.size();
         size_t unchangedCount = 0;
-        const size_t STAGNATION_LIMIT = 3;
+        const size_t STAGNATION_LIMIT = 4;
 
         debugLog("Initial bytecode size: " + std::to_string(bytecode.size()), debug);
         debugLog("Maximum iterations set to: " + std::to_string(MAX_ITERATIONS), debug);
@@ -266,6 +266,7 @@ private:
                 return val1 / val2;
             }
             return std::nullopt;
+
         case GREATER_THAN:
             return val1 > val2;
         case GREATER_THAN_OR_EQUAL:
@@ -521,6 +522,27 @@ private:
             //         bytecode[j].opcode = Opcode::NOP; // Convert unreachable code to NOPs
             //     }
             // }
+
+            // Remove redundant consecutive LOAD_STR or LOAD_CONST followed by LOAD_VALUE
+            // if (i < bytecode.size() - 2
+            //     && (bytecode[i].opcode == LOAD_STR || bytecode[i].opcode == LOAD_CONST)
+            //     && (bytecode[i+1].opcode == LOAD_STR || bytecode[i+1].opcode == LOAD_CONST)
+            //     && bytecode[i+2].opcode == LOAD_VALUE) {
+
+            //     // Remove the  LOAD
+            //     bytecode[i].opcode = NOP;
+            //     bytecode[i+1].opcode = NOP;
+            //     changesMade = true;
+            // } this removes only one if there are multiple
+
+            if (i < bytecode.size() - 2
+                && (bytecode[i].opcode == LOAD_STR || bytecode[i].opcode == LOAD_CONST)
+                && bytecode[i+1].opcode == LOAD_VALUE) {
+
+                // Remove the  LOAD
+                bytecode[i].opcode = NOP;
+                changesMade = true;
+            }
 
             // Boolean Strength Reduction (a && true -> a)
             if (i > 1 && bytecode[i].opcode == Opcode::LOAD_CONST

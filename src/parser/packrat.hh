@@ -67,6 +67,10 @@ private:
     void while_statement();
     void for_statement();
     void print_statement();
+    void list_statement();
+    void dict_statement();
+    void parallel_statement();
+    void concurrent_statement();
     void block();
     void handle_identifier();
     void var_declaration();
@@ -74,6 +78,8 @@ private:
     void assignment();
     void function_declaration();
     void function_call(const Token &name);
+
+
     void class_declaration();
     void method_call(const Token &name);
     void expression_statement();
@@ -100,6 +106,7 @@ private:
     void consume(TokenType type, const std::string &message);
     bool match(TokenType type);
     bool check(TokenType type);
+    bool checkNext(TokenType type);
     bool isAtEnd();
     bool isExpression(TokenType type);
 
@@ -119,4 +126,7 @@ private:
          {"bool", TypeTag::Bool},   {"str", TypeTag::String},       {"dict", TypeTag::Dict},
          {"list", TypeTag::List},   {"enum", TypeTag::Enum},        {"any", TypeTag::Any},
          {"nil", TypeTag::Nil},     {"function", TypeTag::Function}}};
+
+    void parse_generic_type();
+    void match_statement();
 };
