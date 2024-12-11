@@ -1,5 +1,6 @@
 #pragma once
 #include "builtin_function.hh" /* Make sure to include this */
+#include "instructions.hh"
 #include "scope.hh"
 #include "types.hh"
 #include <functional>
@@ -46,6 +47,7 @@ struct FunctionInfo
     bool isBuiltin;
     std::function<ValuePtr(const std::vector<ValuePtr> &)> nativeImpl;
     size_t requiredParamCount;
+    std::vector<Instruction> functionBody;
 
     FunctionInfo()
         : name("")
@@ -56,6 +58,7 @@ struct FunctionInfo
         , isBuiltin(false)
         , nativeImpl(nullptr)
         , requiredParamCount(0)
+        , functionBody()
     {}
 
     FunctionInfo(const std::string &n,
@@ -63,7 +66,8 @@ struct FunctionInfo
                  TypePtr ret,
                  int32_t start,
                  int32_t end,
-                 size_t reqCount)
+                 size_t reqCount,
+                 std::vector<Instruction> body)
         : name(n)
         , parameters(params)
         , returnType(ret)
@@ -72,6 +76,7 @@ struct FunctionInfo
         , isBuiltin(false)
         , nativeImpl(nullptr)
         , requiredParamCount(reqCount)
+        , functionBody(std::move(body))
     {}
 
     FunctionInfo(const std::string &n,
@@ -87,6 +92,7 @@ struct FunctionInfo
         , isBuiltin(true)
         , nativeImpl(impl)
         , requiredParamCount(reqCount)
+        , functionBody()
     {}
 
     // Add copy constructor to handle atomic member
@@ -99,6 +105,7 @@ struct FunctionInfo
         , isBuiltin(other.isBuiltin)
         , nativeImpl(other.nativeImpl)
         , requiredParamCount(other.requiredParamCount)
+        , functionBody(other.functionBody)
     {}
 
     // Add assignment operator to handle atomic member
@@ -113,6 +120,7 @@ struct FunctionInfo
             isBuiltin = other.isBuiltin;
             nativeImpl = other.nativeImpl;
             requiredParamCount = other.requiredParamCount;
+            functionBody = other.functionBody;
         }
         return *this;
     }
@@ -136,7 +144,7 @@ public:
                      const std::vector<ParameterInfo> &params,
                      TypePtr returnType,
                      int32_t startPC,
-                     int32_t endPC)
+                     int32_t endPC,const std::vector<Instruction>& functionBody)
     {
         size_t requiredCount = std::count_if(params.begin(),
                                              params.end(),
@@ -159,7 +167,7 @@ public:
             }
         }
 
-        FunctionInfo info(name, params, returnType, startPC, endPC, requiredCount);
+        FunctionInfo info(name, params, returnType, startPC, endPC, requiredCount, functionBody);
 
         if (scopeManager_.exists(name)) {
             throw std::runtime_error("Function already defined: " + name);
@@ -329,7 +337,7 @@ public:
     ValuePtr getParameter(const std::string &paramName) const
     {
         if (parameterStack_.empty()) {
-            throw std::runtime_error("No parameter found for active function call, no parameter");
+            throw std::runtime_error("No parameter found for active function call: "+ paramName);
         }
 
         const auto &currentFrame = parameterStack_.top();
@@ -400,6 +408,14 @@ public:
         }
 
         return finalArgs;
+    }
+
+    std::optional<std::vector<Instruction>> getFunctionBody(const std::string& name) const {
+        const auto* funcInfo = scopeManager_.get(name);
+        if (!funcInfo || funcInfo->isBuiltin) {
+            return std::nullopt;
+        }
+        return funcInfo->functionBody;
     }
 
 private:

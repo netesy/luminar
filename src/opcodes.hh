@@ -57,6 +57,7 @@ enum Opcode {
     FOR_LOOP,
     WHILE_LOOP,
     MAKE_RANGE,
+    MATCH_TYPE, // check if the match type matchs its value
 
     // Error handling operations
     ATTEMPT,
@@ -73,10 +74,19 @@ enum Opcode {
     WRITE_FILE,
     CLOSE_FILE,
 
-    // Concurrency operations
-    PARALLEL,
-    CONCURRENT,
-    ASYNC,
+    // Parallel-related opcodes
+    PARALLEL_END,
+    TASK_PARALLEL,
+    PARALLEL_CORES,
+    CHANNEL_DEFINE,
+    ERROR_STRATEGY,
+
+    // Concurrent-related opcodes
+    CONCURRENT_END,
+    TASK_CONCURRENT,
+    INPUT_SOURCE,
+    OUTPUT_CHANNEL,
+    WORKER_FUNCTION,
 
     // Generics operations
     GENERIC_FUNCTION,
