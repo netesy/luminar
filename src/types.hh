@@ -312,12 +312,6 @@ struct Value
                  EnumValue,
                  UserDefinedValue>
         data;
-    // std::string toString() const {
-    //     return std::visit(overloaded{
-    //                                  [](const EnumValue& ev) { return ev.toString(); },
-    //                                  [](const auto&) { return "<unsupported type>"; }},
-    //                       data);
-    // }
     friend std::ostream &operator<<(std::ostream &os, const Value &value);
 };
 

@@ -189,12 +189,13 @@ struct Instruction
             return "CLOSE_FILE";
 
             // Concurrency operations
-        case Opcode::PARALLEL:
-            return "PARALLEL";
-        case Opcode::CONCURRENT:
-            return "CONCURRENT";
-        case Opcode::ASYNC:
-            return "ASYNC";
+        case Opcode::PARALLEL_CORES:
+            return "PARALLEL_CORES";
+        case Opcode::PARALLEL_END:
+            return "PARALLEL_END";
+        case Opcode::CONCURRENT_END:
+            return "CONCURRENT_END";
+
 
             // Generics operations
         case Opcode::GENERIC_FUNCTION:

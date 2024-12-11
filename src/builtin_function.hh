@@ -17,11 +17,11 @@ public:
     {
         registerLen(functions, typeSystem);
         registerTime(functions, typeSystem);
+        registerNow(functions, typeSystem);
+        registerDate(functions, typeSystem);
         registerDebug(functions, typeSystem);
-        // Add new function registrations
         registerInput(functions, typeSystem);
         registerMathFunctions(functions, typeSystem);
-
         registerTypeFunction(functions, typeSystem);
         registerAssert(functions, typeSystem);
         registerRound(functions, typeSystem);
@@ -40,7 +40,7 @@ private:
         };
 
         auto lenImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = functions.getParameter("value");
+            const auto &value = args[0];
             size_t length = 0;
 
             switch (value->type->tag) {
@@ -68,23 +68,6 @@ private:
 
     static void registerTime(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
-        // // time() -> float
-        // // Returns current Unix timestamp in seconds with microsecond precision
-        // std::vector<ParameterInfo> timeParams = {}; // No parameters
-
-        // auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-        //     auto now = std::chrono::system_clock::now();
-        //     auto duration = now.time_since_epoch();
-        //     auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration);
-        //     double seconds = micros.count() / 1000000.0;
-
-        //     auto value = std::make_shared<Value>();
-        //     value->type = std::make_shared<Type>(TypeTag::Float64);
-        //     value->data = seconds;
-        //     return value;
-        // };
-
-        // functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::Float64), timeImpl);
         // time() -> string
         // Returns the current date and time as a human-readable string
         std::vector<ParameterInfo> timeParams = {}; // No parameters
@@ -93,18 +76,79 @@ private:
             auto now = std::chrono::system_clock::now();
             auto now_time_t = std::chrono::system_clock::to_time_t(now);
 
-            // Format the time to a human-readable string
-            std::ostringstream oss;
-            oss << std::put_time(std::localtime(&now_time_t), "%Y-%m-%d %H:%M:%S");
+              // Use static buffer to avoid reallocation overhead
+            char buffer[20]; // "YYYY-MM-DD HH:MM:SS" requires 20 chars
+            if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now_time_t)) == 0) {
+                throw std::runtime_error("Failed to format time");
+            }
 
-            // Create a Value object to store the string
-            auto value = std::make_shared<Value>();
-            value->type = std::make_shared<Type>(TypeTag::String);
-            value->data = oss.str();
-            return value;
+            return makeStringValue(std::string(buffer));
         };
 
         functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::String), timeImpl);
+    }
+
+    static void registerNow(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
+    {
+        // now() -> float
+        // Returns current Unix timestamp in seconds with microsecond precision
+        std::vector<ParameterInfo> timeParams = {}; // No parameters
+
+        auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            // Get the current time
+            auto now = std::chrono::system_clock::now();
+            auto duration = now.time_since_epoch();
+            auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+
+            // Convert to seconds with fixed-point precision
+            double seconds = static_cast<double>(micros.count()) / 1'000'000.0;
+
+            // Round and format the timestamp to avoid scientific notation
+            double roundedSeconds = std::round(seconds * 1'000'000) / 1'000'000;
+
+            // Create the return value
+            return makeFloatValue(roundedSeconds);
+        };
+
+        functions.addBuiltinFunction("now", timeParams, makeType(TypeTag::Float64), timeImpl);
+    }
+
+    static void registerDate(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
+    {
+        // date(format: string, timestamp: int = current time) -> string
+        std::vector<ParameterInfo> dateParams
+            = {ParameterInfo("format", makeType(TypeTag::String), false),
+               ParameterInfo("timestamp", makeType(TypeTag::Int), true, makeIntValue(1))};
+
+        auto dateImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            const std::string &format = std::get<std::string>(args[0]->data);
+            int64_t timestamp = 1;
+
+            if (args.size() > 1) {
+                timestamp = std::get<int64_t>(args[1]->data);
+            } else {
+                timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            }
+
+            // Convert timestamp to time_t and then to tm
+            std::time_t time = static_cast<std::time_t>(timestamp);
+            std::tm tm;
+#ifdef _WIN32
+            localtime_s(&tm, &time); // Windows-specific
+#else
+            localtime_r(&time, &tm); // POSIX-compliant
+#endif
+
+            // Preallocate buffer to hold the formatted date
+            char buffer[100];
+            if (std::strftime(buffer, sizeof(buffer), format.c_str(), &tm) == 0) {
+                throw std::runtime_error("Failed to format date");
+            }
+
+            return makeStringValue(std::string(buffer));
+        };
+
+        functions.addBuiltinFunction("date", dateParams, makeType(TypeTag::String), dateImpl);
     }
 
     static void registerDebug(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
@@ -115,8 +159,8 @@ private:
                ParameterInfo("showType", makeType(TypeTag::Bool), true, makeBoolValue(true))};
 
         auto debugImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = functions.getParameter("value");
-            bool showType = std::get<bool>(functions.getParameter("showType")->data);
+            const auto &value = args[0];
+            bool showType = std::get<bool>(args[1]->data);
 
             std::stringstream output;
             auto formatType = [](const TypePtr &type) -> std::string {
@@ -211,7 +255,7 @@ private:
 
         auto inputImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
             // Print prompt if provided
-            std::cout << std::get<std::string>(functions.getParameter("prompt")->data);
+            std::cout << std::get<std::string>(args[0]->data);
             std::cout.flush();
 
             std::string input;
@@ -230,7 +274,7 @@ private:
             ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto absImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            const auto &value = functions.getParameter("value");
+            const auto &value = args[0];
             if (value->type->tag == TypeTag::Int || value->type->tag == TypeTag::Int32) {
                 int32_t val = std::get<int32_t>(value->data);
                 return makeIntValue(std::abs(val));
@@ -247,7 +291,7 @@ private:
             ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto sqrtImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double val = std::get<double>(functions.getParameter("value")->data);
+            double val = std::get<double>(args[0]->data);
             if (val < 0) {
                 throw std::runtime_error("Math error: sqrt() domain error");
             }
@@ -264,7 +308,7 @@ private:
         std::vector<ParameterInfo> typeParams = {ParameterInfo("value", makeAnyType(), false)};
 
         auto typeImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            return makeStringValue(typeTagToString(functions.getParameter("value")->type->tag));
+            return makeStringValue(typeTagToString(args[0]->type->tag));
         };
 
         functions.addBuiltinFunction("type", typeParams, makeType(TypeTag::String), typeImpl);
@@ -278,8 +322,8 @@ private:
                ParameterInfo("message", makeType(TypeTag::String), true, makeStringValue(""))};
 
         auto assertImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            if (!std::get<bool>(functions.getParameter("condition")->data)) {
-                std::string msg = std::get<std::string>(functions.getParameter("message")->data);
+            if (!std::get<bool>(args[0]->data)) {
+                std::string msg = std::get<std::string>(args[1]->data);
                 throw std::runtime_error("Assertion failed" + (msg.empty() ? "" : ": " + msg));
             }
             return makeNilValue();
@@ -296,8 +340,8 @@ private:
                ParameterInfo("places", makeType(TypeTag::Int), true, makeIntValue(0))};
 
         auto roundImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double value = std::get<double>(functions.getParameter("value")->data);
-            int64_t places = std::get<int64_t>(functions.getParameter("places")->data);
+            double value = std::get<double>(args[0]->data);
+            int64_t places = std::get<int64_t>(args[1]->data);
 
             double multiplier = std::pow(10.0, places);
             double rounded = std::round(value * multiplier) / multiplier;
@@ -315,7 +359,12 @@ private:
             ParameterInfo("seconds", makeType(TypeTag::Float64), false)};
 
         auto sleepImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
-            double seconds = std::get<double>(functions.getParameter("seconds")->data);
+            // Direct access of the first argument instead of using getParameter
+            if (args.empty()) {
+                throw std::runtime_error("Sleep function requires one argument");
+            }
+
+            double seconds = std::get<double>(args[0]->data);
             if (seconds < 0) {
                 throw std::runtime_error("Sleep time cannot be negative");
             }
