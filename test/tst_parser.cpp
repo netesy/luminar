@@ -20,6 +20,8 @@
 //   ASSERT_EQ(bytecode[1].opcode, Opcode::HALT);
 // }
 
+// fn add(a:int){ return 2+a;} add(4);
+
 // TEST(ParserTest, StringLiteral) {
 //   Scanner scanner("\"Hello, world!\";");
 //   Parser parser(scanner);

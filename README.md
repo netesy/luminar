@@ -1,7 +1,3 @@
-Here is the updated README for the Luminar programming language, incorporating the new memory management system:
-
----
-
 # Luminar Programming Language
 
 Luminar is a statically typed programming language designed for readability, efficiency, and modern features. It is intended to be interpreted for development and compiled for release. This README provides a structured overview to help you learn Luminar effectively, with a focus on its advanced memory management system.

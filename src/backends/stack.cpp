@@ -1,7 +1,9 @@
 #include "stack.hh"
 #include "../function.hh"
 #include <chrono>
+#include <cmath>
 #include <iostream>
+#include <type_traits>
 // Define the thread_local static member outside the class
 thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
@@ -19,6 +21,7 @@ StackBackend::~StackBackend()
     clearStack();
     memoryManager.printStatistics();
     while (!regionStack.empty()) {
+        //  std::cout << "Popping region" << std::endl;
         popRegion();
     }
 }
@@ -53,11 +56,15 @@ void StackBackend::run(const std::vector<Instruction> &program)
         std::cout << "VM Execution completed in " << duration.count() << " microseconds."
                   << std::endl;
     } catch (const std::exception &ex) {
-        std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
-    }
+         handleExecutionError(ex);
+           }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
     std::cout << "VM ran for a total of  " << duration.count() << " microseconds." << std::endl;
+
+    // Cleanup resources
+    threads.clear();
+    channels.clear();
 
     // Print memory statistics
     memoryManager.~MemoryManager();
@@ -92,6 +99,7 @@ void StackBackend::execute(const Instruction &instruction)
     case LOAD_CONST:
     case LOAD_STR:
     case BOOLEAN:
+    case LOAD_VALUE:
         handleLoadConst(instruction.value);
         break;
     case INTERPOLATE_STRING:
@@ -113,39 +121,19 @@ void StackBackend::execute(const Instruction &instruction)
         handleStoreVariable(std::get<int32_t>(instruction.value->data));
         break;
     case DEFINE_FUNCTION:
-        handleDeclareFunction(std::get<std::string>(instruction.value->data));
         break;
     case INVOKE_FUNCTION:
         handleCallFunction(std::get<std::string>(instruction.value->data));
         break;
-    case RETURN:{
-        // Only process returns if we're not inside a function definition
-        if (!insideFunctionDefinition()) {
-            handleReturnFuction();
-        }
+    case RETURN:
+        handleReturnFuction();
         break;
-    }
     case PUSH_ARGS:
         handlePushArg(instruction);
         break;
-    case Opcode::CREATE_PARAM_FRAME:
-        // {
-        //     // Only process parameter frames if we're not inside a function definition
-        //     if (!insideFunctionDefinition()) {
-        //         std::string funcName = std::get<std::string>(instruction.value->data);
-        //         function.pushParameterFrame(funcName, {});
-        //     }else {
-        //         std::string funcName = std::get<std::string>(instruction.value->data);
-        //         function.pushParameterFrame(funcName, {});
-        //     }
-        //     break;
-        // }
-        {
-            std::string funcName = std::get<std::string>(instruction.value->data);
-            function.pushParameterFrame(funcName, {});
-            // if (!insideFunctionDefinition()) {
-            //     function.pushParameterFrame(funcName, {});
-            // }
+    case Opcode::CREATE_PARAM_FRAME: {
+        std::string funcName = std::get<std::string>(instruction.value->data);
+        function.pushParameterFrame(funcName, {});
         break;
     }
 
@@ -154,26 +142,11 @@ void StackBackend::execute(const Instruction &instruction)
             std::string paramName = std::get<std::string>(instruction.value->data);
             ValuePtr value = pop();
 
-            // Debug output
-            std::cout << "Storing parameter: " << paramName << " with value: ";
-            std::visit([](const auto &v) { std::cout << v; }, value->data);
-            std::cout << std::endl;
-
             std::string currentFunc = function.getCurrentFunctionName();
-            //std::string currentFunc = std::get<std::string>(program[pc - 2].value->data);
-
-            // Debug output
-            std::cout << "Current function: " << currentFunc << "();" << std::endl;
 
             auto funcInfo = function.getFunction(currentFunc);
             if (!funcInfo) {
                 throw std::runtime_error("Function not found: " + currentFunc);
-            }
-
-           // Debug output
-            std::cout << "Function parameters:" << std::endl;
-            for (const auto &param : funcInfo->parameters) {
-                std::cout << "  - " << param.name << std::endl;
             }
 
             // Get current parameters
@@ -194,9 +167,6 @@ void StackBackend::execute(const Instruction &instruction)
             function.popParameterFrame();
             function.pushParameterFrame(currentFunc, orderedParams);
 
-           // Debug output
-            std::cout << "Updated parameter frame for " << currentFunc << std::endl;
-
         } catch (const std::exception &e) {
             throw std::runtime_error("Error storing parameter: " + std::string(e.what()));
         }
@@ -210,9 +180,7 @@ void StackBackend::execute(const Instruction &instruction)
     }
 
     case Opcode::POP_PARAM_FRAME: {
-        if (!insideFunctionDefinition()) {
-                   function.popParameterFrame();
-        }
+        function.popParameterFrame();
         break;
     }
     case JUMP:
@@ -232,11 +200,20 @@ void StackBackend::execute(const Instruction &instruction)
         push(range); // Push the range for iteration
         break;
     }
-    case PARALLEL:
-        handleParallel(std::get<int32_t>(instruction.value->data));
+    case Opcode::PARALLEL_CORES:
+        configureParallelCores(instruction);
         break;
-    case CONCURRENT:
-        handleConcurrent(std::get<int32_t>(instruction.value->data));
+
+    case Opcode::CHANNEL_DEFINE:
+        defineChannel(instruction);
+        break;
+
+    case Opcode::ERROR_STRATEGY:
+        configureErrorStrategy(instruction);
+       break;
+
+    case Opcode::TASK_PARALLEL:
+        executeParallelTask(instruction);
         break;
     default:
         std::cerr << "Unknown opcode.: " << instruction.opcodeToString(instruction.opcode)
@@ -679,109 +656,102 @@ void StackBackend::handleStoreVariable(int32_t variableIndex)
     }
 }
 
-void StackBackend::handleDeclareFunction(const std::string &functionName)
-{
-    // Get current instruction's position to mark function start
-   // size_t functionStart = pc;
-
-    // Skip past the function body to find the end
-    size_t depth = 1;
-    size_t endPC = pc;
-    std::vector<Instruction> functionBody;
-
-    // Skip the CREATE_PARAM_FRAME instruction that precedes function body
-    pc++;
-
-    while (depth > 0 && endPC < program.size()) {
-        endPC++;
-        if (program[endPC].opcode == Opcode::DEFINE_FUNCTION)
-            depth++;
-        else if (program[endPC].opcode == Opcode::RETURN){
-            depth--;
-            if (depth == 0) break; // Found matching RETURN
-        }
-
-        // Collect function body instructions but don't execute them
-        if (depth > 0) {  // Don't include the final RETURN in function body
-            functionBody.push_back(program[endPC]);
-        }
-    }
-
-    if (depth > 0) {
-        throw std::runtime_error("Unterminated function definition: " + functionName);
-    }
-
-    // Update the function's endPC in the Functions class
-    function.updateFunctionEndPC(functionName, endPC);
-
-    // Skip past function body in main execution
-    pc = endPC + 1;
-}
-
 void StackBackend::handleCallFunction(const std::string &functionName)
 {
-    if (function.hasFunction(functionName)) {
-        // Get function info
-        auto functionInfo = function.getFunction(functionName);
-        if (!functionInfo) {
-            throw std::runtime_error("Function not found: " + functionName);
-        }
-
-        // Save current execution context
-        callStack.push({pc, stack.size()});
-
-        // Create new stack frame for function execution
-        std::vector<ValuePtr> args;
-
-        // Debug output
-        std::cout << "Function parameters:" << std::endl;
-        for (const auto &param : functionInfo->parameters) {
-            std::cout << "  - " << param.name << std::endl;
-        }
-
-        // Get parameters from the current parameter frame
-        try {
-            auto currentParams = function.getCurrentParameters();
-
-            // Build args array in the order defined by function parameters
-            for (const auto &paramInfo : functionInfo->parameters) {
-                auto paramValue = currentParams.find(paramInfo.name);
-                if (paramValue != currentParams.end()) {
-                    args.push_back(paramValue->second);
-                } else if (paramInfo.isOptional) {
-                    args.push_back(paramInfo.defaultValue);
-                } else {
-                    throw std::runtime_error("Missing required parameter: " + paramInfo.name);
-                }
-            }
-        } catch (const std::exception &e) {
-            // If getCurrentParameters fails, it means we have no parameter frame
-            if (!functionInfo->parameters.empty()) {
-                function.popParameterFrame();
-                throw std::runtime_error("No parameters provided for function: " + functionName);
-            }
-        }
-
-        if (functionInfo->isBuiltin) {
-            // Execute built-in function
-            ValuePtr result = function.executeBuiltin(functionName, args);
-            if (result) {
-                auto linearResult = memoryManager.makeLinear<Value>(currentRegion(), *result);
-                auto sharedResult = std::make_shared<Value>(*linearResult);
-                push(sharedResult);
-            }
-
-            // Restore context immediately for built-ins
-            auto [savedPC, savedStackSize] = callStack.top();
-            callStack.pop();
-            pc = savedPC;
-        } else {
-            // Set up new parameter frame for user-defined function
-            function.pushParameterFrame(functionName, args);
-            pc = functionInfo->startPC;
-        }
-    } else {
+ if (!function.hasFunction(functionName)) {
         throw std::runtime_error("Function not found: " + functionName);
+    }
+
+    // Get function info
+    auto functionInfo = function.getFunction(functionName);
+    if (!functionInfo) {
+        throw std::runtime_error("Function not found: " + functionName);
+    }
+
+    // Save current execution context
+    // Store PC, program size, and current function's end point
+    callStack.push({pc, program.size()});
+
+    // Create new stack frame for function execution
+    std::vector<ValuePtr> args;
+
+    // Get parameters from the current parameter frame
+    try {
+        auto currentParams = function.getCurrentParameters();
+        for (const auto &paramInfo : functionInfo->parameters) {
+            auto paramValue = currentParams.find(paramInfo.name);
+            if (paramValue != currentParams.end()) {
+                args.push_back(paramValue->second);
+            } else if (paramInfo.isOptional) {
+                args.push_back(paramInfo.defaultValue);
+            } else {
+                throw std::runtime_error("Missing required parameter: " + paramInfo.name);
+            }
+        }
+    } catch (const std::exception &e) {
+        if (!functionInfo->parameters.empty()) {
+            throw std::runtime_error("No parameters provided for function: " + functionName + " " + std::string(e.what()));
+        }
+    }
+
+    if (functionInfo->isBuiltin) {
+        // Execute built-in function
+        ValuePtr result = function.executeBuiltin(functionName, args);
+        if (result) {
+            auto linearResult = memoryManager.makeLinear<Value>(currentRegion(), *result);
+            auto sharedResult = std::make_shared<Value>(*linearResult);
+            push(sharedResult);
+        }
+        // Restore context immediately for built-ins
+        auto [savedPC, savedProgramSize] = callStack.top();
+        callStack.pop();
+        pc = savedPC;
+    } else {
+        // Get function body
+        auto functionBody = function.getFunctionBody(functionName);
+        if (!functionBody || functionBody->empty()) {
+            throw std::runtime_error("Function body not found or empty for: " + functionName);
+        }
+
+        std::cout << "Executing function: " << functionName << "\n";
+        // Create a temporary vector for the full program
+        std::vector<Instruction> newProgram;
+        
+        // Reserve space for efficiency
+        newProgram.reserve(program.size() + functionBody->size() + 2);
+
+        // Copy instructions up to current point
+        newProgram.insert(newProgram.end(), program.begin(), program.begin() + pc + 1);
+
+        // Add function body instructions
+        for (const auto& instr : *functionBody) {
+            #ifdef DEBUG_MODE
+            std::cout << "Adding instruction: " << instr.debug() << "\n";
+            #endif
+            newProgram.push_back(instr);
+        }
+
+        // Ensure RETURN is present
+        bool hasReturn = false;
+        for (const auto& instr : *functionBody) {
+            if (instr.opcode == RETURN) {
+                hasReturn = true;
+                break;
+            }
+        }
+        
+        if (!hasReturn) {
+            Instruction returnInstr;
+            returnInstr.opcode = RETURN;
+            newProgram.push_back(returnInstr);
+        }
+
+        // Add remaining instructions from original program
+        newProgram.insert(newProgram.end(), program.begin() + pc + 1, program.end());
+
+        // Replace program with new combined program
+        program = std::move(newProgram);
+
     }
 }
 
@@ -791,32 +761,33 @@ void StackBackend::handleReturnFuction()
         throw std::runtime_error("Return statement outside function");
     }
 
-    // Save return value if any
+    // Get return value if any
     ValuePtr returnValue = nullptr;
     if (!stack.empty()) {
         returnValue = pop();
     }
 
-    // Restore execution context
+    // Clean up parameter frame
+    function.popParameterFrame();
+
+    // Restore previous context
     auto [savedPC, savedStackSize] = callStack.top();
     callStack.pop();
 
-    // Clean up current parameter frame
-    if (!function.getCurrentParameters().empty()) {
-        function.popParameterFrame();
-    }
+    // Clean up dynamic instructions
+    program.resize(savedPC); // Restore program to its original state
 
-    // Restore stack to previous size but keep return value
+    // Restore stack to previous size
     while (stack.size() > savedStackSize) {
         stack.pop();
     }
 
-    // Push return value back if it exists
+    // Push return value if exists
     if (returnValue) {
         push(returnValue);
     }
 
-    // Restore PC
+    // Update PC
     pc = savedPC;
 
     std::cout << "Returned from function to PC: " << pc << std::endl;
@@ -972,15 +943,127 @@ ValuePtr StackBackend::createRange(const ValuePtr &start, const ValuePtr &end, c
     return range;
 }
 
-bool StackBackend::insideFunctionDefinition()
+void StackBackend::defineChannel(const Instruction &instruction)
 {
-    // Check if we're currently processing function definition
-    size_t depth = 0;
-    for (size_t i = 0; i <= pc; i++) {
-        if (program[i].opcode == DEFINE_FUNCTION) depth++;
-        if (program[i].opcode == RETURN) depth--;
+    // // Extract channel name and type
+    // auto channelInfo = std::get<std::pair<std::string, std::string>>(instruction.value->data);
+    // std::string name = channelInfo.first;
+    // std::string typeStr = channelInfo.second;
+
+    // auto channel = std::make_unique<ChannelConfig>();
+
+    // // Determine channel type
+    // if (typeStr == "unbuffered")
+    //     channel->type = ChannelConfig::UNBUFFERED;
+    // else if (typeStr == "buffered")
+    //     channel->type = ChannelConfig::BUFFERED;
+    // else if (typeStr == "synchronized")
+    //     channel->type = ChannelConfig::SYNCHRONIZED;
+    // else
+    //     throw std::runtime_error("Unknown channel type: " + typeStr);
+
+    // // Store the channel
+    // channels[name] = std::move(channel);
+}
+
+void StackBackend::configureErrorStrategy(const Instruction &instruction)
+{
+    // Extract error strategy configuration
+    // auto strategyInfo = std::get<std::pair<std::string, std::string>>(instruction.value->data);
+    // std::string key = strategyInfo.first;
+    // std::string value = strategyInfo.second;
+
+    // if (key == "mode") {
+    //     if (value == "continue")
+    //         currentErrorStrategy.action = ErrorStrategy::CONTINUE;
+    //     else if (value == "stop")
+    //         currentErrorStrategy.action = ErrorStrategy::STOP;
+    //     else if (value == "retry")
+    //         currentErrorStrategy.action = ErrorStrategy::RETRY;
+    // }
+}
+
+void StackBackend::executeParallelTask(const Instruction &instruction)
+{
+    // Extract task range from instruction
+    auto rangeList = std::get<ListValue>(instruction.value->data);
+    size_t taskStart = std::get<int32_t>(rangeList.elements[0]->data);
+    size_t taskEnd = std::get<int32_t>(rangeList.elements[1]->data);
+
+    // Create parallel task
+    std::vector<std::thread> parallelTasks;
+    std::atomic<bool> executionFailed{false};
+
+    // Divide task into chunks based on available cores
+    size_t taskRange = taskEnd - taskStart;
+    size_t chunkSize = std::max<size_t>(1, taskRange / maxCores);
+
+    for (int i = 0; i < maxCores && !executionFailed; ++i) {
+        size_t start = taskStart + (i * chunkSize);
+        size_t end = std::min(taskStart + ((i + 1) * chunkSize), taskEnd);
+
+        parallelTasks.emplace_back([this, start, end, &executionFailed]() {
+            try {
+                for (size_t j = start; j < end; ++j) {
+                    if (executionFailed)
+                        break;
+
+                    const Instruction &taskInstruction = program[j];
+                    execute(taskInstruction);
+                }
+            } catch (const std::exception &ex) {
+                handleTaskError(ex, executionFailed);
+            }
+        });
     }
-    return depth > 0;
+
+    // Wait for all tasks to complete
+    for (auto &task : parallelTasks) {
+        if (task.joinable()) {
+            task.join();
+        }
+    }
+
+    // Check if execution should be halted
+    if (executionFailed && currentErrorStrategy.action == ErrorStrategy::STOP) {
+        throw std::runtime_error("Parallel task execution failed");
+    }
+}
+
+void StackBackend::handleTaskError(const std::exception &ex, std::atomic<bool> &executionFailed)
+{
+    std::cerr << "Parallel task error: " << ex.what() << std::endl;
+
+    switch (currentErrorStrategy.action) {
+    case ErrorStrategy::CONTINUE:
+        // Log error and continue
+        break;
+    case ErrorStrategy::STOP:
+        // Set flag to stop further execution
+        executionFailed = true;
+        break;
+    case ErrorStrategy::RETRY:
+        // Implement retry logic (placeholder)
+        break;
+    }
+}
+
+void StackBackend::handleExecutionError(const std::exception &ex)
+{
+    std::cerr << "Exception occurred during VM execution: " << ex.what() << std::endl;
+
+    // Additional error handling based on strategy
+    switch (currentErrorStrategy.action) {
+    case ErrorStrategy::CONTINUE:
+        // Log and continue (though this might not be meaningful after an exception)
+        break;
+    case ErrorStrategy::STOP:
+        // Rethrow to halt execution
+        throw;
+    case ErrorStrategy::RETRY:
+        // Implement VM-level retry mechanism
+        break;
+    }
 }
 
 void StackBackend::concurrent(std::vector<std::function<void()>> tasks)

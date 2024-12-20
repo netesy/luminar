@@ -22,6 +22,9 @@ struct Instruction
     // Use Value from type system to hold any type of values
     ValuePtr value;
 
+  // Default constructor
+    Instruction() = default;
+    
     // Constructor for instructions with string value
     Instruction(Opcode op, uint32_t line, ValuePtr &val)
         : opcode(op)

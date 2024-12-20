@@ -973,11 +973,69 @@ void PrattParser::parseForLoop()
 void PrattParser::parseMatchStatement()
 {
     Token op = previous();
-    parseExpression();
-    emit(Opcode::PATTERN_MATCH, op.line);
+    parseExpression(); // This will evaluate the value to be matched.
+    size_t matchValuePos = bytecode.size();
 
-    parseExpression();
-    emit(Opcode::PATTERN_MATCH, op.line);
+    // Consume the LEFT_BRACE '{' after the match expression.
+    consume(TokenType::LEFT_BRACE, "Expected '{' after match expression.");
+
+    std::vector<size_t> caseJumpPositions; // Track positions to update jumps.
+    size_t defaultCaseJumpPos = 0;
+
+    // Parse individual cases
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        if (match(TokenType::IDENTIFIER)) {
+            Token caseType = previous(); // Get case type identifier (e.g., int, str, list<T>).
+
+            // Check for generics if the type can have them (e.g., list<T> or dict<K, V>).
+            // if (match(TokenType::LESS)) { // If '<' is present, it's a generic type.
+            //     // Parse the generic type (e.g., T in list<T> or K, V in dict<K, V>).
+            //     // This part can be extended for complex generic parsing.
+            //     parse_generic_type();
+            //     consume(TokenType::GREATER, "Expected '>' after generic type parameters.");
+            // }
+
+            // Emit code to check if `value` matches `caseType`.
+            size_t caseMatchJump = bytecode.size();
+            emit(Opcode::MATCH_TYPE, peek().line, Value{std::make_shared<Type>(TypeTag::String), caseType.lexeme}); // Placeholder for type check.
+
+            // Emit jump if the type doesn't match, to skip to the next case.
+            size_t caseSkipJump = bytecode.size();
+            emit(Opcode::JUMP_IF_FALSE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
+
+            // Expect a block for the case
+            consume(TokenType::LEFT_BRACE, "Expected '{' after case pattern.");
+            parseBlock();
+
+            // Record position for future updates.
+            caseJumpPositions.push_back(caseSkipJump);
+
+            // Emit a jump to skip the rest of the match cases once matched.
+            size_t endMatchJump = bytecode.size();
+            emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
+            caseJumpPositions.push_back(endMatchJump);
+        }
+        else if (match(TokenType::DEFAULT)) {
+            // Default case `_` - Handle unmatched patterns
+            consume(TokenType::LEFT_BRACE, "Expected '{' after default case.");
+            parseBlock();
+            defaultCaseJumpPos = bytecode.size(); // Record position for updating.
+        }
+    }
+
+    // After parsing all cases, update jumps for case endings.
+    size_t endMatch = bytecode.size();
+    for (size_t pos : caseJumpPositions) {
+        bytecode[pos].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), endMatch});
+    }
+
+    // Update default case jump to end of the match statement, if present.
+    if (defaultCaseJumpPos != 0) {
+        bytecode[defaultCaseJumpPos].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), endMatch});
+    }
+
+    // Consume the RIGHT_BRACE '}' to close the match block.
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after match cases.");
 }
 
 void PrattParser::parseConcurrentStatement()

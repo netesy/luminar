@@ -10,7 +10,6 @@ add_executable(luminar src/main.cpp
 
     src/repl.cpp src/repl.hh
     src/scanner.cpp src/scanner.hh
-    src/syntax.cpp src/syntax.hh
     src/ast.hh src/ast.cpp
     src/vm.hh src/vm.cpp
     src/main.cpp
