@@ -29,7 +29,7 @@ Bytecode PackratParser::parse()
 
         // Measure time for bytecode optimization
         auto optimization_start_time = std::chrono::high_resolution_clock::now();
-        bytecode = BytecodeOptimizer::optimize(bytecode);
+       // bytecode = BytecodeOptimizer::optimize(bytecode);
         auto optimization_end_time = std::chrono::high_resolution_clock::now();
         auto optimization_duration = std::chrono::duration_cast<std::chrono::microseconds>(optimization_end_time - optimization_start_time);
 
@@ -332,7 +332,8 @@ void PackratParser::list_statement()
                                               ListType{/* no element type specified */});
     ListValue elements;
     Value value;
-    value.type = std::make_shared<Type>(TypeTag::List);
+    value.type = std::make_shared<Type>(TypeTag::List,
+                                        ListType{/* no element type specified */});
 
     while (!check(TokenType::RIGHT_BRACKET) && !isAtEnd()) {
         // Extract lexeme from token as string

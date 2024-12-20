@@ -3,6 +3,13 @@
 #include "debugger.hh"
 #include <string>
 #include <vector>
+#include <chrono>
+#include <chrono>
+#include <ctime>
+#include <fstream>
+#include <iostream>
+#include <ostream>
+#include <sstream>
 
 std::vector<std::string> Debugger::sourceCodez;
 
