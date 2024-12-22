@@ -29,7 +29,7 @@ Bytecode PackratParser::parse()
 
         // Measure time for bytecode optimization
         auto optimization_start_time = std::chrono::high_resolution_clock::now();
-       // bytecode = BytecodeOptimizer::optimize(bytecode);
+      // bytecode = BytecodeOptimizer::optimize(bytecode);
         auto optimization_end_time = std::chrono::high_resolution_clock::now();
         auto optimization_duration = std::chrono::duration_cast<std::chrono::microseconds>(optimization_end_time - optimization_start_time);
 
@@ -74,6 +74,7 @@ void PackratParser::statement()
             if (peekNext().type == TokenType::COLON) {
                 // It's a dictionary
                 dict_statement();
+                consume(TokenType::SEMICOLON, "Expected ';' after list statement.");
             } else {
                 // It's a block
                 block();
@@ -92,13 +93,15 @@ void PackratParser::statement()
             if (peekNext().type == TokenType::COMMA || peekNext().type == TokenType::RIGHT_BRACKET) {
                 // It's a list
                 list_statement();
+                consume(TokenType::SEMICOLON, "Expected ';' after list statement.");
             } else {
                 // It's a list index
-                //list_index_statement();//!TODO implement this later. 
+                //list_index_statement();//!TODO implement this later.
             }
         } else {
             // It's a list
             list_statement();
+            consume(TokenType::SEMICOLON, "Expected ';' after list statement.");
         }
     } else if (match(TokenType::VAR)) {
         var_declaration();
@@ -401,7 +404,7 @@ void PackratParser::dict_statement() {
   //  consume(TokenType::LEFT_BRACE, "Expected '{' to start a dictionary.");
     TypePtr dictType = std::make_shared<Type>(TypeTag::Dict);
     DictValue keyValuePairs;
-    
+
     // Handle empty dictionary case
     if (check(TokenType::RIGHT_BRACE)) {
         advance();
@@ -1096,9 +1099,9 @@ void PackratParser::primary_expression()
     } else if (match(TokenType::COMMA)) {
         advance();
     }  else  if (match(TokenType::LEFT_BRACKET) || match(TokenType::RIGHT_BRACKET) ) {
-        statement();
+        list_statement();
     } else if (match(TokenType::LEFT_BRACE)) {
-        statement();
+        dict_statement();
     } else {
         error("Expected expression.");
     }
