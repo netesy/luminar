@@ -65,29 +65,75 @@ void PackratParser::statement()
     } else if (match(TokenType::PRINT)) {
         print_statement();
     } else if (match(TokenType::LEFT_BRACE)) {
-        block();
+           // Look ahead to determine if it's a block or a dictionary
+        if (check(TokenType::RIGHT_BRACE)) {
+            // Empty dictionary
+            dict_statement();
+        } else if (check(TokenType::STRING) || check(TokenType::IDENTIFIER)) {
+            // Check if the next token after STRING or IDENTIFIER is a COLON
+            if (peekNext().type == TokenType::COLON) {
+                // It's a dictionary
+                dict_statement();
+            } else {
+                // It's a block
+                block();
+            }
+        } else {
+            // It's a block
+            block();
+        }
+    } else if (match(TokenType::LEFT_BRACKET)) {
+        // Look ahead to determine if it's a list or list index
+        if (check(TokenType::RIGHT_BRACKET)) {
+            // Empty list
+            list_statement();
+        } else if (check(TokenType::NUMBER) || check(TokenType::IDENTIFIER)) {
+            // Check if the next token after NUMBER or IDENTIFIER is a COMMA or RIGHT_BRACKET
+            if (peekNext().type == TokenType::COMMA || peekNext().type == TokenType::RIGHT_BRACKET) {
+                // It's a list
+                list_statement();
+            } else {
+                // It's a list index
+                //list_index_statement();//!TODO implement this later. 
+            }
+        } else {
+            // It's a list
+            list_statement();
+        }
     } else if (match(TokenType::VAR)) {
         var_declaration();
-    } else if ((peek().type == TokenType::IDENTIFIER)
-               && (peekNext().type == TokenType::EQUAL || peekNext().type == TokenType::PLUS_EQUAL
-                   || peekNext().type == TokenType::MINUS_EQUAL)) {
+    }
+    else if ((peek().type == TokenType::IDENTIFIER) && (peekNext().type == TokenType::EQUAL || peekNext().type == TokenType::PLUS_EQUAL || peekNext().type == TokenType::MINUS_EQUAL))
+    {
         assignment();
-    } else if (match(TokenType::FN)) {
+    }
+    else if (match(TokenType::FN))
+    {
         function_declaration();
-    } else if (match(TokenType::MATCH)) {
+    }
+    else if (match(TokenType::MATCH))
+    {
         match_statement();
-    } else if (match(TokenType::RETURN)) {
+    }
+    else if (match(TokenType::RETURN))
+    {
         // return_statement();
         if (!check(TokenType::SEMICOLON)) {
             expression();
         }
         consume(TokenType::SEMICOLON, "Expected ';' after return statement.");
         emit(Opcode::RETURN, peek().line);
-    } else if (match(TokenType::RANGE)) {
+    }
+    else if (match(TokenType::RANGE))
+    {
         range_function();
-    } else if (match(TokenType::CLASS)) {
+    }
+    else if (match(TokenType::CLASS))
+    {
         class_declaration();
-    } else {
+    }
+    else
+    {
         expression_statement();
     }
 }
@@ -331,10 +377,6 @@ void PackratParser::list_statement()
     TypePtr listType = std::make_shared<Type>(TypeTag::List,
                                               ListType{/* no element type specified */});
     ListValue elements;
-    Value value;
-    value.type = std::make_shared<Type>(TypeTag::List,
-                                        ListType{/* no element type specified */});
-
     while (!check(TokenType::RIGHT_BRACKET) && !isAtEnd()) {
         // Extract lexeme from token as string
         std::string elementStr = peek().lexeme;
@@ -350,9 +392,6 @@ void PackratParser::list_statement()
         if (!match(TokenType::COMMA))
             break;
     }
-
-    value.data = elements;
-
     consume(TokenType::RIGHT_BRACKET, "Expected ']' to close the list.");
 
     emit(Opcode::LOAD_VALUE, peek().line, Value{listType, elements});
@@ -360,38 +399,75 @@ void PackratParser::list_statement()
 
 void PackratParser::dict_statement() {
   //  consume(TokenType::LEFT_BRACE, "Expected '{' to start a dictionary.");
-
-    // Assuming we have a dict type prepared
     TypePtr dictType = std::make_shared<Type>(TypeTag::Dict);
     DictValue keyValuePairs;
-
-    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        // Parse key
-        ValuePtr key = std::make_shared<Value>(
-            Value{std::make_shared<Type>(inferType(peek())),
-                  peek().lexeme}
-            );
- expression();
-        consume(TokenType::COLON, "Expected ':' after dictionary key.");
-
-        // Parse value
-        ValuePtr dictValue = std::make_shared<Value>(
-            Value{std::make_shared<Type>(inferType(peek())),
-                  peek().lexeme}
-            );
-
-        keyValuePairs.elements[key] = dictValue;
-
-        // Parse each element as an expression
-        expression();
-
-        if (!match(TokenType::COMMA))
-            break;
+    
+    // Handle empty dictionary case
+    if (check(TokenType::RIGHT_BRACE)) {
+        advance();
+        emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
+        return;
     }
 
-    consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
+    do {
+        // Parse key - must be a string or identifier
+        if (!check(TokenType::STRING) && !check(TokenType::IDENTIFIER)) {
+            error("Dictionary key must be a string or identifier");
+            return;
+        }
 
+        ValuePtr key = std::make_shared<Value>(
+            Value{std::make_shared<Type>(inferType(peek())),
+                  peek().lexeme});
+        advance();
+
+        consume(TokenType::COLON, "Expected ':' after dictionary key.");
+
+        // Parse value directly without calling expression()
+        ValuePtr value = std::make_shared<Value>(
+            Value{std::make_shared<Type>(inferType(peek())),
+                  peek().lexeme});
+        advance();
+
+        keyValuePairs.elements[key] = value;
+
+    } while (match(TokenType::COMMA));
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
     emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
+    // // Assuming we have a dict type prepared
+    // TypePtr dictType = std::make_shared<Type>(TypeTag::Dict);
+    // DictValue keyValuePairs;
+
+    // while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+    //     // Parse key
+    //     ValuePtr key = std::make_shared<Value>(
+    //         Value{std::make_shared<Type>(inferType(peek())),
+    //               peek().lexeme}
+    //         );
+    //         interpolate_string(peek().lexeme);
+    //         advance();
+    //    // expression();
+    //     consume(TokenType::COLON, "Expected ':' after dictionary key.");
+
+    //     // Parse value
+    //     ValuePtr dictValue = std::make_shared<Value>(
+    //         Value{std::make_shared<Type>(inferType(peek())),
+    //               peek().lexeme}
+    //         );
+
+    //     keyValuePairs.elements[key] = dictValue;
+
+    //     // Parse each element as an expression
+    //     expression();
+
+    //     if (!match(TokenType::COMMA))
+    //         break;
+    // }
+
+    // consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
+
+    // emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
 }
 
 void PackratParser::parallel_statement()
@@ -1020,11 +1096,10 @@ void PackratParser::primary_expression()
     } else if (match(TokenType::COMMA)) {
         advance();
     }  else  if (match(TokenType::LEFT_BRACKET) || match(TokenType::RIGHT_BRACKET) ) {
-        // Parse a list
-        list_statement();
+        statement();
     } else if (match(TokenType::LEFT_BRACE)) {
-        // Parse a dictionary
-        dict_statement();
+        statement();
+        }
     } else {
         error("Expected expression.");
     }
