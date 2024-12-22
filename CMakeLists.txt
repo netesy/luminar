@@ -37,6 +37,7 @@ add_executable(luminar src/main.cpp
     test/tst_scanner.cpp
     sample/sample.lm sample/sample_new.lm
     src/optimizer.hh
+    src/value.hh
 
 )
 
