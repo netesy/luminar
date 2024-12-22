@@ -1099,7 +1099,6 @@ void PackratParser::primary_expression()
         statement();
     } else if (match(TokenType::LEFT_BRACE)) {
         statement();
-        }
     } else {
         error("Expected expression.");
     }
