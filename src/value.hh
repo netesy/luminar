@@ -281,15 +281,15 @@ struct EnumValue {
 
 struct ListValue {
     std::vector<ValuePtr> elements;
-    
+
     void append(ValuePtr value) { elements.push_back(value); }
-    void extend(const ListValue& other) { 
-        elements.insert(elements.end(), other.elements.begin(), other.elements.end()); 
+    void extend(const ListValue& other) {
+        elements.insert(elements.end(), other.elements.begin(), other.elements.end());
     }
     ValuePtr pop(int index = -1) {
         if (elements.empty()) throw std::runtime_error("pop from empty list");
         if (index < 0) index = elements.size() + index;
-        if (index < 0 || static_cast<size_t>(index) >= elements.size()) 
+        if (index < 0 || static_cast<size_t>(index) >= elements.size())
             throw std::runtime_error("pop index out of range");
         ValuePtr value = elements[index];
         elements.erase(elements.begin() + index);
@@ -302,7 +302,9 @@ struct ListValue {
         elements.insert(elements.begin() + index, value);
     }
     void clear() { elements.clear(); }
+
     size_t len() const { return elements.size(); }
+
     ValuePtr at(int index) const {
         if (index < 0) index = elements.size() + index;
         if (index < 0 || static_cast<size_t>(index) >= elements.size())
@@ -314,7 +316,7 @@ struct ListValue {
 // Add these method declarations to DictValue struct
 struct DictValue {
     std::map<ValuePtr, ValuePtr> elements;
-    
+
     ValuePtr get(const ValuePtr& key, const ValuePtr& defaultValue = nullptr) const {
         auto it = elements.find(key);
         return it != elements.end() ? it->second : defaultValue;
@@ -359,8 +361,28 @@ struct DictValue {
 
 // Add toString method to Value struct
 struct Value {
-    // ... existing members ...
-    
+    TypePtr type;
+    std::variant<std::monostate,
+                 bool,
+                 int8_t,
+                 int16_t,
+                 int32_t,
+                 int64_t,
+                 uint8_t,
+                 uint16_t,
+                 uint32_t,
+                 uint64_t,
+                 double,
+                 float,
+                 std::string,
+                 ListValue,
+                 DictValue,
+                 SumValue,
+                 EnumValue,
+                 UserDefinedValue>
+        data;
+    friend std::ostream &operator<<(std::ostream &os, const Value &value);
+
     std::string toString() const {
         std::ostringstream oss;
         std::visit(overloaded{

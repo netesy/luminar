@@ -48,16 +48,37 @@ private:
                 length = std::get<std::string>(value->data).length();
                 break;
             // case TypeTag::Int:
-            //     length = std::get<>(value->data).size();
-            // case TypeTag::List:
-            //     length = std::get<ListValue>(value->data).size();
-            //     break;
-            // case TypeTag::Dict:
-            //     length = std::get<DictValue>(value->data).size();
-            //     break;
-            default:
+            //     length = std::get<int64_t>(value->data).
+            case TypeTag::List:
+                length = std::get<ListValue>(value->data).len();
+                break;
+            case TypeTag::Dict:
+                length = std::get<DictValue>(value->data).len();
+                break;
+            // default:
                 throw std::runtime_error(
                     "Type error: len() requires string, list, or dict argument");
+            case TypeTag::Nil:
+            case TypeTag::Bool:
+            case TypeTag::Int:
+            case TypeTag::Int8:
+            case TypeTag::Int16:
+            case TypeTag::Int32:
+            case TypeTag::Int64:
+            case TypeTag::UInt:
+            case TypeTag::UInt8:
+            case TypeTag::UInt16:
+            case TypeTag::UInt32:
+            case TypeTag::UInt64:
+            case TypeTag::Float32:
+            case TypeTag::Float64:
+            case TypeTag::Enum:
+            case TypeTag::Function:
+            case TypeTag::Any:
+            case TypeTag::Sum:
+            case TypeTag::Union:
+            case TypeTag::UserDefined:
+                break;
             }
 
             return makeIntValue(static_cast<int32_t>(length));
