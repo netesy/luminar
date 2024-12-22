@@ -231,16 +231,6 @@ overloaded(Ts...) -> overloaded<Ts...>;
 struct Value;
 using ValuePtr = std::shared_ptr<Value>;
 
-struct ListValue
-{
-    std::vector<ValuePtr> elements;
-};
-
-struct DictValue
-{
-    std::map<ValuePtr, ValuePtr> elements;
-};
-
 struct UserDefinedValue
 {
     std::string variantName;
@@ -289,29 +279,139 @@ struct EnumValue {
     }
 };
 
-struct Value
-{
-    TypePtr type;
-    std::variant<std::monostate,
-                 bool,
-                 int8_t,
-                 int16_t,
-                 int32_t,
-                 int64_t,
-                 uint8_t,
-                 uint16_t,
-                 uint32_t,
-                 uint64_t,
-                 double,
-                 float,
-                 std::string,
-                 ListValue,
-                 DictValue,
-                 SumValue,
-                 EnumValue,
-                 UserDefinedValue>
-        data;
-    friend std::ostream &operator<<(std::ostream &os, const Value &value);
+struct ListValue {
+    std::vector<ValuePtr> elements;
+    
+    void append(ValuePtr value) { elements.push_back(value); }
+    void extend(const ListValue& other) { 
+        elements.insert(elements.end(), other.elements.begin(), other.elements.end()); 
+    }
+    ValuePtr pop(int index = -1) {
+        if (elements.empty()) throw std::runtime_error("pop from empty list");
+        if (index < 0) index = elements.size() + index;
+        if (index < 0 || static_cast<size_t>(index) >= elements.size()) 
+            throw std::runtime_error("pop index out of range");
+        ValuePtr value = elements[index];
+        elements.erase(elements.begin() + index);
+        return value;
+    }
+    void insert(int index, ValuePtr value) {
+        if (index < 0) index = elements.size() + index;
+        if (index < 0 || static_cast<size_t>(index) > elements.size())
+            throw std::runtime_error("insert index out of range");
+        elements.insert(elements.begin() + index, value);
+    }
+    void clear() { elements.clear(); }
+    size_t len() const { return elements.size(); }
+    ValuePtr at(int index) const {
+        if (index < 0) index = elements.size() + index;
+        if (index < 0 || static_cast<size_t>(index) >= elements.size())
+            throw std::runtime_error("index out of range");
+        return elements[index];
+    }
+};
+
+// Add these method declarations to DictValue struct
+struct DictValue {
+    std::map<ValuePtr, ValuePtr> elements;
+    
+    ValuePtr get(const ValuePtr& key, const ValuePtr& defaultValue = nullptr) const {
+        auto it = elements.find(key);
+        return it != elements.end() ? it->second : defaultValue;
+    }
+    void setdefault(const ValuePtr& key, const ValuePtr& defaultValue) {
+        if (elements.find(key) == elements.end()) {
+            elements[key] = defaultValue;
+        }
+    }
+    ValuePtr pop(const ValuePtr& key, const ValuePtr& defaultValue = nullptr) {
+        auto it = elements.find(key);
+        if (it == elements.end()) {
+            if (defaultValue == nullptr) throw std::runtime_error("key not found");
+            return defaultValue;
+        }
+        ValuePtr value = it->second;
+        elements.erase(it);
+        return value;
+    }
+    void update(const DictValue& other) {
+        for (const auto& [key, value] : other.elements) {
+            elements[key] = value;
+        }
+    }
+    void clear() { elements.clear(); }
+    size_t len() const { return elements.size(); }
+    std::vector<ValuePtr> keys() const {
+        std::vector<ValuePtr> result;
+        for (const auto& [key, _] : elements) {
+            result.push_back(key);
+        }
+        return result;
+    }
+    std::vector<ValuePtr> values() const {
+        std::vector<ValuePtr> result;
+        for (const auto& [_, value] : elements) {
+            result.push_back(value);
+        }
+        return result;
+    }
+};
+
+// Add toString method to Value struct
+struct Value {
+    // ... existing members ...
+    
+    std::string toString() const {
+        std::ostringstream oss;
+        std::visit(overloaded{
+            [&](const std::monostate&) { oss << "nil"; },
+            [&](bool b) { oss << (b ? "true" : "false"); },
+            [&](int8_t i) { oss << static_cast<int>(i); },
+            [&](int16_t i) { oss << i; },
+            [&](int32_t i) { oss << i; },
+            [&](int64_t i) { oss << i; },
+            [&](uint8_t u) { oss << static_cast<unsigned>(u); },
+            [&](uint16_t u) { oss << u; },
+            [&](uint32_t u) { oss << u; },
+            [&](uint64_t u) { oss << u; },
+            [&](float f) { oss << f; },
+            [&](double d) { oss << d; },
+            [&](const std::string& s) { oss << '"' << s << '"'; },
+            [&](const ListValue& lv) {
+                oss << "[";
+                for (size_t i = 0; i < lv.elements.size(); ++i) {
+                    if (i > 0) oss << ", ";
+                    oss << lv.elements[i]->toString();
+                }
+                oss << "]";
+            },
+            [&](const DictValue& dv) {
+                oss << "{";
+                bool first = true;
+                for (const auto& [key, value] : dv.elements) {
+                    if (!first) oss << ", ";
+                    first = false;
+                    oss << key->toString() << ": " << value->toString();
+                }
+                oss << "}";
+            },
+            [&](const SumValue& sv) {
+                oss << "Sum(" << sv.activeVariant << ", " << sv.value->toString() << ")";
+            },
+            [&](const EnumValue& ev) { oss << ev.toString(); },
+            [&](const UserDefinedValue& udv) {
+                oss << udv.variantName << "{";
+                bool first = true;
+                for (const auto& [field, value] : udv.fields) {
+                    if (!first) oss << ", ";
+                    first = false;
+                    oss << field << ": " << value->toString();
+                }
+                oss << "}";
+            }
+        }, data);
+        return oss.str();
+    }
 };
 
 inline ValuePtr EnumValue::create(const std::string& variantName, const TypePtr& enumType, ValuePtr associatedValue) {
