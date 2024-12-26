@@ -25,7 +25,7 @@ public:
         : typeSystem_(typeSystem)
         , scopeManager_()
     {}
-
+ 
     int32_t addVariable(const std::string &name,
                         TypePtr type,
                         bool isGlobal = false,
@@ -74,13 +74,24 @@ public:
         throw std::runtime_error("Variable not found: " + name);
     }
 
+    std::string getVariableNameByMemoryLocation(int32_t memoryLocation) const
+    {
+        auto allVariables = scopeManager_.getAllVisibleSymbols();
+        for (const auto& [name, info] : allVariables) {
+            if (info.memoryLocation == memoryLocation) {
+                return name;
+            }
+        }
+        throw std::runtime_error("Variable with memory location not found: " + std::to_string(memoryLocation));
+    }
+
     TypePtr getVariableType(const std::string &name) const
     {
         auto info = scopeManager_.get(name);
         if (info) {
             return info->type;
         }
-        throw std::runtime_error("Variable not found: " + name);
+        throw std::runtime_error("Variable type could not be gotten as it was not found: " + name);
     }
 
     ValuePtr getVariableValue(const std::string &name) const
@@ -89,7 +100,7 @@ public:
         if (info) {
             return info->value;
         }
-        throw std::runtime_error("Variable not found: " + name);
+        throw std::runtime_error("Variable could not be gotten as it was not found: " + name);
     }
 
     void setVariableValue(const std::string &name, ValuePtr newValue)
@@ -105,7 +116,7 @@ public:
                 throw std::runtime_error("Type mismatch when setting value for variable: " + name);
             }
         } else {
-            throw std::runtime_error("Variable not found: " + name);
+            throw std::runtime_error("Variable could not be set as it was not found: " + name);
         }
     }
 
