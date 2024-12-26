@@ -35,8 +35,8 @@ void StackBackend::run(const std::vector<Instruction> &program)
 
         //program[pc].debug();
         auto start_time = std::chrono::high_resolution_clock::now();
-        while (pc < program.size()) {
-            const Instruction &instruction = program[pc];
+        while (pc < this->program.size()) {
+            const Instruction &instruction = this->program[pc];
 
             if (instruction.opcode == HALT) {
                 std::cout << "Program halted normally." << std::endl;
@@ -48,7 +48,7 @@ void StackBackend::run(const std::vector<Instruction> &program)
             pc++;
         }
         /// program[pc].debug();
-        if (pc >= program.size()) {
+        if (pc >= this->program.size()) {
             std::cerr << "Warning: Reached end of program without HALT instruction." << std::endl;
         }
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -718,18 +718,24 @@ void StackBackend::handleCallFunction(const std::string &functionName)
         std::vector<Instruction> newProgram;
         
         // Reserve space for efficiency
-        newProgram.reserve(program.size() + functionBody->size() + 2);
+        newProgram.reserve(program.size() + functionBody->size() + 1);
 
         // Copy instructions up to current point
+            if (pc >= program.size()) {
+        throw std::out_of_range("Program counter out of bounds");
+    }
         newProgram.insert(newProgram.end(), program.begin(), program.begin() + pc + 1);
+    newProgram.insert(newProgram.end(), functionBody->begin(), functionBody->end());
+    newProgram.insert(newProgram.end(), program.begin() + pc + 1, program.end());
+
 
         // Add function body instructions
-        for (const auto& instr : *functionBody) {
-            #ifdef DEBUG_MODE
-            std::cout << "Adding instruction: " << instr.debug() << "\n";
-            #endif
-            newProgram.push_back(instr);
-        }
+        // for (const auto& instr : *functionBody) {
+
+        //    std::cout << "Adding instruction: ";
+        //    instr.debug();
+        //    newProgram.push_back(instr);
+        // }
 
         // Ensure RETURN is present
         bool hasReturn = false;
@@ -739,21 +745,17 @@ void StackBackend::handleCallFunction(const std::string &functionName)
                 break;
             }
         }
-        
-        if (!hasReturn) {
-            Instruction returnInstr;
-            returnInstr.opcode = RETURN;
-            newProgram.push_back(returnInstr);
-        }
 
-        // Add remaining instructions from original program
-        newProgram.insert(newProgram.end(), program.begin() + pc + 1, program.end());
+        // // Add remaining instructions from original program
+        // newProgram.insert(newProgram.end(), program.begin() + pc + 1, program.end());
 
         // Replace program with new combined program
-        program = std::move(newProgram);
+            this->program = std::move(newProgram);
 
+            pc = pc + 1; // Position at first instruction of inserted function}
     }
 }
+
 
 void StackBackend::handleReturnFuction()
 {
@@ -790,7 +792,7 @@ void StackBackend::handleReturnFuction()
     // Update PC
     pc = savedPC;
 
-    std::cout << "Returned from function to PC: " << pc << std::endl;
+    std::cout << "Returned from function to PC: " << returnValue << std::endl;
 }
 
 void StackBackend::handlePushArg(const Instruction &instruction)

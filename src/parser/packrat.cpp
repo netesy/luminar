@@ -34,7 +34,7 @@ Bytecode PackratParser::parse()
         auto optimization_duration = std::chrono::duration_cast<std::chrono::microseconds>(optimization_end_time - optimization_start_time);
 
         std::cout << "Bytecode Optimizations completed in " << optimization_duration.count() << " microseconds." << std::endl;
-        //std::cout << "Parsing debug " << toString() << std::endl;
+       // std::cout << "Parsing debug " << toString() << std::endl;
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -74,7 +74,7 @@ void PackratParser::statement()
             if (peekNext().type == TokenType::COLON) {
                 // It's a dictionary
                 dict_statement();
-                consume(TokenType::SEMICOLON, "Expected ';' after list statement.");
+                consume(TokenType::SEMICOLON, "Expected ';' after dict statement.");
             } else {
                 // It's a block
                 block();
@@ -391,7 +391,8 @@ void PackratParser::list_statement()
 
         elements.elements.push_back(element);
         // Parse each list element as an expression
-        expression();
+        advance();
+        //expression();
         if (!match(TokenType::COMMA))
             break;
     }
@@ -438,39 +439,6 @@ void PackratParser::dict_statement() {
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
     emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
-    // // Assuming we have a dict type prepared
-    // TypePtr dictType = std::make_shared<Type>(TypeTag::Dict);
-    // DictValue keyValuePairs;
-
-    // while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-    //     // Parse key
-    //     ValuePtr key = std::make_shared<Value>(
-    //         Value{std::make_shared<Type>(inferType(peek())),
-    //               peek().lexeme}
-    //         );
-    //         interpolate_string(peek().lexeme);
-    //         advance();
-    //    // expression();
-    //     consume(TokenType::COLON, "Expected ':' after dictionary key.");
-
-    //     // Parse value
-    //     ValuePtr dictValue = std::make_shared<Value>(
-    //         Value{std::make_shared<Type>(inferType(peek())),
-    //               peek().lexeme}
-    //         );
-
-    //     keyValuePairs.elements[key] = dictValue;
-
-    //     // Parse each element as an expression
-    //     expression();
-
-    //     if (!match(TokenType::COMMA))
-    //         break;
-    // }
-
-    // consume(TokenType::RIGHT_BRACE, "Expected '}' to close the dictionary.");
-
-    // emit(Opcode::LOAD_VALUE, peek().line, Value{dictType, keyValuePairs});
 }
 
 void PackratParser::parallel_statement()
@@ -645,15 +613,21 @@ void PackratParser::var_declaration()
 {
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected variable name.");
+        // First check if we're trying to redeclare a parameter
+    if (functions.hasParameter(name.lexeme)) {
+        emit(Opcode::LOAD_PARAM, 
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+        return;
+    }
 
     TypePtr type = std::make_shared<Type>(TypeTag::Int);
     if (match(TokenType::COLON)) {
-        //        std::cout << "Variable initialization found for " << name.lexeme << std::endl;
         Token typeToken = peek();
         advance(); //This should check against all the types
-        //consume(TokenType::IDENTIFIER, "Expected type name.");
         type = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
+
 
     //    std::cout << "declaration of variables initiated" << std::endl;
     declareVariable(name, type);
@@ -672,8 +646,23 @@ void PackratParser::var_declaration()
 
 void PackratParser::var_call(const Token &name)
 {
-    int32_t location = getVariableMemoryLocation(name);
-    emit(Opcode::LOAD_VARIABLE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), location});
+    // First check if this is a parameter from function context
+if (functions.hasParameter(name.lexeme)) {
+    std::cout <<"Loading Param: " << name.lexeme << std::endl;
+    emit(Opcode::LOAD_PARAM,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+         return ;
+}
+    // If not a parameter, handle as a regular variable
+    if (variable.hasVariable(name.lexeme)) {
+        int32_t location = variable.getVariableMemoryLocation(name.lexeme);
+        emit(Opcode::LOAD_VARIABLE, 
+             peek().line, 
+             Value{std::make_shared<Type>(TypeTag::Int), location});
+    } else {
+        error("Undefined variable '" + name.lexeme + "'.");
+    }
 }
 
 void PackratParser::assignment()
@@ -757,7 +746,6 @@ void PackratParser::function_declaration()
         advance();
         returnType = std::make_shared<Type>(stringToType(typeToken.lexeme));
     }
-
     // Enter new scope for function body
     enterScope();
 
@@ -767,7 +755,10 @@ void PackratParser::function_declaration()
 
     // Register parameters as variables in function scope
     for (const auto& param : parameters) {
-        declareVariable(Token{TokenType::IDENTIFIER, param.name}, param.type, param.defaultValue);
+     //  declareVariable(Token{TokenType::IDENTIFIER, param.name}, param.type, param.defaultValue);
+        emit(Opcode::LOAD_PARAM,
+            peek().line,
+            Value{std::make_shared<Type>(TypeTag::String), param.name});
     }
 
     // Parse function body
@@ -802,7 +793,6 @@ void PackratParser::function_declaration()
     functions.updateFunctionEndPC(name.lexeme, endPC);
 
     exitScope();
-
     // Emit only the function name for the VM
     emit(Opcode::DEFINE_FUNCTION,
          peek().line,
@@ -958,7 +948,6 @@ void PackratParser::expression_statement()
 
 void PackratParser::expression()
 {
-
     logical_or_expression();
 }
 
@@ -1271,7 +1260,7 @@ void PackratParser::method_call(const Token &object)
 Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-   // instruction.debug();
+   instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -1280,7 +1269,7 @@ Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber, Value &&valu
 {
     ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
     Instruction instruction(opcode, lineNumber, valuePtr);
-  //  instruction.debug();
+   instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
