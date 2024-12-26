@@ -38,6 +38,7 @@ add_executable(luminar src/main.cpp
     sample/sample.lm sample/sample_new.lm
     src/optimizer.hh
     src/value.hh
+    src/classes.hh
 
 )
 
