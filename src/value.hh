@@ -342,7 +342,9 @@ struct DictValue {
         }
     }
     void clear() { elements.clear(); }
+
     size_t len() const { return elements.size(); }
+    
     std::vector<ValuePtr> keys() const {
         std::vector<ValuePtr> result;
         for (const auto& [key, _] : elements) {

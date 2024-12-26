@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "variable.hh"
 
 // ParameterInfo and ParameterStackFrame structures remain unchanged
 struct ParameterInfo
@@ -48,6 +49,7 @@ struct FunctionInfo
     std::function<ValuePtr(const std::vector<ValuePtr> &)> nativeImpl;
     size_t requiredParamCount;
     std::vector<Instruction> functionBody;
+    std::unordered_map<std::string, bool> variableMap; // Tracks if variable is parameter
 
     FunctionInfo()
         : name("")
@@ -79,11 +81,11 @@ struct FunctionInfo
         , functionBody(std::move(body))
     {}
 
-    FunctionInfo(const std::string &n,
-                 const std::vector<ParameterInfo> &params,
-                 TypePtr ret,
-                 std::function<ValuePtr(const std::vector<ValuePtr> &)> impl,
-                 size_t reqCount)
+    FunctionInfo(const std::string& n,
+                const std::vector<ParameterInfo>& params,
+                TypePtr ret,
+                std::function<ValuePtr(const std::vector<ValuePtr>&)> impl,
+                size_t reqCount)
         : name(n)
         , parameters(params)
         , returnType(ret)
@@ -91,9 +93,9 @@ struct FunctionInfo
         , endPC(-1)
         , isBuiltin(true)
         , nativeImpl(impl)
-        , requiredParamCount(reqCount)
-        , functionBody()
-    {}
+        , requiredParamCount(reqCount) {
+        initVariableMap();
+    }
 
     // Add copy constructor to handle atomic member
     FunctionInfo(const FunctionInfo &other)
@@ -124,6 +126,28 @@ struct FunctionInfo
         }
         return *this;
     }
+
+    private:
+    void initVariableMap() {
+        for (const auto& param : parameters) {
+            variableMap[param.name] = true;
+        }
+
+    if (!functionBody.empty()) {
+        for (const auto& instr : functionBody) {
+            if (instr.opcode == Opcode::STORE_VARIABLE) {
+                int32_t varId = std::get<int32_t>(instr.value->data);
+                std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
+                Variables variables(typeSystem);
+                const std::string varName = variables.getVariableNameByMemoryLocation(varId);
+                if (variableMap.find(varName) == variableMap.end()) {
+                    variableMap[varName] = false; // Not a parameter
+                }
+            }
+        }
+    }
+}
+
 };
 
 class Functions
@@ -132,7 +156,8 @@ public:
     Functions(std::shared_ptr<TypeSystem> typeSystem)
         : typeSystem_(typeSystem)
         , scopeManager_()
-        , currentScopeId_(0) // Track the current scope ID
+        , currentScopeId_(0)
+        , variable(typeSystem) // Track the current scope ID
     {                        // Register builtin functions automatically during construction
                              //  BuiltinFunctions::registerBuiltins(*this, typeSystem_);
         BuiltinFunctions<Functions>::registerWith(*this, typeSystem_);
@@ -174,6 +199,15 @@ public:
         }
 
         scopeManager_.add(name, info);
+    }
+
+        // New method to check if a variable is a parameter
+    bool isParameter(const std::string& funcName, const std::string& varName) const {
+        auto funcInfo = getFunction(funcName);
+        if (!funcInfo) return false;
+
+        auto it = funcInfo->variableMap.find(varName);
+        return it != funcInfo->variableMap.end() && it->second;
     }
 
     void addBuiltinFunction(const std::string &name,
@@ -258,7 +292,6 @@ public:
 
     bool hasFunction(const std::string &name) const { return scopeManager_.exists(name); }
 
-    // Rest of the methods remain largely unchanged...
     void validateFunctionCall(const std::string &name, const std::vector<ValuePtr> &arguments) const
     {
         auto funcInfo = scopeManager_.get(name);
@@ -415,6 +448,7 @@ public:
         if (!funcInfo || funcInfo->isBuiltin) {
             return std::nullopt;
         }
+
         return funcInfo->functionBody;
     }
 
@@ -423,4 +457,24 @@ private:
     ScopeManager<FunctionInfo> scopeManager_;
     std::stack<std::shared_ptr<ParameterStackFrame>> parameterStack_;
     ScopeManager<FunctionInfo>::ScopeId currentScopeId_; // Track current scope ID
-};
+    Variables variable;
+    mutable std::unordered_map<std::string, std::vector<Instruction>> optimizedBodies_;
+
+        // Single source of truth for parameter validation
+    void validateParameters(const std::vector<ParameterInfo>& params, const std::string& functionName) {
+        bool foundOptional = false;
+        for (const auto& param : params) {
+            if (foundOptional && !param.isOptional) {
+                throw std::runtime_error("Required parameters must come before optional parameters in function: " + functionName);
+            }
+            if (param.isOptional) {
+                foundOptional = true;
+                if (param.defaultValue && !typeSystem_->checkType(param.defaultValue, param.type)) {
+                    throw std::runtime_error("Default value type mismatch for parameter '" + param.name + "' in function '" + functionName + "'");
+                }
+            }
+        }
+    }
+
+
+   };
