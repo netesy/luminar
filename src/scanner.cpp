@@ -63,6 +63,9 @@ void Scanner::scanToken()
     case '?':
         addToken(TokenType::QUESTION);
         break;
+    case '@':
+        addToken(TokenType::AT);
+        break;
     case ':':
         addToken(TokenType::COLON);
         break;
@@ -164,6 +167,9 @@ Token Scanner::getTokenFromChar(char c)
         break;
     case '?':
         addToken(TokenType::QUESTION);
+        break;
+    case '@':
+        addToken(TokenType::AT);
         break;
     case ':':
         addToken(TokenType::COLON);
@@ -488,6 +494,10 @@ TokenType Scanner::checkKeyword(const std::string &identifier) const
         return TokenType::SUM_TYPE;
     if (identifier == "union")
         return TokenType::UNION_TYPE;
+    if (identifier == "with")
+        return TokenType::WITH;
+    if (identifier == "implements")
+        return TokenType::IMPLEMENTS;
 
     return TokenType::IDENTIFIER;
 }
@@ -696,6 +706,13 @@ std::string Scanner::tokenTypeToString(TokenType type, std::string value) const
     case TokenType::ANY_TYPE:
         return "ANY_TYPE";
         break;
+    case TokenType::WITH:
+        return "WITH";
+        break;
+    case TokenType::IMPLEMENTS:
+        return "IMPLEMENTS";
+        break;
+
     }
     return "UNKNOWN";
 }

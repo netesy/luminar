@@ -2,7 +2,6 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <iostream>
 #include <map>
@@ -11,6 +10,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <sstream>
 
 enum class TypeTag {
     Nil,
@@ -344,7 +344,7 @@ struct DictValue {
     void clear() { elements.clear(); }
 
     size_t len() const { return elements.size(); }
-    
+
     std::vector<ValuePtr> keys() const {
         std::vector<ValuePtr> result;
         for (const auto& [key, _] : elements) {

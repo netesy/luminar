@@ -19,6 +19,7 @@ enum class TokenType {
     ELVIS,         // ?:
     SAFE,          // ?.
     ARROW,         // ->
+    AT,            //@
 
     // Group: Operators
     PLUS,          // +
@@ -79,6 +80,7 @@ enum class TokenType {
     VAR,        // var
     MUT,        // mut
     THIS,       // this
+    WITH,       //with
     TRUE,       // true
     ELIF,       // elif
     ELSE,       // else
@@ -99,6 +101,7 @@ enum class TokenType {
     ATTEMPT,    // attempt
     PARALLEL,   // parallel
     CONCURRENT, // concurrent
+    IMPLEMENTS, //implements
 
     // Other
     UNDEFINED, // undefined token

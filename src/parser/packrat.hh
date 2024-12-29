@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../function.hh"
+#include "../classes.hh"
 #include "../instructions.hh"
 #include "../scanner.hh"
 #include "../types.hh"
@@ -37,6 +38,7 @@ private:
     std::shared_ptr<TypeSystem> typeSystem;
     std::unordered_map<std::string, std::optional<Value>> constantValues;
     std::unordered_map<std::string, std::vector<Instruction>> inlineFunctions;
+    std::shared_ptr<ClassManager> classManager;
 
     Instruction emit(Opcode opcode, uint32_t lineNumber);
     Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
@@ -77,6 +79,9 @@ private:
 
 
     void class_declaration();
+    void method_declaration(const std::string &className,
+                            const std::vector<std::string> &decorators,
+                            std::vector<FunctionInfo> &methods);
     void method_call(const Token &name);
     void expression_statement();
     void expression();
@@ -125,4 +130,5 @@ private:
 
     void parse_generic_type();
     void match_statement();
+
 };

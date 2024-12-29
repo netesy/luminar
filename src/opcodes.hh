@@ -48,6 +48,7 @@ enum Opcode {
     INVOKE_FUNCTION,
     PUSH_ARGS,
     RETURN_VALUE,
+        // Parameter handling
     CREATE_PARAM_FRAME, // Create a new parameter frame
     STORE_PARAM,        // Store a parameter in the current frame
     LOAD_PARAM,         // Load a parameter from the current frame
@@ -64,10 +65,22 @@ enum Opcode {
     HANDLE,
 
     // Class operations
-    DEFINE_CLASS,
-    CREATE_OBJECT,
-    LOAD_PROPERTY,
-    METHOD_CALL,
+    // Class-related
+    DEFINE_CLASS,        // Create class definition with metadata
+    CREATE_OBJECT,       // Instantiate new object of a class
+    INVOKE_CONSTRUCTOR,  // Call class constructor
+
+    // Method-related
+    DEFINE_METHOD,       // Define method in class
+    INVOKE_METHOD,       // Call method on object
+    METHOD_CALL,        // Shorthand for method invocation
+
+    // Property access
+    LOAD_PROPERTY,      // Get property value
+    STORE_PROPERTY,     // Set property value
+
+    // Inheritance
+    SUPER_CALL,        // Call method on parent class
 
     // File I/O operations
     OPEN_FILE,

@@ -11,6 +11,7 @@ PackratParser::PackratParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeS
     , variable(typeSystem)
     , functions(funcs)
     , typeSystem(typeSystem)
+    , classManager(std::make_shared<ClassManager>(std::make_shared<Functions>(funcs), typeSystem))
 {
     tokens = scanner.scanTokens();
     scanner.toString();
@@ -615,7 +616,7 @@ void PackratParser::var_declaration()
     consume(TokenType::IDENTIFIER, "Expected variable name.");
         // First check if we're trying to redeclare a parameter
     if (functions.hasParameter(name.lexeme)) {
-        emit(Opcode::LOAD_PARAM, 
+        emit(Opcode::LOAD_PARAM,
              peek().line,
              Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
         return;
@@ -657,8 +658,8 @@ if (functions.hasParameter(name.lexeme)) {
     // If not a parameter, handle as a regular variable
     if (variable.hasVariable(name.lexeme)) {
         int32_t location = variable.getVariableMemoryLocation(name.lexeme);
-        emit(Opcode::LOAD_VARIABLE, 
-             peek().line, 
+        emit(Opcode::LOAD_VARIABLE,
+             peek().line,
              Value{std::make_shared<Type>(TypeTag::Int), location});
     } else {
         error("Undefined variable '" + name.lexeme + "'.");
@@ -667,7 +668,6 @@ if (functions.hasParameter(name.lexeme)) {
 
 void PackratParser::assignment()
 {
-    auto start = std::chrono::high_resolution_clock::now();
     Token name = peek();
      consume(TokenType::IDENTIFIER, "Expected variable name.");
 
@@ -921,22 +921,297 @@ void PackratParser::function_call(const Token &name)
     emit(Opcode::POP_PARAM_FRAME, peek().line);
 }
 
-void PackratParser::class_declaration()
-{
+void PackratParser::class_declaration() {
     Token name = peek();
     consume(TokenType::IDENTIFIER, "Expected class name.");
+
+    // Handle metaclass specification
+    std::string metaclassName = "type";
+    if (match(TokenType::LEFT_PAREN)) {
+        Token metaToken = peek();
+        consume(TokenType::IDENTIFIER, "Expected metaclass name.");
+        metaclassName = metaToken.lexeme;
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after metaclass name.");
+    }
+
+    // Handle inheritance
+    std::vector<std::string> bases;
+    if (match(TokenType::COLON)) {
+        do {
+            Token baseClass = peek();
+            consume(TokenType::IDENTIFIER, "Expected base class name.");
+            bases.push_back(baseClass.lexeme);
+        } while (match(TokenType::COMMA));
+    }
+
+    // Handle interfaces
+    std::vector<std::string> interfaces;
+    if (match(TokenType::IMPLEMENTS)) {
+        do {
+            Token interface = peek();
+            consume(TokenType::IDENTIFIER, "Expected interface name.");
+            interfaces.push_back(interface.lexeme);
+        } while (match(TokenType::COMMA));
+    }
+
+    // Handle mixins
+    std::vector<std::string> mixins;
+    if (match(TokenType::WITH)) {
+        do {
+            Token mixin = peek();
+            consume(TokenType::IDENTIFIER, "Expected mixin name.");
+            mixins.push_back(mixin.lexeme);
+        } while (match(TokenType::COMMA));
+    }
+
     consume(TokenType::LEFT_BRACE, "Expected '{' before class body.");
 
+    // Collect methods
+    std::vector<FunctionInfo> methods;
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        function_declaration();
+        // Handle method decorators
+        std::vector<std::string> decorators;
+        while (match(TokenType::AT)) {
+            Token decorator = peek();
+            consume(TokenType::IDENTIFIER, "Expected decorator name.");
+            decorators.push_back(decorator.lexeme);
+        }
+
+        method_declaration(name.lexeme, decorators, methods);
     }
 
     consume(TokenType::RIGHT_BRACE, "Expected '}' after class body.");
 
-    // Emit class definition
+    // Register the class with the ClassManager
+    classManager->registerClass(
+        name.lexeme,
+        methods,
+        metaclassName,
+        bases,
+        interfaces,
+        mixins
+        );
+
+    // Emit class definition opcode
     emit(Opcode::DEFINE_CLASS,
          peek().line,
          Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+}
+
+void PackratParser::method_declaration(
+    const std::string& className,
+    const std::vector<std::string>& decorators,
+    std::vector<FunctionInfo>& methods)
+{
+    Token name = peek();
+    consume(TokenType::IDENTIFIER, "Expected method name.");
+    consume(TokenType::LEFT_PAREN, "Expected '(' after method name.");
+
+    // Create a temporary bytecode buffer
+    std::vector<Instruction> originalBytecode = std::move(bytecode);
+    bytecode.clear();
+
+    // Parse parameters
+    std::vector<ParameterInfo> parameters;
+    // Add implicit 'self' parameter
+    // //parameters.emplace_back("self",
+    //                     //    std::make_shared<Type>(TypeTag::UserDefined, className),
+    //                     //    false,
+    //                       //  nullptr);
+    // parameters.emplace_back("self",
+    //                         std::make_shared<Type>(TypeTag::UserDefined,
+    //                                                std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UnionType, UserDefinedType>(
+    //                                                    std::in_place_type<UserDefinedType>, className)),
+    //                         false,
+    //                         nullptr);
+    // Create the UserDefinedType
+    UserDefinedType userType;
+    userType.name = className;
+
+    // Create the Type with UserDefinedType variant
+    TypePtr selfType = std::make_shared<Type>(
+        TypeTag::UserDefined,
+        std::variant<std::monostate, ListType, DictType, EnumType, FunctionType, SumType, UnionType, UserDefinedType>(
+            std::in_place_type<UserDefinedType>, userType)
+        );
+
+    // Add the parameter
+    parameters.emplace_back("self", selfType, false, nullptr);
+
+
+    if (!check(TokenType::RIGHT_PAREN)) {
+        do {
+            Token paramName = peek();
+            consume(TokenType::IDENTIFIER, "Expected parameter name.");
+            TypePtr paramType = typeSystem->NIL_TYPE;
+            ValuePtr defaultValue = nullptr;
+            bool isOptional = false;
+
+            if (match(TokenType::COLON)) {
+                Token typeToken = peek();
+                advance();
+                paramType = std::make_shared<Type>(stringToType(typeToken.lexeme));
+            }
+
+            if (match(TokenType::EQUAL)) {
+                isOptional = true;
+                Token paramValue = peek();
+                advance();
+                defaultValue = std::make_shared<Value>(setValue(paramType, paramValue.lexeme));
+            } else {
+                defaultValue = typeSystem->createValue(paramType);
+            }
+
+            parameters.emplace_back(paramName.lexeme, paramType, isOptional, defaultValue);
+        } while (match(TokenType::COMMA));
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters.");
+
+    // Handle return type
+    TypePtr returnType = typeSystem->NIL_TYPE;
+    if (match(TokenType::COLON)) {
+        Token typeToken = peek();
+        advance();
+        returnType = std::make_shared<Type>(stringToType(typeToken.lexeme));
+    }
+
+    // Enter new scope for method body
+    enterScope();
+
+    // Record the start of method body in bytecode
+    int32_t startPC = bytecode.size();
+
+    // Register parameters
+    for (const auto& param : parameters) {
+        emit(Opcode::LOAD_PARAM,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), param.name});
+    }
+
+    // Parse method body
+    consume(TokenType::LEFT_BRACE, "Expected '{' before method body.");
+
+    std::vector<Instruction> methodBody;
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        statement();
+    }
+
+    // Store the method body instructions
+    methodBody = std::move(bytecode);
+    bytecode = std::move(originalBytecode);
+
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after method block.");
+
+    // Add implicit return if needed
+    if (methodBody.empty() || methodBody.back().opcode != Opcode::RETURN) {
+        if (returnType->tag != TypeTag::Nil) {
+            error("Method must return a value of type " + returnType->toString());
+        }
+        methodBody.push_back(Instruction{Opcode::RETURN, static_cast<uint32_t>(peek().line)});
+    }
+
+    // Create FunctionInfo for the method
+    FunctionInfo methodInfo{
+        name.lexeme,
+        parameters,
+        returnType,
+        startPC,
+        static_cast<int32_t>(parameters.size()),  //!Todo This should be changed to allow optionals later
+        static_cast<size_t>(static_cast<int32_t>(startPC + methodBody.size() - 1)),
+        methodBody,
+    };
+
+
+    // Add the method to the collection
+    methods.push_back(methodInfo);
+
+    exitScope();
+
+    // Emit method definition
+    emit(Opcode::DEFINE_METHOD,
+         peek().line,
+         Value{std::make_shared<Type>(TypeTag::String),
+               className + "::" + name.lexeme});
+}
+
+void PackratParser::method_call(const Token& object) {
+    Token method = peek();
+    consume(TokenType::IDENTIFIER, "Expected method name after '.'.");
+
+    if (match(TokenType::LEFT_PAREN)) {
+        // Create parameter frame
+        emit(Opcode::CREATE_PARAM_FRAME,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String),
+                   object.lexeme + "::" + method.lexeme});
+
+        // Push 'self' as first parameter
+        emit(Opcode::LOAD_VARIABLE,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), object.lexeme});
+        emit(Opcode::STORE_PARAM,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String), "self"});
+
+        // Process arguments
+        size_t argCount = 1; // Start at 1 for 'self'
+        if (!check(TokenType::RIGHT_PAREN)) {
+            do {
+                // Check for named parameters
+                bool isNamed = false;
+                std::string paramName;
+
+                if (check(TokenType::IDENTIFIER) && checkNext(TokenType::EQUAL)) {
+                    Token paramToken = peek();
+                    paramName = paramToken.lexeme;
+                    advance(); // consume parameter name
+                    advance(); // consume equals sign
+                    isNamed = true;
+                }
+
+                expression();
+
+                if (isNamed) {
+                    emit(Opcode::STORE_PARAM,
+                         peek().line,
+                         Value{std::make_shared<Type>(TypeTag::String), paramName});
+                } else {
+                    // For positional parameters, we need to get the parameter name
+                    // from the method info
+                    if (!classManager->hasMethod(object.lexeme, method.lexeme)) {
+                        error("Undefined method '" + method.lexeme + "' for class '" +
+                              object.lexeme + "'");
+                    }
+                    auto methodInfo = classManager->getMethod(object.lexeme, method.lexeme);
+                    if (argCount >= methodInfo.parameters.size()) {
+                        error("Too many arguments for method '" + method.lexeme + "'");
+                    }
+                    std::string paramName = methodInfo.parameters[argCount].name;
+                    emit(Opcode::STORE_PARAM,
+                         peek().line,
+                         Value{std::make_shared<Type>(TypeTag::String), paramName});
+                }
+
+                argCount++;
+            } while (match(TokenType::COMMA));
+        }
+        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
+
+        // Invoke method
+        emit(Opcode::INVOKE_METHOD,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String),
+                   object.lexeme + "::" + method.lexeme});
+
+        // Cleanup parameter frame
+        emit(Opcode::POP_PARAM_FRAME, peek().line);
+    } else {
+        // Property access
+        emit(Opcode::LOAD_PROPERTY,
+             peek().line,
+             Value{std::make_shared<Type>(TypeTag::String),
+                   object.lexeme + "." + method.lexeme});
+    }
 }
 
 void PackratParser::expression_statement()
@@ -1227,33 +1502,6 @@ void PackratParser::handle_identifier()
     } else {
         // Variable call
         var_call(name);
-    }
-}
-
-void PackratParser::method_call(const Token &object)
-{
-    Token method = peek();
-    consume(TokenType::IDENTIFIER, "Expected method name after '.'.");
-
-    if (match(TokenType::LEFT_PAREN)) {
-        int argCount = 0;
-        if (!check(TokenType::RIGHT_PAREN)) {
-            do {
-                expression();
-                argCount++;
-            } while (match(TokenType::COMMA));
-        }
-        consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments.");
-
-        emit(Opcode::METHOD_CALL,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), object.lexeme + "." + method.lexeme});
-        emit(Opcode::PUSH_ARGS, peek().line, Value{std::make_shared<Type>(TypeTag::Int), argCount});
-    } else {
-        // This is a property access, not a method call
-        emit(Opcode::LOAD_PROPERTY,
-             peek().line,
-             Value{std::make_shared<Type>(TypeTag::String), object.lexeme + "." + method.lexeme});
     }
 }
 
