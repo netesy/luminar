@@ -35,7 +35,7 @@ add_executable(luminar src/main.cpp
     src/memory.hh src/memory.cpp
     test/tst_parser.cpp
     test/tst_scanner.cpp
-    sample/sample.lm sample/sample_new.lm
+    sample/sample.lm
     src/optimizer.hh
     src/value.hh
     src/classes.hh
