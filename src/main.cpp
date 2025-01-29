@@ -130,12 +130,15 @@ private:
 public:
     static void showLogo()
     {
-        std::cout << "\033[1;33m"
-                  << "     \\   /       _\n"
-                  << "      .-'-.     | |\n"
-                  << "   --(     )--  | |\n"
-                  << "      `-'-'     |_|  Luminar Interpreter\n"
-                  << "     /   \\           Version 1.0.0\n\033[0m";
+            std::cout << "\033[1;33m"
+                         "##      ##    ##  ###    ###  ##  ###    ##  #####  #####   \n"
+                         "##      ##    ##  ####  ####  ##  ####   ##  ##  ##  ##  ##  \n"
+                         "##      ##    ##  ## #### ##  ##  ## ##  ##  ######  #####   \n"
+                         "##      ##    ##  ##  ##  ##  ##  ##  ## ##  ##  ##  ##  ##  \n"
+                         "######   ######   ##      ##  ##  ##   ####  ##  ##  ##  ##  \n"
+                         "######    ####    ##      ##  ##  ##    ###  ##  ##  ##  ##  \n"
+                         "         Luminar Interpreter - Version 0.0.1              \n"
+                         "\033[0m";
     }
 
     static void showHelp(const char *programName)
@@ -173,8 +176,10 @@ public:
 
         if (argc < 2) {
             showLogo();
-            std::cout << "\033[1;34mEnter a command (or 'help' for usage info):\033[0m\n";
-            std::getline(std::cin, command);
+            // std::cout << "\033[1;34mEnter a command (or 'help' for usage info):\033[0m\n";
+            // std::getline(std::cin, command);
+            showHelp("luminar");
+            REPL::startDevMode("");
 
             // Handle empty input by showing help and starting REPL
             if (command.empty()) {
