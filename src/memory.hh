@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "memory_analyzer.hh"
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -266,6 +267,7 @@ private:
     bool auditMode;
     Allocator allocator;
     AllocationTracker tracker;
+    MemoryAnalyzer analyzer;
 
     std::atomic<size_t> activeRegionsCount{0}, activeReferencesCount{0}, activeLinearsCount{0};
     size_t totalAllocated = 0, peakMemoryUsage = 0, allocationCount = 0;
@@ -301,6 +303,7 @@ public:
 
     ~MemoryManager()
     {
+        analyzeMemoryUsage();
         log("MemoryManager destroyed");
         logFile.close();
     }
@@ -314,6 +317,7 @@ public:
     void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
         void *ptr = allocator.allocate(size, alignment);
+        analyzer.recordAllocation(ptr, size, auditMode ? TRACE_INFO() : "");
         tracker.add(ptr, size, auditMode ? TRACE_INFO() : "", 1);
         totalAllocated += size;
         peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
@@ -326,6 +330,7 @@ public:
 
     void deallocate(void *ptr)
     {
+        analyzer.recordDeallocation(ptr);
         if (auto *info = tracker.get(ptr)) {
             totalAllocated -= info->size;
             deallocationCount++;
@@ -344,6 +349,158 @@ public:
                 + std::to_string(std::chrono::duration_cast<std::chrono::seconds>(duration).count())
                 + " seconds ago");
         }
+    }
+
+    void analyzeMemoryUsage() const {
+        auto report = analyzer.generateReport();
+        std::cout << "\nMemory Analysis Report:\n";
+        std::cout << std::string(50, '=') << "\n";
+        std::cout << "Overall Health Score: " << std::fixed << std::setprecision(1)
+                  << report.overallHealth << "/100\n\n";
+
+        if (!report.memoryLeaks.empty()) {
+            std::cout << "Memory Leaks:\n";
+            std::cout << std::string(20, '-') << "\n";
+            for (const auto& leak : report.memoryLeaks) {
+                std::cout << "- " << leak << "\n";
+            }
+            std::cout << "\n";
+        }
+
+        if (!report.fragmentationIssues.empty()) {
+            std::cout << "Fragmentation Issues:\n";
+            std::cout << std::string(20, '-') << "\n";
+            for (const auto& issue : report.fragmentationIssues) {
+                std::cout << "- " << issue << "\n";
+            }
+            std::cout << "\n";
+        }
+
+        if (!report.performanceWarnings.empty()) {
+            std::cout << "Performance Warnings:\n";
+            std::cout << std::string(20, '-') << "\n";
+            for (const auto& warning : report.performanceWarnings) {
+                std::cout << "- " << warning << "\n";
+            }
+            std::cout << "\n";
+        }
+
+        std::cout << "Detailed Memory Statistics:\n";
+        std::cout << std::string(50, '=') << "\n\n";
+
+        // Size Class Distribution
+        std::cout << "Allocation Size Distribution:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto sizeDistribution = analyzer.getSizeDistribution();
+        if (sizeDistribution.empty()) {
+            std::cout << "No allocations recorded yet\n";
+        } else {
+            for (const auto& [sizeClass, count] : sizeDistribution) {
+                std::cout << std::setw(8) << sizeClass << " bytes: "
+                          << std::string(count / 10, '|') << " " << count << "\n";
+            }
+        }
+        std::cout << "\n";
+
+        // Temporal Analysis
+        std::cout << "Temporal Analysis:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto temporalMetrics = analyzer.getTemporalMetrics();
+        std::cout << "Peak Allocation Rate: " << std::fixed << std::setprecision(1)
+                  << temporalMetrics.peakAllocationRate << " allocs/sec\n";
+        std::cout << "Average Allocation Lifetime: " << std::fixed << std::setprecision(1)
+                  << temporalMetrics.averageLifetime << " ms\n";
+
+        if (!temporalMetrics.hotspots.empty()) {
+            std::cout << "\nAllocation Hotspots:\n";
+            for (const auto& hotspot : temporalMetrics.hotspots) {
+                std::cout << "- " << hotspot << "\n";
+            }
+        }
+        std::cout << "\n";
+
+        // Thread Analysis
+        std::cout << "Thread Analysis:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto threadMetrics = analyzer.getThreadMetrics();
+        for (const auto& [threadId, metrics] : threadMetrics) {
+            std::cout << "Thread " << threadId << ":\n";
+            std::cout << "  Total Allocations: " << metrics.totalAllocations << "\n";
+            std::cout << "  Active Allocations: " << metrics.activeAllocations << "\n";
+            std::cout << "  Peak Memory Usage: " << metrics.peakMemoryUsage << " bytes\n\n";
+        }
+
+        // Alignment Analysis
+        std::cout << "Alignment Analysis:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto alignmentMetrics = analyzer.getAlignmentMetrics();
+        std::cout << "Suboptimal Alignments: " << alignmentMetrics.suboptimalCount << "\n";
+        std::cout << "Average Padding Waste: " << std::fixed << std::setprecision(1)
+                  << alignmentMetrics.averagePaddingWaste << " bytes\n\n";
+
+        // Cache Analysis
+        std::cout << "Cache Performance:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto cacheMetrics = analyzer.getCacheMetrics();
+        double hitRate = 0.0;
+        if (cacheMetrics.hits + cacheMetrics.misses > 0) {
+            hitRate = (cacheMetrics.hits * 100.0) / (cacheMetrics.hits + cacheMetrics.misses);
+        }
+        std::cout << "Cache Hit Rate: " << std::fixed << std::setprecision(1) << hitRate << "%\n";
+        std::cout << "Average Cache Access Time: " << std::fixed << std::setprecision(1)
+                  << cacheMetrics.averageAccessTime << " ns\n\n";
+
+        // Memory Access Patterns
+        std::cout << "Memory Access Patterns:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto accessPatterns = analyzer.getAccessPatterns();
+        if (accessPatterns.empty()) {
+            std::cout << "No access patterns recorded yet\n";
+        } else {
+            for (const auto& pattern : accessPatterns) {
+                std::cout << "- " << pattern.description << "\n";
+            }
+        }
+        std::cout << "\n";
+
+        // Recommendations
+        std::cout << "Recommendations:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto recommendations = analyzer.getRecommendations();
+        for (const auto& rec : recommendations) {
+            std::stringstream ss;
+            ss << "- " << rec;
+            std::string recommendation = ss.str();
+            // Ensure the line doesn't break in the middle of a word
+            if (recommendation.find("\n") != std::string::npos) {
+                recommendation.erase(std::remove(recommendation.begin(), recommendation.end(), '\n'),
+                                     recommendation.end());
+            }
+            std::cout << recommendation << "\n";
+        }
+        std::cout << "\n";
+
+        // Health Score Breakdown
+        std::cout << "Health Score Breakdown:\n";
+        std::cout << std::string(20, '-') << "\n";
+        auto healthMetrics = analyzer.getHealthMetrics();
+        std::cout << "Memory Fragmentation: " << std::fixed << std::setprecision(1)
+                  << healthMetrics.fragmentationScore << "/100\n";
+        std::cout << "Allocation Efficiency: " << std::fixed << std::setprecision(1)
+                  << healthMetrics.efficiencyScore << "/100\n";
+        std::cout << "Cache Utilization: " << std::fixed << std::setprecision(1)
+                  << healthMetrics.cacheScore << "/100\n";
+        std::cout << "Memory Safety: " << std::fixed << std::setprecision(1)
+                  << healthMetrics.safetyScore << "/100\n";
+        std::cout << std::string(20, '-') << "\n";
+    }
+
+    std::string getCurrentTimestamp() const {
+        auto now = std::chrono::system_clock::now();
+        auto now_time = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&now_time), "%Y-%m-%d %H:%M:%S");
+        return ss.str();
     }
 
     void printStatistics() const
@@ -368,6 +525,7 @@ public:
 
         //log(ss.str());
         std::cout << ss.str();
+        analyzeMemoryUsage();
     }
 
     class Region
