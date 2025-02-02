@@ -39,6 +39,8 @@ add_executable(luminar src/main.cpp
     src/optimizer.hh
     src/value.hh
     src/classes.hh
+    src/tutorial.hh
+    src/memory_analyzer.hh
 
 )
 
