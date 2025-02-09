@@ -2,8 +2,6 @@
 
 // Luminar Programming Language
 // Key Features:
-// - Subtyping and Row Polymorphism
-// - Inline Assembly (Restricted)
 // - Controlled Unsafe Operations
 
 // ---------------------------------------------------
@@ -18,9 +16,8 @@
 type int = i64;          // Default integer type
 type uint = u64;         // Unsigned integer
 type float = f64;        // Default float type
-type bool = boolean;     // Boolean type
-type str = string;       // String type
-type char = character;   // Character type
+type bool = bool;     // Boolean type
+type str = str;       // String type
 
 // Type Aliases
 type Id = uint;
@@ -29,32 +26,26 @@ type Age = uint;
 
 // Generic Type Parameters
 type Result<T, E> = Success(T) | Error(E);
-type Option<T> = Some(T) | None;
+type Option<T> = Some(T) | nil;
 type List<T> = [T];
 type Dict<K: Hashable, V> = {K: V};
 
 // Traits (Interfaces)
 //!todo Not Yet Implemented
+@open
 trait Hashable {
     fn hash(): uint;
     fn equals(other: Self): bool;
 }
 
+@open
 trait Display {
     fn to_string(): str;
 }
 
+@open
 trait Clone {
     fn clone(): Self;
-}
-
-// Type Constraints
-//!todo Not Yet Implemented
-trait Numeric {
-    fn zero(): Self;
-    fn one(): Self;
-    fn add(other: Self): Self;
-    fn multiply(other: Self): Self;
 }
 
 // Union Types
@@ -79,33 +70,44 @@ print("Hello, " + "Luminar!");      // String concatenation
 // ---------------------------------------------------
 // Loops
 // ---------------------------------------------------
+// C style for loops for legacy code
+for (var i = 0; i < 10; i += 1) {
+    print(i);
+}
 
 // Range-based loop
-for (i in 1..5) {
+iter (i in 1..5) {
   print("Range iteration: {i}");
 }
 
 // List-based loop
 var fruits: list<str> = ["Apple", "Banana", "Cherry"];
-for (fruit in fruits) {
+iter (fruit in fruits) {
   print(fruit);
 }
 
 // List-based loop
 var fruits: list = ["Apple", "Banana", "Cherry"];
-for (fruit in fruits) {
+iter (fruit in fruits) {
   print(fruit);
 }
 
 // Dictionary iteration
 var my_dict: dict = {"a": 1, "b": 2, "c": 3};
-for (key, value in my_dict) {
+iter (key, value in my_dict) {
     print("{key}: {value}");
 }
 
 var my_dict: dict<str, int> = {"a": 1, "b": 2, "c": 3};
-for (key, value in my_dict) {
+iter (key, value in my_dict) {
     print("{key}: {value}");
+}
+
+// Nested loop
+iter (x in 1..3) {
+  iter (y in 1..2) {
+    print("x: {x}, y: {y}");
+  }
 }
 
 // While loop
@@ -113,13 +115,6 @@ var count: int = 0;
 while (count < 3) {
   print("Count: {count}");
   count += 1;
-}
-
-// Nested loop
-for (x in 1..3) {
-  for (y in 1..2) {
-    print("x: {x}, y: {y}");
-  }
 }
 
 // ---------------------------------------------------
@@ -148,28 +143,29 @@ fn read_from_file(filename: str): str? {
 // ---------------------------------------------------
 // Modules
 // ---------------------------------------------------
+@private: Accessible only within the file.
+@protected: Accessible within the module but not externally.
 
 module MathUtils {
-  fn add(a: int, b: int): int {
-    return a + b;
-  }
+    @public
+    fn add(a: int, b: int): int {
+        return a + b;
+    }
 
-  fn subtract(a: int, b: int): int {
-    return a - b;
-  }
+    @public
+    fn subtract(a: int, b: int): int {
+        return a - b;
+    }
 
-  fn factorial(n: int): int {
-    if n <= 1 { return 1; }
-    return n * factorial(n - 1);
-  }
+    fn factorial(n: int): int {
+        if n <= 1 { return 1; }
+        return n * factorial(n - 1);
+    }
 }
 
-fn factorial(n: int) : int { if n <= 1 { return 1; } else { return n * factorial(n - 1); } }
-
-// Using the module
 import MathUtils;
 print(MathUtils.add(5, 3));         // Output: 8
-print(MathUtils.factorial(4));     // Output: 24
+print(MathUtils.factorial(4));      // Output: 24
 
 // ---------------------------------------------------
 // Error Handling
@@ -187,45 +183,262 @@ match divide(10, 0) {
   None => print("Error: Division by zero")
 }
 
+
+// Contract function for enforcing conditions at runtime or comptime
+fn contract(condition: bool, message: str, action: str = "throw") {
+    if !condition {
+        match action {
+            "throw"  => throw Error(message),
+            "warn"   => debug("Warning: " + message),
+            "log"    => log("Contract Violation: " + message),
+            _        => throw Error("Invalid contract action")
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Function Contracts: Preconditions & Postconditions
+// ────────────────────────────────────────────────────────────────────
+
+fn sqrt(x: float): float {
+    contract(x >= 0, "Cannot compute sqrt of negative number"); // Precondition
+
+    var result = x ** 0.5;
+
+    contract(result >= 0, "Result must be non-negative"); // Postcondition
+    return result;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Class Contracts: Ensuring Invariants
+// ────────────────────────────────────────────────────────────────────
+
+class BankAccount {
+    var balance: float;
+
+    // Constructor enforces initial invariants
+    BankAccount(initial_balance: float) {
+        contract(initial_balance >= 0, "Initial balance cannot be negative");
+        self.balance = initial_balance;
+    }
+
+    // Method contracts enforce valid operations
+    fn deposit(amount: float) {
+        contract(amount > 0, "Deposit amount must be positive");
+        self.balance += amount;
+    }
+
+    fn withdraw(amount: float) {
+        contract(amount > 0, "Withdrawal amount must be positive");
+        contract(self.balance >= amount, "Insufficient funds");
+        self.balance -= amount;
+    }
+}
+
+
+
+
+// ────────────────────────────────────────────────────────────────────
+// Loop Contracts: Maintaining Invariants
+// ────────────────────────────────────────────────────────────────────
+
+fn factorial(n: int): int {
+    var result: int = 1;
+
+    iter (i in 1..n) {
+        contract(result > 0, "Factorial result must always be positive"); // Invariant
+        result *= i;
+    }
+
+    return result;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Compile-Time Contracts: Ensuring Safety at Compilation
+// ────────────────────────────────────────────────────────────────────
+
+comptime fn assert_positive(n: int) {
+    contract(n > 0, "Expected positive number");
+}
+
+fn pow(base: int, exp: int): int {
+    assert_positive(exp); // Compile-time check
+
+    var result: int = 1;
+    iter (_ in 1..exp) { result *= base; }
+
+    return result;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Compile-Time Contracts: Enforcing Safety Before Execution
+// ────────────────────────────────────────────────────────────────────
+
+comptime fn assert_positive(n: int) {
+    contract(n > 0, "Expected positive number at compile-time");
+}
+
+// Ensures that array size is valid at compile-time
+comptime fn assert_valid_size(size: int) {
+    contract(size > 0, "Array size must be greater than zero");
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Compile-Time Checked Functions
+// ────────────────────────────────────────────────────────────────────
+
+// Compile-time exponentiation
+fn pow(base: int, exp: int): int {
+    assert_positive(exp); // Compile-time check
+    var result: int = 1;
+    iter (_ in 1..exp) { result *= base; }
+    return result;
+}
+
+// Compile-time fixed-size array
+comptime fn create_array(size: int): List<int> {
+    assert_valid_size(size); // Prevents invalid array sizes
+    return List<int>(size, 0);
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Compile-Time Optimizations Using Contracts
+// ────────────────────────────────────────────────────────────────────
+
+// Compile-time constant folding
+comptime fn compute_area(radius: float): float {
+    contract(radius > 0, "Radius must be positive");
+    return 3.14159 * radius * radius; // Computed at compile-time if possible
+}
+
+// Compile-time validated lookup table
+comptime fn create_lookup_table(): dict<int, float> {
+    var table: dict<int, float> = {};
+    iter (i in 1..10) {
+        contract(i > 0, "Index must be positive"); // Ensure valid indexing
+        table[i] = i ** 0.5;
+    }
+    return table;
+}
+
 // ---------------------------------------------------
 // Classes and Objects
 // ---------------------------------------------------
 
+@open
 class Vehicle {
-  var name: str;
-  var speed: int;
+    var name: str;
+    var speed: int;
 
-  Vehicle(name: str, speed: int) {
-    self.name = name;
-    self.speed = speed;
-  }
+    Vehicle(name: str, speed: int) {
+        self.name = name;
+        self.speed = speed;
+    }
 
-  fn display() {
-    print("Vehicle Name: {self.name}, Speed: {self.speed}");
-  }
+    @public
+    fn display(): void {
+        print("Vehicle Name: {self.name}, Speed: {self.speed}");
+    }
 }
 
-// Inheritance example
-class Car : Vehicle {
-  var model: str;
+// Inheritance
+class Car(Vehicle) {
+    var model: str;
 
-  Car(name: str, speed: int, model: str) : Vehicle(name, speed) {
-    self.model = model;
-  }
+    Car(name: str, speed: int, model: str): Vehicle(name, speed) {
+        self.model = model;
+    }
 
-  fn display() {
-    print("Car Model: {self.model}, Name: {self.name}, Speed: {self.speed}");
-  }
+    @public
+    fn display(): void {
+        print("Car Model: {self.model}, Name: {self.name}, Speed: {self.speed}");
+    }
 }
 
 var my_car = Car("Toyota", 120, "Corolla");
-my_car.display();                  // Output: Car Model: Corolla, Name: Toyota, Speed: 120
+my_car.display(); // Output: Car Model: Corolla, Name: Toyota, Speed: 120
+
+// ---------------------------------------------------
+// Interfaces and Mixins
+// ---------------------------------------------------
+
+@open
+interface Serializable {
+    fn serialize(): str;
+    fn deserialize(data: str): bool;
+}
+
+@open
+mixin Loggable {
+    fn log(message: str): void {
+        self.logger.info(message);
+    }
+
+    fn error(message: str): void {
+        self.logger.error(message);
+    }
+}
+
+@open
+class Base {
+    fn init(): void {
+        self.data = "";
+    }
+
+    fn validate(): bool {
+        return true;
+    }
+}
+
+class DataHandler(Base): implements Serializable with Loggable {
+    var _data: str;
+
+    @property
+    fn data(): str {
+        return self._data;
+    }
+
+    @public
+    fn set_data(value: str): void {
+        if len(value) > 0 {
+            self._data = value;
+        }
+    }
+
+    @cache
+    fn process_data(input: str, iterations: int = 1): str {
+        var result: str = input;
+        iter (i in 1..iterations) {
+            result = self.transform(result);
+        }
+        return result;
+    }
+
+    fn serialize(): str {
+        self.log("Serializing data");
+        return json.stringify({
+            "data": self._data,
+            "timestamp": time.now()
+        });
+    }
+
+    fn deserialize(data: str): bool {
+        try {
+            var parsed = json.parse(data);
+            self._data = parsed.data;
+            return true;
+        } catch {
+            self.error("Failed to deserialize");
+            return false;
+        }
+    }
+}
 
 // ---------------------------------------------------
 // Parallel Processing
 // ---------------------------------------------------
 
-fn spawn_task(id: int, ch: Channel<str>): None {
+fn spawn_task(id: int, ch: Channel<str>): nil {
     print("Executing parallel task {id}");
     sleep(randint(1, 3));  // Simulate computation or I/O operation
     ch.send("Task {id} completed");
@@ -234,13 +447,13 @@ fn spawn_task(id: int, ch: Channel<str>): None {
 // Execute multiple tasks in parallel with channels
 var task_channel: Channel<str> = Channel();
 parallel(tasks, cores=Auto, on_error=Auto) {
-    for (var i = 1; i <= 3; i++) {
+    iter (var i = 1; i <= 3; i++) {
         spawn_task(i, task_channel);
     }
 }
 
 // Collect results
-for (message in task_channel) {
+iter (message in task_channel) {
     print("Received: {message}");
 }
 
@@ -251,22 +464,20 @@ for (message in task_channel) {
 var shared_counter: Atomic<int> = Atomic(0);
 var counter_channel: Channel<int> = Channel();
 
-fn run_task(id: int, ch: Channel<int>): None {
+fn run_task(id: int, ch: Channel<int>): nil {
     print("Executing concurrent task {id}");
     sleep(randint(1, 3));
     shared_counter.fetch_add(1);
     ch.send(shared_counter.get());
 }
 
-// Execute multiple tasks concurrently with channels
 concurrent(tasks, cores=Auto, on_error=Auto) {
-    for (var i = 1; i <= 3; i++) {
+    iter (var i = 1; i <= 3; i++) {
         run_task(i, counter_channel);
     }
 }
 
-// Collect results
-for (count in counter_channel) {
+iter (count in counter_channel) {
     print("Updated counter: {count}");
 }
 
@@ -283,13 +494,13 @@ fn stream_worker(event: StreamEvent, ch: Channel<ProcessedEvent>): None {
 }
 
 concurrent(stream_tasks, cores=Auto, on_error=Auto) {
-    for (event in kafka_stream.receive()) {
+    iter (event in kafka_stream.receive()) {
         run_task(event, stream_channel);
     }
 }
 
 // Process stream results
-for (event in stream_channel) {
+iter (event in stream_channel) {
     handle_processed_event(event);
 }
 
@@ -297,20 +508,154 @@ for (event in stream_channel) {
 // Pattern Matching
 // ---------------------------------------------------
 
-fn match_example(value: Any): void {
-  match value {
-    int => print("Integer: {value}"),
-    str => print("String: {value}"),
-    list<int> => print("List of integers: {value}"),
-    dict<str, int> => print("Dictionary: {value}"),
-    _ => print("Unknown type")
-  }
+fn match_example(value: any): nil {
+    match value {
+        int => print("Integer: {value}"),
+        str => print("String: {value}"),
+        list<int> => print("List of integers: {value}"),
+        dict<str, int> => print("Dictionary: {value}"),
+        _ => print("Unknown type")
+    }
 }
 
 match_example(42);
 match_example("Hello, Luminar!");
 match_example([1, 2, 3]);
 match_example({ "a": 1, "b": 2 });
+
+// ---------------------------------------------------
+// Unsafe Code
+// ---------------------------------------------------
+
+// Basic unsafe memory operations
+unsafe {
+    // Direct allocation with size and alignment
+    var ptr = memory.allocate(1000, 8);
+    memory.set(ptr, 0, 1000);
+    memory.deallocate(ptr);
+}
+
+// Unsafe memory operations through classes
+class RawBuffer {
+    var ptr: *void;
+    var size: uint;
+
+    RawBuffer(size: uint) {
+        unsafe {
+            self.ptr = memory.allocate(size);
+            self.size = size;
+        }
+    }
+
+    fn resize(new_size: uint): bool {
+        unsafe {
+            var new_ptr = memory.allocate(new_size);
+            if new_ptr == nil { return false; }
+
+            memory.copy(new_ptr, self.ptr, min(self.size, new_size));
+            memory.deallocate(self.ptr);
+
+            self.ptr = new_ptr;
+            self.size = new_size;
+            return true;
+        }
+    }
+
+    fn ~destructor() {
+        unsafe {
+            memory.deallocate(self.ptr);
+        }
+    }
+}
+
+// Safe wrapper class around unsafe memory
+class SafeBuffer {
+    private var raw: RawBuffer;
+
+    SafeBuffer(size: uint) {
+        contract(size > 0, "Buffer size must be positive");
+        self.raw = RawBuffer(size);
+    }
+
+    fn resize(new_size: uint): Result<void, str> {
+        contract(new_size > 0, "New size must be positive");
+
+        if !self.raw.resize(new_size) {
+            return Error("Failed to resize buffer");
+        }
+        return Success(void);
+    }
+}
+
+// Example class using unsafe operations internally
+class FastArray<T> {
+    private var data: *T;
+    private var length: uint;
+    private var capacity: uint;
+
+    FastArray(initial_capacity: uint = 16) {
+        unsafe {
+            self.data = memory.allocate(initial_capacity * sizeof(T));
+            self.length = 0;
+            self.capacity = initial_capacity;
+        }
+    }
+
+    fn push(item: T): void {
+        if self.length == self.capacity {
+            self.grow();
+        }
+
+        unsafe {
+            memory.copy(self.data + self.length, &item, sizeof(T));
+            self.length += 1;
+        }
+    }
+
+    private fn grow(): void {
+        unsafe {
+            var new_capacity = self.capacity * 2;
+            var new_data = memory.allocate(new_capacity * sizeof(T));
+
+            memory.copy(new_data, self.data, self.length * sizeof(T));
+            memory.deallocate(self.data);
+
+            self.data = new_data;
+            self.capacity = new_capacity;
+        }
+    }
+
+    fn ~destructor() {
+        unsafe {
+            memory.deallocate(self.data);
+        }
+    }
+}
+
+// Thread-safe memory operations
+class AtomicMemory {
+    fn static exchange(ptr: *int, new_value: int): int {
+        unsafe {
+            return memory.atomic_exchange(ptr, new_value);
+        }
+    }
+}
+
+// Example usage
+fn process_data(data: List<int>): Result<int, str> {
+    var total: int = 0;
+
+    unsafe {
+        var raw_ptr = data.as_ptr();
+        var len = data.len();
+
+        iter (var i = 0; i < len; i++) {
+            total += memory.read<int>(raw_ptr + i);
+        }
+    }
+
+    return Success(total);
+}
 
 // ---------------------------------------------------
 // Planned Features
