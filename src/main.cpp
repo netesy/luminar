@@ -147,17 +147,25 @@ public:
     static void showZenOfLuminar()
     {
         std::cout << "\033[1;36mThe Zen of Luminar:\033[0m\n"
-                  << "1. Readability Counts\n"
-                  << "2. Efficiency Matters\n"
-                  << "3. Simplicity is Key\n"
-                  << "4. Expressiveness\n"
-                  << "5. Flexibility\n"
-                  << "6. Safety with Power\n"
-                  << "7. Consistency\n"
-                  << "8. Interoperability\n"
-                  << "9. Modularity\n"
-                  << "10. Error Handling\n";
+                  << "1. Readability Counts: Code should be easy to read and understand.\n"
+                  << "2. Efficiency Matters: Optimize for performance without sacrificing clarity.\n"
+                  << "3. Simplicity is Key: Prefer simple solutions over complex ones.\n"
+                  << "4. Expressiveness: Provide powerful language features without unnecessary verbosity.\n"
+                  << "5. Flexibility: Support both low-level and high-level programming paradigms.\n"
+                  << "6. Safety with Power: Enable advanced features while ensuring safe usage.\n"
+                  << "7. Consistency: Follow uniform conventions and patterns throughout the language.\n"
+                  << "8. Interoperability: Allow seamless integration with other languages and systems.\n"
+                  << "9. Modularity: Encourage splitting code into reusable modules.\n"
+                  << "10. Error Handling: Make error detection and handling straightforward and explicit.\n"
+                  << "11. Scalability: Support small scripts to large, complex systems with ease.\n"
+                  << "12. Concurrency: Facilitate concurrent and parallel programming naturally.\n"
+                  << "13. Memory Management: Balance automatic and manual memory management efficiently.\n"
+                  << "14. Documentation: Ensure every feature is well-documented and discoverable.\n"
+                  << "15. Evolve Gracefully: Allow the language to grow without breaking existing code.\n"
+                  << "16. Community: Foster an open and welcoming community for contributors.\n"
+                  << "17. Tooling: Provide robust tools for development, debugging, and deployment.\n";
     }
+
 
     static void showLogo()
     {
