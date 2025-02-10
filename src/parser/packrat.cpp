@@ -35,7 +35,6 @@ Bytecode PackratParser::parse()
         auto optimization_duration = std::chrono::duration_cast<std::chrono::microseconds>(optimization_end_time - optimization_start_time);
 
         std::cout << "Bytecode Optimizations completed in " << optimization_duration.count() << " microseconds." << std::endl;
-       // std::cout << "Parsing debug " << toString() << std::endl;
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -1508,7 +1507,7 @@ void PackratParser::handle_identifier()
 Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber)
 {
     Instruction instruction(opcode, lineNumber);
-   instruction.debug();
+   //instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
@@ -1517,7 +1516,7 @@ Instruction PackratParser::emit(Opcode opcode, uint32_t lineNumber, Value &&valu
 {
     ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
     Instruction instruction(opcode, lineNumber, valuePtr);
-   instruction.debug();
+   //instruction.debug();
     bytecode.push_back(instruction);
     return instruction;
 }
