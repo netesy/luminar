@@ -10,13 +10,11 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <new>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -33,9 +31,39 @@ constexpr size_t MAX_SMALL_SIZE = SMALL_SIZES.back();
 constexpr size_t BLOCK_SIZE = 64 * 1024; // 64KB blocks
 constexpr size_t MAX_BLOCKS_PER_CHUNK = 64;
 
+class MemoryPool {
+private:
+    std::vector<void*> freeList;  // Reusable free memory blocks
+
+public:
+    // Allocate a block from the pool
+    void* allocate(size_t size) {
+        if (freeList.empty()) {
+            return operator new(size); // Allocate new block if pool is empty
+        }
+        void* ptr = freeList.back();
+        freeList.pop_back();
+        return ptr;
+    }
+
+    // Deallocate a block, returning it to the pool
+    void deallocate(void* ptr) {
+        freeList.push_back(ptr);
+    }
+
+    // Clear the pool (deallocate all blocks)
+    void clear() {
+        for (void* ptr : freeList) {
+            operator delete(ptr);
+        }
+        freeList.clear();
+    }
+};
+
 class DefaultAllocator
 {
 private:
+    MemoryPool pool;  // Instance of MemoryPool for reusing memory
     struct Block
     {
         uint8_t *memory;
@@ -269,263 +297,41 @@ private:
     AllocationTracker tracker;
     MemoryAnalyzer analyzer;
 
-    std::atomic<size_t> activeRegionsCount{0}, activeReferencesCount{0}, activeLinearsCount{0};
-    size_t totalAllocated = 0, peakMemoryUsage = 0, allocationCount = 0;
-    size_t deallocationCount = 0, largestAllocation = 0;
-
-    void log(const std::string &message) const
-    {
-        std::lock_guard lock(logMutex);
-        if (logFile.is_open()) {
-            logFile << "[" << getTimestamp() << "] " << message << std::endl;
-            logFile.flush();
-        }
-    }
-
-    std::string getTimestamp() const
-    {
-        auto now = std::chrono::system_clock::now();
-        auto in_time_t = std::chrono::system_clock::to_time_t(now);
-        std::stringstream ss;
-        ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
-        return ss.str();
-    }
-
 public:
     MemoryManager(bool enableAudit = false)
         : auditMode(enableAudit)
     {
-        logFile.open("memory.log", std::ios::app);
-        if (!logFile)
-            throw std::runtime_error("Failed to open memory.log");
-        log("MemoryManager initialized");
     }
 
     ~MemoryManager()
     {
         analyzeMemoryUsage();
-        log("MemoryManager destroyed");
-        logFile.close();
     }
 
     void setAuditMode(bool enable)
     {
         auditMode = enable;
-        log("Audit mode " + std::string(enable ? "enabled" : "disabled"));
     }
 
     void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
         void *ptr = allocator.allocate(size, alignment);
         analyzer.recordAllocation(ptr, size, auditMode ? TRACE_INFO() : "");
-        tracker.add(ptr, size, auditMode ? TRACE_INFO() : "", 1);
-        totalAllocated += size;
-        peakMemoryUsage = std::max(peakMemoryUsage, totalAllocated);
-        allocationCount++;
-        largestAllocation = std::max(largestAllocation, size);
-        log("Allocated " + std::to_string(size) + " bytes at "
-            + std::to_string(reinterpret_cast<uintptr_t>(ptr)));
         return ptr;
     }
 
     void deallocate(void *ptr)
     {
         analyzer.recordDeallocation(ptr);
-        if (auto *info = tracker.get(ptr)) {
-            totalAllocated -= info->size;
-            deallocationCount++;
-            allocator.deallocate(ptr);
-            tracker.remove(ptr);
-        }
-    }
-
-    void reportLeaks() const
-    {
-        log("Memory leaks detected:");
-        for (const auto &[ptr, info] : this->tracker) {
-            auto duration = std::chrono::steady_clock::now() - info->timestamp;
-            log("- Leak: " + std::to_string(info->size) + " bytes at "
-                + std::to_string(reinterpret_cast<uintptr_t>(ptr)) + ", allocated "
-                + std::to_string(std::chrono::duration_cast<std::chrono::seconds>(duration).count())
-                + " seconds ago");
-        }
+        allocator.deallocate(ptr);
     }
 
     void analyzeMemoryUsage() const {
-        auto report = analyzer.generateReport();
-        std::cout << "\nMemory Analysis Report:\n";
-        std::cout << std::string(50, '=') << "\n";
-        std::cout << "Overall Health Score: " << std::fixed << std::setprecision(1)
-                  << report.overallHealth << "/100\n\n";
-
-        if (!report.memoryLeaks.empty()) {
-            std::cout << "Memory Leaks:\n";
-            std::cout << std::string(20, '-') << "\n";
-            for (const auto& leak : report.memoryLeaks) {
-                std::cout << "- " << leak << "\n";
-            }
-            std::cout << "\n";
-        }
-
-        if (!report.fragmentationIssues.empty()) {
-            std::cout << "Fragmentation Issues:\n";
-            std::cout << std::string(20, '-') << "\n";
-            for (const auto& issue : report.fragmentationIssues) {
-                std::cout << "- " << issue << "\n";
-            }
-            std::cout << "\n";
-        }
-
-        if (!report.performanceWarnings.empty()) {
-            std::cout << "Performance Warnings:\n";
-            std::cout << std::string(20, '-') << "\n";
-            for (const auto& warning : report.performanceWarnings) {
-                std::cout << "- " << warning << "\n";
-            }
-            std::cout << "\n";
-        }
-
-        std::cout << "Detailed Memory Statistics:\n";
-        std::cout << std::string(50, '=') << "\n\n";
-
-        // Size Class Distribution
-        std::cout << "Allocation Size Distribution:\n";
         std::cout << std::string(20, '-') << "\n";
-        auto sizeDistribution = analyzer.getSizeDistribution();
-        if (sizeDistribution.empty()) {
-            std::cout << "No allocations recorded yet\n";
-        } else {
-            for (const auto& [sizeClass, count] : sizeDistribution) {
-                std::cout << std::setw(8) << sizeClass << " bytes: "
-                          << std::string(count / 10, '|') << " " << count << "\n";
-            }
-        }
-        std::cout << "\n";
+        auto reports = analyzer.getMemoryUsage();
+        analyzer.printMemoryUsageReport(reports);
 
-        // Temporal Analysis
-        std::cout << "Temporal Analysis:\n";
         std::cout << std::string(20, '-') << "\n";
-        auto temporalMetrics = analyzer.getTemporalMetrics();
-        std::cout << "Peak Allocation Rate: " << std::fixed << std::setprecision(1)
-                  << temporalMetrics.peakAllocationRate << " allocs/sec\n";
-        std::cout << "Average Allocation Lifetime: " << std::fixed << std::setprecision(1)
-                  << temporalMetrics.averageLifetime << " ms\n";
-
-        if (!temporalMetrics.hotspots.empty()) {
-            std::cout << "\nAllocation Hotspots:\n";
-            for (const auto& hotspot : temporalMetrics.hotspots) {
-                std::cout << "- " << hotspot << "\n";
-            }
-        }
-        std::cout << "\n";
-
-        // Thread Analysis
-        std::cout << "Thread Analysis:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto threadMetrics = analyzer.getThreadMetrics();
-        for (const auto& [threadId, metrics] : threadMetrics) {
-            std::cout << "Thread " << threadId << ":\n";
-            std::cout << "  Total Allocations: " << metrics.totalAllocations << "\n";
-            std::cout << "  Active Allocations: " << metrics.activeAllocations << "\n";
-            std::cout << "  Peak Memory Usage: " << metrics.peakMemoryUsage << " bytes\n\n";
-        }
-
-        // Alignment Analysis
-        std::cout << "Alignment Analysis:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto alignmentMetrics = analyzer.getAlignmentMetrics();
-        std::cout << "Suboptimal Alignments: " << alignmentMetrics.suboptimalCount << "\n";
-        std::cout << "Average Padding Waste: " << std::fixed << std::setprecision(1)
-                  << alignmentMetrics.averagePaddingWaste << " bytes\n\n";
-
-        // Cache Analysis
-        std::cout << "Cache Performance:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto cacheMetrics = analyzer.getCacheMetrics();
-        double hitRate = 0.0;
-        if (cacheMetrics.hits + cacheMetrics.misses > 0) {
-            hitRate = (cacheMetrics.hits * 100.0) / (cacheMetrics.hits + cacheMetrics.misses);
-        }
-        std::cout << "Cache Hit Rate: " << std::fixed << std::setprecision(1) << hitRate << "%\n";
-        std::cout << "Average Cache Access Time: " << std::fixed << std::setprecision(1)
-                  << cacheMetrics.averageAccessTime << " ns\n\n";
-
-        // Memory Access Patterns
-        std::cout << "Memory Access Patterns:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto accessPatterns = analyzer.getAccessPatterns();
-        if (accessPatterns.empty()) {
-            std::cout << "No access patterns recorded yet\n";
-        } else {
-            for (const auto& pattern : accessPatterns) {
-                std::cout << "- " << pattern.description << "\n";
-            }
-        }
-        std::cout << "\n";
-
-        // Recommendations
-        std::cout << "Recommendations:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto recommendations = analyzer.getRecommendations();
-        for (const auto& rec : recommendations) {
-            std::stringstream ss;
-            ss << "- " << rec;
-            std::string recommendation = ss.str();
-            // Ensure the line doesn't break in the middle of a word
-            if (recommendation.find("\n") != std::string::npos) {
-                recommendation.erase(std::remove(recommendation.begin(), recommendation.end(), '\n'),
-                                     recommendation.end());
-            }
-            std::cout << recommendation << "\n";
-        }
-        std::cout << "\n";
-
-        // Health Score Breakdown
-        std::cout << "Health Score Breakdown:\n";
-        std::cout << std::string(20, '-') << "\n";
-        auto healthMetrics = analyzer.getHealthMetrics();
-        std::cout << "Memory Fragmentation: " << std::fixed << std::setprecision(1)
-                  << healthMetrics.fragmentationScore << "/100\n";
-        std::cout << "Allocation Efficiency: " << std::fixed << std::setprecision(1)
-                  << healthMetrics.efficiencyScore << "/100\n";
-        std::cout << "Cache Utilization: " << std::fixed << std::setprecision(1)
-                  << healthMetrics.cacheScore << "/100\n";
-        std::cout << "Memory Safety: " << std::fixed << std::setprecision(1)
-                  << healthMetrics.safetyScore << "/100\n";
-        std::cout << std::string(20, '-') << "\n";
-    }
-
-    std::string getCurrentTimestamp() const {
-        auto now = std::chrono::system_clock::now();
-        auto now_time = std::chrono::system_clock::to_time_t(now);
-        std::stringstream ss;
-        ss << std::put_time(std::localtime(&now_time), "%Y-%m-%d %H:%M:%S");
-        return ss.str();
-    }
-
-    void printStatistics() const
-    {
-        std::stringstream ss;
-        ss << "Memory Manager Statistics:\n"
-           << "  Current Total Allocated: " << totalAllocated << " bytes\n"
-           << "  Peak Memory Usage: " << peakMemoryUsage << " bytes\n"
-           << "  Number of Allocations: " << allocationCount << "\n"
-           << "  Number of Deallocations: " << deallocationCount << "\n"
-           << "  Largest Allocation: " << largestAllocation << " bytes\n"
-           << "  Active Regions: " << activeRegionsCount << "\n"
-           << "  Active References: " << activeReferencesCount << "\n"
-           << "  Active Linears: " << activeLinearsCount << "\n";
-
-        if (allocationCount > 0) {
-            ss << "  Average Allocation Size: " << std::fixed << std::setprecision(2)
-               << static_cast<double>(totalAllocated) / allocationCount << " bytes\n";
-        } else {
-            ss << "  Average Allocation Size: N/A (no allocations)\n";
-        }
-
-        //log(ss.str());
-        std::cout << ss.str();
-        analyzeMemoryUsage();
     }
 
     class Region
@@ -540,9 +346,6 @@ public:
             : manager(mgr)
             , currentGeneration(0)
         {
-            manager.activeRegionsCount++;
-            manager.log("Region created. Active Regions: "
-                        + std::to_string(manager.activeRegionsCount));
         }
 
         ~Region()
@@ -550,9 +353,6 @@ public:
             for (const auto &[ptr, gen] : objectGenerations) {
                 manager.deallocate(ptr);
             }
-            manager.activeRegionsCount--;
-            manager.log("Region destroyed. Active Regions: "
-                        + std::to_string(manager.activeRegionsCount));
         }
 
         template<typename T, typename... Args>
@@ -597,9 +397,6 @@ public:
             , ownsResource(true)
             , manager(mgr)
         {
-            manager.activeLinearsCount++;
-            manager.log("Linear object created. Active Linears: "
-                        + std::to_string(manager.activeLinearsCount));
         }
 
         Linear(const Linear &) = delete;
@@ -638,7 +435,6 @@ public:
 
         T *borrow() const
         {
-            manager.log("Borrowing Linear resource.");
             return ptr;
         }
 
@@ -651,9 +447,6 @@ public:
                 region->deallocate(ptr);
                 ptr = nullptr;
                 ownsResource = false;
-                manager.activeLinearsCount--;
-                manager.log("Linear object destroyed. Active Linears: "
-                            + std::to_string(manager.activeLinearsCount));
             }
         }
     };
@@ -672,16 +465,12 @@ public:
         {
             if (refCount) {
                 refCount->fetch_add(1, std::memory_order_relaxed);
-                manager.activeReferencesCount++;
-                manager.log("Reference count incremented. Active References: "
-                            + std::to_string(manager.activeReferencesCount));
             }
         }
 
         void decrementRefCount()
         {
             if (refCount && refCount->fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                manager.log("Destroying Ref object");
                 delete refCount;
                 if (ptr && isValid()) {
                     ptr->~T();
@@ -690,9 +479,6 @@ public:
                 ptr = nullptr;
                 region = nullptr;
                 refCount = nullptr;
-                manager.activeReferencesCount--;
-                manager.log("Ref object destroyed. Active References: "
-                            + std::to_string(manager.activeReferencesCount));
             }
         }
 
@@ -712,9 +498,6 @@ public:
             , refCount(new std::atomic<int>(1))
             , manager(MemoryManager::getInstance())
         {
-            manager.activeReferencesCount++;
-            manager.log("Ref created. Active References: "
-                        + std::to_string(manager.activeReferencesCount));
         }
 
         Ref(const Ref &other)

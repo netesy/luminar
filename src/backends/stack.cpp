@@ -19,11 +19,11 @@ StackBackend::StackBackend(std::vector<Instruction> &program, Functions& funcs)
 StackBackend::~StackBackend()
 {
     clearStack();
-    memoryManager.printStatistics();
     while (!regionStack.empty()) {
         //  std::cout << "Popping region" << std::endl;
         popRegion();
     }
+    memoryManager.analyzeMemoryUsage();
 }
 
 void StackBackend::run(const std::vector<Instruction> &program)
@@ -716,7 +716,7 @@ void StackBackend::handleCallFunction(const std::string &functionName)
         std::cout << "Executing function: " << functionName << "\n";
         // Create a temporary vector for the full program
         std::vector<Instruction> newProgram;
-        
+
         // Reserve space for efficiency
         newProgram.reserve(program.size() + functionBody->size() + 1);
 
