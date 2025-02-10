@@ -26,6 +26,8 @@ public:
         registerAssert(functions, typeSystem);
         registerRound(functions, typeSystem);
         registerSleep(functions, typeSystem);
+        registerContract(functions, typeSystem);
+
         // registerPrint(functions, typeSystem);
         // registerListFunctions(functions, typeSystem);
         // registerFileOperations(functions, typeSystem);
@@ -399,6 +401,41 @@ private:
 
         functions.addBuiltinFunction("sleep", sleepParams, makeType(TypeTag::Nil), sleepImpl);
     }
+
+
+    static void registerContract(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
+    {
+        // contract(condition: bool, message: string, action: string = "throw") -> nil
+        std::vector<ParameterInfo> contractParams = {
+            ParameterInfo("condition", makeType(TypeTag::Bool), false),
+            ParameterInfo("message", makeType(TypeTag::String), false),
+            ParameterInfo("action", makeType(TypeTag::String), true, makeStringValue("throw"))
+        };
+
+        auto contractImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            bool condition = std::get<bool>(args[0]->data);
+            std::string message = std::get<std::string>(args[1]->data);
+            std::string action = std::get<std::string>(args[2]->data);
+
+            if (!condition) {
+                if (action == "throw") {
+                    throw std::runtime_error("Contract Violation: " + message);
+                } else if (action == "warn") {
+                    std::cerr << "Warning: " << message << std::endl;
+                } else if (action == "log") {
+                    std::ofstream logFile("contract.log", std::ios::app);
+                    logFile << "Contract Violation: " << message << std::endl;
+                } else {
+                    throw std::runtime_error("Invalid contract action: " + action);
+                }
+            }
+
+            return makeNilValue();
+        };
+
+        functions.addBuiltinFunction("contract", contractParams, makeType(TypeTag::Nil), contractImpl);
+    }
+
 
     // static void registerFileOperations(Functions &functions, std::shared_ptr<TypeSystem> typeSystem)
     // {
