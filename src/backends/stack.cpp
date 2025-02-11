@@ -5,6 +5,7 @@
 #include <iostream>
 #include <type_traits>
 // Define the thread_local static member outside the class
+//thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
 StackBackend::StackBackend(std::vector<Instruction> &program, Functions& funcs)
