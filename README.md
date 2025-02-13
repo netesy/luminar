@@ -334,6 +334,108 @@ parallel(tasks) {
 }
 ```
 
+Luminar Programming Language
+Luminar is a modern, statically typed programming language designed for safety, efficiency, and advanced programming paradigms.
+Key Features
+
+Strong static typing with advanced type system
+Compile-time and runtime contracts
+Sophisticated error handling
+Advanced memory management
+Parallel and concurrent processing
+Refinement types
+Pattern matching
+Modular design with traits and mixins
+
+Type System
+Primitive Types
+
+Integers: int (i64), uint (u64)
+Floating-point: float (f64)
+Boolean: bool
+String: str
+
+Advanced Type Capabilities
+
+Generic type parameters
+Union types
+Refined types
+Structural types
+Traits (interfaces)
+
+Type Examples
+luminarCopytype Result<T, E> = Success(T) | Error(E);
+type PositiveInt = int where value > 0;
+type EmailString = str where matches(value, email_regex);
+Error Handling
+Contract System
+Luminar provides a powerful contract system for runtime and compile-time validation:
+luminarCopyfn sqrt(x: float): float {
+    contract(x >= 0, "Cannot compute sqrt of negative number");
+    return x ** 0.5;
+}
+Error Propagation
+luminarCopyfn divide(a: int, b: int): int? {
+    if b == 0 {
+        return error("Division by zero");
+    }
+    return a / b;
+}
+Concurrency and Parallelism
+Parallel Processing
+luminarCopyparallel(tasks, cores=Auto, on_error=Auto) {
+    iter (var i = 1; i <= 3; i++) {
+        spawn_task(i, task_channel);
+    }
+}
+Concurrent Stream Processing
+luminarCopyconcurrent(stream_tasks, cores=Auto, on_error=Auto) {
+    iter (event in kafka_stream.receive()) {
+        run_task(event, stream_channel);
+    }
+}
+Classes and Interfaces
+Class Definition
+luminarCopy@open
+class Vehicle {
+    var name: str;
+    var speed: int;
+
+    Vehicle(name: str, speed: int) {
+        self.name = name;
+        self.speed = speed;
+    }
+}
+Interfaces and Mixins
+luminarCopyinterface Serializable {
+    fn serialize(): str;
+    fn deserialize(data: str): bool;
+}
+
+mixin Loggable {
+    fn log(message: str): void;
+    fn error(message: str): void;
+}
+Pattern Matching
+luminarCopyfn match_example(value: any): nil {
+    match value {
+        int => print("Integer"),
+        str => print("String"),
+        list<int> => print("List of integers"),
+        _ => print("Unknown type")
+    }
+}
+Compile-Time Features
+Compile-Time Contracts
+luminarCopycomptime fn assert_positive(n: int) {
+    contract(n > 0, "Expected positive number");
+}
+
+comptime fn create_array(size: int): List<int> {
+    assert_valid_size(size);
+    return List<int>(size, 0);
+}
+
 ## Memory Management
 
 Luminar's memory management is designed to be robust and efficient, combining linear-first and reference-first approaches along with manual management in unsafe code.
