@@ -57,20 +57,20 @@ private:
     Token previousToken;
 
     // Pratt parsing functions (adapt from first parser or rewrite)
-    void parsePrintStatement();      // print(), or debug() statements
-    void parseIfStatement();         // if, elif , else statement
-    void parseWhileLoop();           // while loop
-    void parseForLoop();             //Python like forloop
-    void parseMatchStatement();      // python like match and case
-    void parseConcurrentStatement(); // Concurrent Operations
-    void parseParallelStatement();   // Parallel Operations
-    void parseFnDeclaration();       // Adapt from first parser (if supported)
-    void parseFnCall();
-    void parseClassDeclaration(); // Adapt from first parser (if supported)
-    void parseReturnStatement();  // Adapt from first parser
+    std::unique_ptr<ASTNode> parsePrintStatement();      // print(), or debug() statements
+    std::unique_ptr<ASTNode> parseIfStatement();         // if, elif , else statement
+    std::unique_ptr<ASTNode> parseWhileLoop();           // while loop
+    std::unique_ptr<ASTNode> parseForLoop();             //Python like forloop
+    std::unique_ptr<ASTNode> parseMatchStatement();      // python like match and case
+    std::unique_ptr<ASTNode> parseConcurrentStatement(); // Concurrent Operations
+    std::unique_ptr<ASTNode> parseParallelStatement();   // Parallel Operations
+    std::unique_ptr<ASTNode> parseFnDeclaration();       // Adapt from first parser (if supported)
+    std::unique_ptr<ASTNode> parseFnCall();
+    std::unique_ptr<ASTNode> parseClassDeclaration();    // Class Declaration
+    std::unique_ptr<ASTNode> parseReturnStatement();     // Adapt from first parser
     //To be implemented
-    void parseImport();
-    void parseModules();
+    std::unique_ptr<ASTNode> parseImport();
+    std::unique_ptr<ASTNode> parseModules();
     void parseTypes();
 
     // Pratt parsing utility functions
@@ -94,33 +94,33 @@ private:
     Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
 
     // Parse expression functions
-    void parsePrimary();
-    void parseExpression();
-    void parseBinary();
-    void parseLogical();
-    void parseAnd();
-    void parseOr();
-    void parseEOF();
+    std::unique_ptr<ASTNode> parsePrimary();
+    std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseBinary();
+    std::unique_ptr<ASTNode> parseLogical();
+    std::unique_ptr<ASTNode> parseAnd();
+    std::unique_ptr<ASTNode> parseOr();
+    std::unique_ptr<ASTNode> parseEOF();
     void parseUnexpected();
-    void parseComparison();
-    void parseBoolean();
-    void parseUnary();
-    void parseLiteral();
-    void parseString();
-    void parseIf();
+    std::unique_ptr<ASTNode> parseComparison();
+    std::unique_ptr<ASTNode> parseBoolean();
+    std::unique_ptr<ASTNode> parseUnary();
+    std::unique_ptr<ASTNode> parseLiteral();
+    std::unique_ptr<ASTNode> parseString();
+    std::unique_ptr<ASTNode> parseIf();
     void parseElseIf();
     void parseElse();
-    void parseIdentifier();
+    std::unique_ptr<ASTNode> parseIdentifier();
     void parseDecVariable();
     void parseLoadVariable();
-    void parseAssignment();
-    void parseCall();
+    std::unique_ptr<ASTNode> parseAssignment();
+    std::unique_ptr<ASTNode> parseCall();
 
     // Parse statement functions
-    void parseStatement();
-    void parseExpressionStatement();
-    void parseDeclaration();
-    void parseBlock();
+    std::unique_ptr<ASTNode> parseStatement();
+    std::unique_ptr<ASTNode> parseExpressionStatement();
+    std::unique_ptr<ASTNode> parseDeclaration();
+    std::unique_ptr<ASTNode> parseBlock();
     void parseParenthesis();
 
     // Other helper functions

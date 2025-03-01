@@ -1,5 +1,5 @@
 #include "pratt.hh"
-
+#include "../ast.hh"
 #include "../debugger.hh"
 #include "../instructions.hh"
 #include "../scanner.hh"
@@ -8,9 +8,7 @@
 #include <thread>
 
 PrattParser::PrattParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem)
-    : bytecode(Bytecode{})
-    , scanner(scanner)
-    , variable(typeSystem)
+    : scanner(scanner), typeSystem(typeSystem)
 {
     tokens = scanner.scanTokens();
     parse();
@@ -21,9 +19,11 @@ Bytecode PrattParser::parse()
     auto start_time = std::chrono::high_resolution_clock::now();
     scanner.current = 0;
     while (!isAtEnd()) {
-        parseExpression();
+        auto stmt = parseStatement();
+        if (stmt) {
+            ast.push_back(std::move(stmt));
+        }
         if (hadError) {
-            // Synchronize here
             synchronize();
             hadError = false;
         }
@@ -60,8 +60,6 @@ ParseFn PrattParser::getParseFn(TokenType type)
     // std::cout << "get parsing function: " << peek().lexeme << " with type "
     //           << scanner.tokenTypeToString(type, peek().lexeme) << std::endl;
     switch (type) {
-    case TokenType::MINUS:
-        return isNewExpression ? &PrattParser::parseUnary : &PrattParser::parseBinary;
     case TokenType::AND:
         return &PrattParser::parseAnd;
     case TokenType::OR:
@@ -117,9 +115,9 @@ ParseFn PrattParser::getParseFn(TokenType type)
     case TokenType::MATCH:
         return &PrattParser::parseMatchStatement;
     case TokenType::CONCURRENT:
-        return &PrattParser::parseDeclaration;
+        return &PrattParser::parseConcurrentStatement;
     case TokenType::PARALLEL:
-        return &PrattParser::parseDeclaration;
+        return &PrattParser::parseParallelStatement;
     case TokenType::SEMICOLON:
         return &PrattParser::advance;
     case TokenType::INT_TYPE:
@@ -147,20 +145,21 @@ ParseFn PrattParser::getParseFn(TokenType type)
     case TokenType::SUM_TYPE:
     case TokenType::ANY_TYPE:
     case TokenType::UNION_TYPE:
-        return &PrattParser::parseTypes; // Add parsing function for types if needed
+        return &PrattParser::parseTypes;
     case TokenType::IN:
     case TokenType::THIS:
     case TokenType::ENUM:
     case TokenType::ASYNC:
     case TokenType::AWAIT:
     case TokenType::CLASS:
+        return &PrattParser::parseClassDeclaration;
     case TokenType::SUPER:
     case TokenType::IMPORT:
     case TokenType::RETURN:
     case TokenType::HANDLE:
     case TokenType::DEFAULT:
     case TokenType::ATTEMPT:
-        return &PrattParser::advance; // Add parsing function for these keywords if needed
+        return &PrattParser::advance;
     case TokenType::COMMA:
     case TokenType::DOT:
     case TokenType::COLON:
@@ -169,9 +168,9 @@ ParseFn PrattParser::getParseFn(TokenType type)
     case TokenType::LEFT_BRACKET:
     case TokenType::RIGHT_BRACKET:
     case TokenType::RIGHT_BRACE:
-        return &PrattParser::advance; // Add parsing function for these delimiters if needed
+        return &PrattParser::advance;
     case TokenType::UNDEFINED:
-        return &PrattParser::parseUnexpected; // Handle undefined tokens if needed
+        return &PrattParser::parseUnexpected;
     default:
         return nullptr;
     }
@@ -280,7 +279,7 @@ void PrattParser::error(const std::string &message)
     Debugger::error(message, peek(), InterpretationStage::PARSING, scanner.getSource());
 }
 
-void PrattParser::PrattParser::synchronize()
+void PrattParser::synchronize()
 {
     advance();
 
@@ -328,7 +327,6 @@ void PrattParser::parsePrecedence(Precedence precedence)
 
     (this->*prefixParseFn)();
     isNewExpression = false;
-
     // Only continue parsing for expressions, not statements
     if (!isStatement) {
         while (precedence <= getTokenPrecedence(peek().type)) {
@@ -418,182 +416,139 @@ Instruction PrattParser::emit(Opcode opcode, uint32_t lineNumber, Value &&value)
     return instruction;
 }
 
-void PrattParser::parsePrimary()
+std::unique_ptr<ASTNode> PrattParser::parsePrimary()
 {
     TokenType tokenType = peek().type;
     if (tokenType == TokenType::NUMBER || tokenType == TokenType::STRING) {
-        parseLiteral();
+        return parseLiteral();
     } else if (tokenType == TokenType::TRUE || tokenType == TokenType::FALSE) {
-        parseBoolean();
+        return parseBoolean();
     } else if (tokenType == TokenType::IDENTIFIER) {
-        parseIdentifier();
+        return parseIdentifier();
     } else if (tokenType == TokenType::LEFT_PAREN) {
-        parseParenthesis();
+        return parseParenthesis();
     } else if (tokenType == TokenType::MINUS || tokenType == TokenType::PLUS) {
-        parseUnary();
-    } else if (isAtEnd()) { //isAtEnd()
-        parseEOF();
+        return parseUnary();
+    } else if (isAtEnd()) {
+        return parseEOF();
     } else {
         error("Unexpected token in primary expression");
+        return nullptr;
     }
 }
 
-void PrattParser::parseExpression()
+std::unique_ptr<ASTNode> PrattParser::parseExpression()
 {
-    //    ParseFn parseFn = getParseFn(peek().type);
-    //    if (parseFn == &PrattParser::parsePrintStatement || parseFn == &PrattParser::parseIfStatement
-    //        || parseFn == &PrattParser::parseWhileLoop || parseFn == &PrattParser::parseForLoop) {
-    //        (this->*parseFn)();
-    //    } else {
-    //        parsePrecedence(PREC_ASSIGNMENT);
-    //    }
     if (check(TokenType::IF) || check(TokenType::ELIF) || check(TokenType::ELSE)) {
-        parseIfStatement();
+        return parseIfStatement();
     } else if (match(TokenType::WHILE)) {
-        parseWhileLoop();
+        return parseWhileLoop();
     } else if (match(TokenType::FOR)) {
-        parseForLoop();
+        return parseForLoop();
     } else {
-        parsePrecedence(PREC_ASSIGNMENT);
+        return parsePrecedence(PREC_ASSIGNMENT);
     }
 }
 
-void PrattParser::parseDeclaration()
+std::unique_ptr<ASTNode> PrattParser::parseDeclaration()
 {
     if (check(TokenType::VAR)) {
-        parseDecVariable();
+        return parseDecVariable();
     } else if (match(TokenType::FN)) {
-        parseFnDeclaration();
+        return parseFnDeclaration();
+    } else if (match(TokenType::CLASS)) {
+        return parseClassDeclaration();
     } else {
-        parseStatement();
+        return parseStatement();
     }
 }
 
-void PrattParser::parseStatement()
+std::unique_ptr<ASTNode> PrattParser::parseStatement()
 {
     if (check(TokenType::PRINT)) {
-        parsePrintStatement();
+        return parsePrintStatement();
     } else if (check(TokenType::LEFT_BRACE)) {
-        parseBlock();
+        return parseBlock();
     } else if (check(TokenType::IF)) {
-        parseIfStatement();
+        return parseIfStatement();
     } else if (check(TokenType::ELIF)) {
-        parseIfStatement();
+        return parseIfStatement();
     } else if (check(TokenType::WHILE)) {
-        parseWhileLoop();
+        return parseWhileLoop();
     } else if (check(TokenType::FOR)) {
-        parseForLoop();
+        return parseForLoop();
     } else if (check(TokenType::MATCH)) {
-        parseMatchStatement();
+        return parseMatchStatement();
     } else if (check(TokenType::IDENTIFIER) && peekNext().type == TokenType::EQUAL) {
-        parseAssignment();
+        return parseAssignment();
     } else {
-        parseExpressionStatement();
+        return parseExpressionStatement();
     }
 }
 
-void PrattParser::parseExpressionStatement()
+std::unique_ptr<ASTNode> PrattParser::parseExpressionStatement()
 {
-    parseExpression();
+    auto expr = parseExpression();
     consume(TokenType::SEMICOLON, "Expected ';' after expression.");
+    return expr;
 }
 
-void PrattParser::parseParenthesis()
+std::unique_ptr<ASTNode> PrattParser::parseParenthesis()
 {
-    //advance(); // Consume '('
-    parseExpression(); // Parse the expression inside parentheses
+    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
+    auto expr = parseExpression(); // Parse the expression inside parentheses
     consume(TokenType::RIGHT_PAREN, "Expected ')' after expression");
+    return expr;
 }
 
-void PrattParser::parseUnary()
+std::unique_ptr<ASTNode> PrattParser::parseUnary()
 {
     Token op = previous();
     advance(); // Consume the unary operator
-    parsePrecedence(PREC_UNARY);
-    if (op.type == TokenType::MINUS) {
-        emit(Opcode::NEGATE, op.line);
-    } else if (op.type == TokenType::BANG) {
-        emit(Opcode::NOT, op.line);
-    }
+    auto right = parsePrecedence(PREC_UNARY);
+    return std::make_unique<UnaryNode>(op, std::move(right));
 }
 
-void PrattParser::parseBoolean()
+std::unique_ptr<ASTNode> PrattParser::parseBoolean()
 {
     Token token = previous();
-    if (token.type == TokenType::TRUE) {
-        emit(Opcode::LOAD_CONST, token.line, Value{std::make_shared<Type>(TypeTag::Bool), true});
-    } else if (token.type == TokenType::FALSE) {
-        emit(Opcode::LOAD_CONST, token.line, Value{std::make_shared<Type>(TypeTag::Bool), false});
-    } else {
-        error("Unexpected boolean value");
-    }
+    bool value = (token.type == TokenType::TRUE);
+    return std::make_unique<BooleanNode>(token, value);
 }
 
-void PrattParser::parseBinary()
+std::unique_ptr<ASTNode> PrattParser::parseBinary()
 {
     Token op = previous();
-    Precedence precedence = getTokenPrecedence(op.type);
-    parsePrecedence(static_cast<Precedence>(precedence + 1));
-    switch (op.type) {
-    case TokenType::PLUS:
-        emit(Opcode::ADD, op.line);
-        break;
-    case TokenType::MINUS:
-        emit(Opcode::SUBTRACT, op.line);
-        break;
-    case TokenType::STAR:
-        emit(Opcode::MULTIPLY, op.line);
-        break;
-    case TokenType::SLASH:
-        emit(Opcode::DIVIDE, op.line);
-        break;
-    case TokenType::MODULUS:
-        emit(Opcode::MODULUS, op.line);
-        break;
-    default:
-        error("Unexpected binary operator");
-    }
+    auto left = parsePrecedence(static_cast<Precedence>(getTokenPrecedence(op.type) + 1));
+    auto right = parsePrecedence(static_cast<Precedence>(getTokenPrecedence(op.type) + 1));
+    return std::make_unique<BinaryNode>(op, std::move(left), std::move(right));
 }
 
-void PrattParser::parseLiteral()
+std::unique_ptr<ASTNode> PrattParser::parseLiteral()
 {
     Token token = previous();
     TypePtr typePtr = std::make_shared<Type>(inferType(token));
-    switch (token.type) {
-    case TokenType::NUMBER: {
-        Value value = setValue(typePtr, token.lexeme);
-        emit(Opcode::LOAD_CONST, token.line, std::move(value));
-    } break;
-    case TokenType::STRING:
-        parseString();
-        break;
-    default:
-        error("Unexpected literal type");
-    }
+    Value value = setValue(typePtr, token.lexeme);
+    return std::make_unique<LiteralNode>(token, value);
 }
 
-void PrattParser::parseString()
+std::unique_ptr<ASTNode> PrattParser::parseString()
 {
     std::string str = previous().lexeme;
     TypePtr typePtr = std::make_shared<Type>(inferType(previous()));
-    // Check if the string contains any {} pairs
-    bool isInterpolated = (str.find('{') != std::string::npos)
-                          && (str.find('}') != std::string::npos);
+    bool isInterpolated = (str.find('{') != std::string::npos) && (str.find('}') != std::string::npos);
     if (!isInterpolated) {
-        // Regular string, just emit a LOAD_CONST
-        emit(Opcode::LOAD_STR, previous().line, setValue(typePtr, str));
-        return;
+        return std::make_unique<StringNode>(previous(), str);
     }
+    std::vector<std::unique_ptr<ASTNode>> parts;
     std::string current;
     bool inExpression = false;
     int bracketCount = 0;
-    int partCount = 0;
     for (size_t i = 0; i < str.length(); ++i) {
         char c = str[i];
         if (c == '{' && !inExpression) {
             if (!current.empty()) {
-                emit(Opcode::LOAD_STR, previous().line, setValue(typePtr, current));
-                partCount++;
+                parts.push_back(std::make_unique<StringNode>(previous(), current));
             }
             current.clear();
             inExpression = true;
@@ -604,20 +559,16 @@ void PrattParser::parseString()
         } else if (c == '}' && inExpression) {
             bracketCount--;
             if (bracketCount == 0) {
-                // Parse the expression inside the brackets
-                parseExpression();
-                partCount++;
+                parts.push_back(parseExpression());
                 current.clear();
                 inExpression = false;
             } else {
                 current += c;
             }
         } else if (c == '\\' && i + 1 < str.length()) {
-            // Handle escape sequences
             char nextChar = str[i + 1];
             if (nextChar == '{' || nextChar == '}') {
-                current += nextChar;
-                i++; // Skip the next character
+                i++;
             } else {
                 current += c;
             }
@@ -626,36 +577,26 @@ void PrattParser::parseString()
         }
     }
     if (!current.empty()) {
-        emit(Opcode::LOAD_STR, previous().line, setValue(typePtr, current));
-        partCount++;
+        parts.push_back(std::make_unique<StringNode>(previous(), current));
     }
-    // Emit the INTERPOLATE_STRING instruction with the part count
-    emit(Opcode::INTERPOLATE_STRING,
-         previous().line,
-         Value{std::make_shared<Type>(TypeTag::Int), partCount});
+    return std::make_unique<InterpolatedStringNode>(previous(), std::move(parts));
 }
 
-void PrattParser::parseIdentifier()
+std::unique_ptr<ASTNode> PrattParser::parseIdentifier()
 {
-    Token nameToken = peek();     // The identifier token
-    Token nextToken = peekNext(); // Look ahead at the next token
-
+    Token nameToken = peek();
+    Token nextToken = peekNext();
     if (nextToken.type == TokenType::EQUAL) {
-        // Handle assignment
-        parseAssignment();
+        return parseAssignment();
     } else if (nextToken.type == TokenType::LEFT_PAREN) {
-        // Handle function call
-        parseFnCall();
+        return parseFnCall();
     } else {
-        // Handle variable load
-        parseLoadVariable();
+        return parseLoadVariable();
     }
 }
 
-void PrattParser::parseDecVariable()
+std::unique_ptr<ASTNode> PrattParser::parseDecVariable()
 {
-    // Parse variable declaration with type
-    // consume(TokenType::VAR, "Expected 'var' before variable name");
     Token name = peek();
     TypeTag type = TypeTag::Any;
     consume(TokenType::IDENTIFIER, "Expected variable name after 'var' token");
@@ -663,582 +604,263 @@ void PrattParser::parseDecVariable()
         consume(TokenType::COLON, "Expected ':' after variable name");
         Token typeToken = peek();
         type = stringToType(typeToken.lexeme);
-        std::cout << "Type: " << typeToken.lexeme << std::endl;
         advance();
-        //consume(TokenType::IDENTIFIER, "Expected type after ':'"); // edit this to get every type of type
     }
     consume(TokenType::EQUAL, "Expected '=' after type");
-    parseExpression();
-    // Check if the next token is a semicolon
-    if (match(TokenType::SEMICOLON)) {
-        // If it is, consume the semicolon without emitting any opcodes
-        advance();
-    }
-
-    // Value value{std::make_shared<Type>(inferType())
-    declareVariable(name, std::make_shared<Type>(type));
-    int32_t memoryLocation = getVariableMemoryLocation(name);
-    emit(Opcode::STORE_VARIABLE,
-         name.line,
-         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+    auto initializer = parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after variable declaration");
+    return std::make_unique<VariableNode>(name, type, name.lexeme, true, std::move(initializer));
 }
 
-void PrattParser::parseLoadVariable()
+std::unique_ptr<ASTNode> PrattParser::parseLoadVariable()
 {
-    // Parse loading existing variable
     Token name = previous();
-    if (check(TokenType::LEFT_PAREN)) {
-        parseFnCall();
-    }
-
-    // consume(TokenType::SEMICOLON, "Expected ';' after var load.");
-    std::cout << name.lexeme << std::endl;
-    int32_t memoryLocation = getVariableMemoryLocation(name);
-    emit(Opcode::LOAD_VARIABLE,
-         name.line,
-         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+    return std::make_unique<VariableNode>(name, TypeTag::Any, name.lexeme, true, nullptr);
 }
 
-void PrattParser::parseBlock()
+std::unique_ptr<ASTNode> PrattParser::parseBlock()
 {
+    std::vector<std::unique_ptr<Statement>> statements;
     enterScope();
-    // consume(TokenType::LEFT_BRACE, "Expected '{' at the start of a block");
-
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        if (check(TokenType::LEFT_BRACE)) {
-            // Nested block
-            parseBlock();
-        } else {
-            parseStatement();
-        }
+        statements.push_back(parseStatement());
     }
-
-    if (!isAtEnd()) {
-        consume(TokenType::RIGHT_BRACE, "Expected '}' at the end of a block");
-    } else {
-        error("Unexpected end of file inside a block");
-    }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' at the end of a block");
+    exitScope();
+    return std::make_unique<BlockNode>(previous(), std::move(statements));
 }
 
-void PrattParser::parseAssignment()
+std::unique_ptr<ASTNode> PrattParser::parseAssignment()
 {
     Token token = tokens[current];
-    //    advance();
-    std::string varName = token.lexeme;
-
-    // Parse the expression to be assigned to the variable
-    parsePrecedence(PREC_ASSIGNMENT);
-
-    // Check if the variable exists in any scope
-    if (!variable.hasVariable(varName)) {
-        // Variable is not declared, emit an error
-        error("Undeclared variable: " + varName);
-        return;
-    }
-
-    // Get the memory location of the variable (assumes variable is now declared)
-    int32_t memoryLocation = variable.getVariableMemoryLocation(varName);
-    emit(Opcode::STORE_VARIABLE,
-         token.line,
-         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
+    auto value = parsePrecedence(PREC_ASSIGNMENT);
+    return std::make_unique<AssignmentNode>(token, std::make_unique<VariableNode>(token, TypeTag::Any, token.lexeme, true, nullptr), std::move(value));
 }
 
-void PrattParser::parseAnd()
+std::unique_ptr<ASTNode> PrattParser::parseAnd()
 {
     Token op = previous();
-    parsePrecedence(static_cast<Precedence>(PREC_AND + 1));
-    emit(Opcode::AND, op.line);
+    auto left = parsePrecedence(static_cast<Precedence>(PREC_AND + 1));
+    auto right = parsePrecedence(static_cast<Precedence>(PREC_AND + 1));
+    return std::make_unique<BinaryNode>(op, std::move(left), std::move(right));
 }
 
-void PrattParser::parseOr()
+std::unique_ptr<ASTNode> PrattParser::parseOr()
 {
     Token op = previous();
-    parsePrecedence(static_cast<Precedence>(PREC_OR + 1));
-    emit(Opcode::OR, op.line);
+    auto left = parsePrecedence(static_cast<Precedence>(PREC_OR + 1));
+    auto right = parsePrecedence(static_cast<Precedence>(PREC_OR + 1));
+    return std::make_unique<BinaryNode>(op, std::move(left), std::move(right));
 }
 
-void PrattParser::parseLogical()
+std::unique_ptr<ASTNode> PrattParser::parseLogical()
 {
     Token op = previous();
-    parsePrecedence(PREC_OR);
-    if (op.type == TokenType::BANG) {
-        emit(Opcode::NOT, op.line);
-    }
+    auto right = parsePrecedence(PREC_OR);
+    return std::make_unique<UnaryNode>(op, std::move(right));
 }
 
-void PrattParser::parseComparison()
+std::unique_ptr<ASTNode> PrattParser::parseComparison()
 {
-    Token op = previous(); //change and or and comparison to previous
-    Precedence precedence = getTokenPrecedence(op.type);
-
-    parsePrecedence(static_cast<Precedence>(precedence + 1));
-
-    switch (op.type) {
-    case TokenType::EQUAL_EQUAL:
-        emit(Opcode::EQUAL, op.line);
-        break;
-    case TokenType::BANG_EQUAL:
-        emit(Opcode::NOT_EQUAL, op.line);
-        break;
-    case TokenType::LESS:
-        emit(Opcode::LESS_THAN, op.line);
-        break;
-    case TokenType::LESS_EQUAL:
-        emit(Opcode::LESS_THAN_OR_EQUAL, op.line);
-        break;
-    case TokenType::GREATER:
-        emit(Opcode::GREATER_THAN, op.line);
-        break;
-    case TokenType::GREATER_EQUAL:
-        emit(Opcode::GREATER_THAN_OR_EQUAL, op.line);
-        break;
-    default:
-        error("Unexpected comparison operator");
-    }
+    Token op = previous();
+    auto left = parsePrecedence(static_cast<Precedence>(getTokenPrecedence(op.type) + 1));
+    auto right = parsePrecedence(static_cast<Precedence>(getTokenPrecedence(op.type) + 1));
+    return std::make_unique<BinaryNode>(op, std::move(left), std::move(right));
 }
 
-void PrattParser::parsePrintStatement()
+std::unique_ptr<ASTNode> PrattParser::parsePrintStatement()
 {
     Token op = peek();
-    //consume(TokenType::PRINT, "Expected 'print' before print expression.");
-    parseExpression();
-    emit(Opcode::PRINT, op.line);
-    std::cout << "Previous Token print: " << previous().lexeme << std::endl;
-    std::cout << "Current Token print: " << peek().lexeme << std::endl;
-    if (!check(TokenType::RIGHT_BRACE) && previous().type != TokenType::SEMICOLON) {
-        consume(TokenType::SEMICOLON, "Expected ';' after print function.");
+    auto expr = parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after print function.");
+    return std::make_unique<PrintNode>(op, std::move(expr));
+}
+
+std::unique_ptr<ASTNode> PrattParser::parseIfStatement()
+{
+    Token ifToken = previous();
+    auto condition = parseExpression();
+    auto thenBranch = parseBlock();
+    std::optional<std::unique_ptr<Statement>> elseBranch = std::nullopt;
+    if (match(TokenType::ELSE)) {
+        elseBranch = parseBlock();
     }
+    return std::make_unique<ConditionalNode>(ifToken, std::move(condition), std::move(thenBranch), std::move(elseBranch));
 }
 
-void PrattParser::parseIfStatement()
+std::unique_ptr<ASTNode> PrattParser::parseWhileLoop()
 {
-    std::cout << "Current Token if: " << previous().lexeme << std::endl;
-    // Handle 'if' condition and 'then' block
-    if (previous().type == TokenType::IF) {
-        parseIf();
-    }
-
-    std::cout << "Current Token elif: " << peek().lexeme << std::endl;
-    // Handle 'elif' blocks if they exist
-    while (check(TokenType::ELIF)) {
-        parseElseIf();
-    }
-
-    std::cout << "Current Token else: " << peek().lexeme << std::endl;
-    // Handle 'else' block if it exists
-    if (check(TokenType::ELSE)) {
-        parseElse();
-    }
-
-    std::cout << "Finished parsing if statement" << std::endl;
+    Token whileToken = previous();
+    auto condition = parseExpression();
+    auto body = parseBlock();
+    return std::make_unique<WhileNode>(whileToken, std::move(condition), std::move(body));
 }
 
-void PrattParser::parseIf()
+std::unique_ptr<ASTNode> PrattParser::parseForLoop()
 {
-    //consume(TokenType::IF, "Expected IF Token");
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'if'");
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after if condition");
-
-    // Emit JUMP_IF_FALSE with a placeholder for patching later
-    size_t thenJump = bytecode.size();
-    std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
-    emit(Opcode::JUMP_IF_FALSE,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Placeholder
-
-    // Parse the 'then' block
-    std::cout << "Parsing 'then' block" << std::endl;
-    parseBlock();
-
-    // Emit JUMP with a placeholder to jump to end of else block
-    size_t elseJump = bytecode.size();
-    std::cout << "Emitting JUMP at " << elseJump << std::endl;
-    emit(Opcode::JUMP,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Jump to end (placeholder)
-
-    // Patch thenJump to jump to the else block if condition is false
-    int32_t thenOffset = bytecode.size() - thenJump - 1;
-    std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
-              << std::endl;
-    bytecode[thenJump].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), thenOffset});
-
-    // Store elseJump for patching later
-    endJumps.push_back(elseJump);
+    Token forToken = previous();
+    auto initializer = parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after loop initializer");
+    auto condition = parseExpression();
+    consume(TokenType::SEMICOLON, "Expected ';' after loop condition");
+    auto increment = parseExpression();
+    auto body = parseBlock();
+    return std::make_unique<ForNode>(forToken, std::move(initializer), std::move(condition), std::move(increment), std::move(body));
 }
 
-void PrattParser::parseElseIf()
+std::unique_ptr<ASTNode> PrattParser::parseMatchStatement()
 {
-    //consume(TokenType::ELIF, "Expected ELIF Token");
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'elif'");
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after elif condition");
-
-    // Emit JUMP_IF_FALSE with a placeholder for patching later
-    size_t thenJump = bytecode.size();
-    std::cout << "Emitting JUMP_IF_FALSE at " << thenJump << std::endl;
-    emit(Opcode::JUMP_IF_FALSE,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Placeholder
-
-    // Parse the 'elif' block
-    std::cout << "Parsing 'elif' block" << std::endl;
-    parseBlock();
-
-    // Emit JUMP with a placeholder to jump to end of else block
-    size_t elseJump = bytecode.size();
-    std::cout << "Emitting JUMP at " << elseJump << std::endl;
-    emit(Opcode::JUMP,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32), 0}); // Jump to end (placeholder)
-
-    // Patch thenJump to jump to the next block if condition is false
-    int32_t thenOffset = bytecode.size() - thenJump - 1;
-    std::cout << "Patching JUMP_IF_FALSE at " << thenJump << " with offset " << thenOffset
-              << std::endl;
-    bytecode[thenJump].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int32), thenOffset});
-
-    // Store elseJump for patching later
-    endJumps.push_back(elseJump);
-}
-
-void PrattParser::parseElse()
-{
-    // consume(TokenType::ELSE, "Expected ELSE Token");
-    std::cout << "Parsing 'else' block" << std::endl;
-    parseBlock();
-
-    // Patch all endJumps to jump to the end of the 'else' block
-    for (size_t jump : endJumps) {
-        int32_t endOffset = bytecode.size() - jump - 1;
-        std::cout << "Patching JUMP at " << jump << " with offset " << endOffset << std::endl;
-        bytecode[jump].value = std::make_shared<Value>(
-            Value{std::make_shared<Type>(TypeTag::Int32), endOffset});
-    }
-
-    // Clear endJumps after patching
-    endJumps.clear();
-}
-
-void PrattParser::parseWhileLoop()
-{
-    size_t loopStart = bytecode.size(); // Start of the loop condition
-    consume(TokenType::LEFT_PAREN, "Expected '(' after 'while'");
-    parseExpression();
-    consume(TokenType::RIGHT_PAREN, "Expected ')' after while condition");
-
-    size_t conditionJump = bytecode.size();
-    emit(Opcode::JUMP_IF_FALSE,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32),
-               0}); // Placeholder for the jump out of the loop
-
-    parseBlock();
-
-    int32_t jmpLoc = loopStart - bytecode.size() - 1;
-    emit(Opcode::JUMP,
-         peek().line,
-         Value{std::make_shared<Type>(TypeTag::Int32),
-               jmpLoc}); // Jump back to the start of the loop condition
-
-    int32_t conditionJumpOffset = bytecode.size() - conditionJump - 1;
-    bytecode[conditionJump].value = std::make_shared<Value>(
-        Value{std::make_shared<Type>(TypeTag::Int),
-              conditionJumpOffset}); // Update the jump condition to exit the loop
-}
-
-void PrattParser::parseForLoop()
-{
-    // Token op = previous();
-    // consume(TokenType::LEFT_PAREN, "Expected '(' after 'for'");
-
-    // parseExpression();
-    // consume(TokenType::SEMICOLON, "Expected ';' after loop initializer");
-    // parseExpression();
-    // consume(TokenType::SEMICOLON, "Expected ';' after loop condition");
-
-    // size_t conditionOffset = bytecode.size();
-
-    // parseExpression();
-    // consume(TokenType::RIGHT_PAREN, "Expected ')' after loop increment");
-
-    // size_t bodyJump = bytecode.size();emit(Opcode::JUMP_IF_FALSE, op.line, 0);
-    // parseExpression();
-    // emit(Opcode::JUMP, op.line, (int32_t)(conditionOffset - bytecode.size() - 1));
-}
-
-void PrattParser::parseMatchStatement()
-{
-    Token op = previous();
-    parseExpression(); // This will evaluate the value to be matched.
-    size_t matchValuePos = bytecode.size();
-
-    // Consume the LEFT_BRACE '{' after the match expression.
+    Token matchToken = previous();
+    auto matchExpression = parseExpression();
     consume(TokenType::LEFT_BRACE, "Expected '{' after match expression.");
+    std::vector<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Statement>>> matchCases;
+    std::optional<std::unique_ptr<Statement>> defaultCase = std::nullopt;
 
-    std::vector<size_t> caseJumpPositions; // Track positions to update jumps.
-    size_t defaultCaseJumpPos = 0;
-
-    // Parse individual cases
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        if (match(TokenType::IDENTIFIER)) {
-            Token caseType = previous(); // Get case type identifier (e.g., int, str, list<T>).
-
-            // Check for generics if the type can have them (e.g., list<T> or dict<K, V>).
-            // if (match(TokenType::LESS)) { // If '<' is present, it's a generic type.
-            //     // Parse the generic type (e.g., T in list<T> or K, V in dict<K, V>).
-            //     // This part can be extended for complex generic parsing.
-            //     parse_generic_type();
-            //     consume(TokenType::GREATER, "Expected '>' after generic type parameters.");
-            // }
-
-            // Emit code to check if `value` matches `caseType`.
-            size_t caseMatchJump = bytecode.size();
-            emit(Opcode::MATCH_TYPE, peek().line, Value{std::make_shared<Type>(TypeTag::String), caseType.lexeme}); // Placeholder for type check.
-
-            // Emit jump if the type doesn't match, to skip to the next case.
-            size_t caseSkipJump = bytecode.size();
-            emit(Opcode::JUMP_IF_FALSE, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
-
-            // Expect a block for the case
-            consume(TokenType::LEFT_BRACE, "Expected '{' after case pattern.");
-            parseBlock();
-
-            // Record position for future updates.
-            caseJumpPositions.push_back(caseSkipJump);
-
-            // Emit a jump to skip the rest of the match cases once matched.
-            size_t endMatchJump = bytecode.size();
-            emit(Opcode::JUMP, peek().line, Value{std::make_shared<Type>(TypeTag::Int), 0}); // Placeholder jump.
-            caseJumpPositions.push_back(endMatchJump);
-        }
-        else if (match(TokenType::DEFAULT)) {
-            // Default case `_` - Handle unmatched patterns
-            consume(TokenType::LEFT_BRACE, "Expected '{' after default case.");
-            parseBlock();
-            defaultCaseJumpPos = bytecode.size(); // Record position for updating.
+        if (match(TokenType::DEFAULT)) {
+            defaultCase = parseBlock();
+        } else {
+            auto caseExpression = parseExpression();
+            auto caseBody = parseBlock();
+            matchCases.emplace_back(std::move(caseExpression), std::move(caseBody));
         }
     }
-
-    // After parsing all cases, update jumps for case endings.
-    size_t endMatch = bytecode.size();
-    for (size_t pos : caseJumpPositions) {
-        bytecode[pos].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), endMatch});
-    }
-
-    // Update default case jump to end of the match statement, if present.
-    if (defaultCaseJumpPos != 0) {
-        bytecode[defaultCaseJumpPos].value = std::make_shared<Value>(Value{std::make_shared<Type>(TypeTag::Int), endMatch});
-    }
-
-    // Consume the RIGHT_BRACE '}' to close the match block.
     consume(TokenType::RIGHT_BRACE, "Expected '}' after match cases.");
+    return std::make_unique<MatchNode>(matchToken, std::move(matchExpression), std::move(matchCases), std::move(defaultCase));
 }
 
-void PrattParser::parseConcurrentStatement()
+std::unique_ptr<ASTNode> PrattParser::parseConcurrentStatement()
 {
-    consume(TokenType::CONCURRENT, "Expected 'concurrent' keyword");
+    Token concurrentToken = previous();
     consume(TokenType::LEFT_PAREN, "Expected '(' after 'concurrent'");
-
-    // Parse arguments (if any)
+    std::vector<std::unique_ptr<Statement>> branches;
     while (!check(TokenType::RIGHT_PAREN)) {
-        parseExpression(); // Parse each argument
+        branches.push_back(parseExpressionStatement());
         if (match(TokenType::COMMA)) {
-            continue; // Allow multiple arguments separated by commas
+            continue;
         }
     }
-
     consume(TokenType::RIGHT_PAREN, "Expected ')' after concurrent arguments");
-
-    parseBlock(); // Parse the block of statements to be executed concurrently
+    auto body = parseBlock();
+    branches.push_back(std::move(body));
+    return std::make_unique<ConcurrentNode>(concurrentToken, std::move(branches));
 }
 
-void PrattParser::parseParallelStatement()
+std::unique_ptr<ASTNode> PrattParser::parseParallelStatement()
 {
-    consume(TokenType::PARALLEL, "Expected 'parallel' keyword");
+    Token parallelToken = previous();
     consume(TokenType::LEFT_PAREN, "Expected '(' after 'parallel'");
-
-    // Parse arguments (if any)
+    std::vector<std::unique_ptr<Statement>> branches;
     while (!check(TokenType::RIGHT_PAREN)) {
-        parseExpression(); // Parse each argument
+        branches.push_back(parseExpressionStatement());
         if (match(TokenType::COMMA)) {
-            continue; // Allow multiple arguments separated by commas
+            continue;
         }
     }
-
     consume(TokenType::RIGHT_PAREN, "Expected ')' after parallel arguments");
-
-    parseBlock(); // Parse the block of statements to be executed in parallel
+    auto body = parseBlock();
+    branches.push_back(std::move(body));
+    return std::make_unique<ParallelNode>(parallelToken, std::move(branches));
 }
 
-void PrattParser::parseFnDeclaration()
+std::unique_ptr<ASTNode> PrattParser::parseFnDeclaration()
 {
-    //    //consume(TokenType::FN, "Expected 'fn' keyword to start function definition");
-    //    Token name = previous();
-    //    // consume(TokenType::IDENTIFIER, "Expected function name");
-
-    //    // Parse optional parameters
-    //    std::vector<std::pair<std::string, std::optional<std::string>>> parameters;
-    //    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
-    //    if (peek().type != TokenType::RIGHT_PAREN) {
-    //        do {
-    //            Token paramName = peek();
-    //            consume(TokenType::IDENTIFIER, "Expected parameter name");
-    //            std::optional<std::string> defaultValue;
-    //            if (match(TokenType::COLON)) {
-    //                Token paramType = peek();
-    //                TypeTag types = stringToType(paramType.lexeme);
-    //                consume(TokenType::IDENTIFIER, "Expected type after ':' in parameter declaration");
-    //                if (match(TokenType::EQUAL)) {
-    //                    defaultValue = peek().lexeme;
-    //                    advance();
-    //                } else {
-    //                    error("Expected '=' after type in parameter declaration with default "
-    //                          "value");
-    //                }
-    //            }
-    //            //            Token paramName = consume(TokenType::IDENTIFIER, "Expect parameter name.");
-    //            //            Token paramType = consume(TokenType::IDENTIFIER, "Expect parameter type.");
-    //            //            ReturnType type = stringToReturnType(paramType.lexeme);
-    //            parameters.push_back(std::make_pair(paramName.lexeme, defaultValue));
-    //            declareVariable(paramName,
-    //                            types,
-    //                            defaultValue); // Declare parameter as a variable in the function scope
-    //        } while (match(TokenType::COMMA));
-    //    }
-    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after function parameters");
-
-    //    // Parse expected return type (optional)
-    //    std::optional<std::string> returnType;
-    //    if (match(TokenType::COLON)) {
-    //        consume(TokenType::IDENTIFIER, "Expected return type after ':'");
-    //        returnType = peek().lexeme;
-    //        advance();
-    //    }
-
-    //    // Function body parsing logic goes here
-    //    parseBlock();
-    //    //    consume(TokenType::LEFT_BRACE, "Expected '{' before function body");
-    //    //    parseDeclaration();
-    //    //    consume(TokenType::RIGHT_BRACE, "Expected '}' after function body");
-
-    //    // Emit bytecode for function declaration
-    //    emit(Opcode::DEFINE_FUNCTION,
-    //         name.line,
-    //         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+    Token fnToken = previous();
+    consume(TokenType::IDENTIFIER, "Expected function name");
+    std::string name = previous().lexeme;
+    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
+    std::vector<Parameter> parameters;
+    while (!check(TokenType::RIGHT_PAREN)) {
+        Token paramName = peek();
+        consume(TokenType::IDENTIFIER, "Expected parameter name");
+        Type paramType = TypeTag::Any;
+        if (match(TokenType::COLON)) {
+            Token typeToken = peek();
+            paramType = stringToType(typeToken.lexeme);
+            advance();
+        }
+        parameters.emplace_back(paramName.lexeme, paramType);
+        if (match(TokenType::COMMA)) {
+            continue;
+        }
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after parameters");
+    Type returnType = TypeTag::Nil;
+    if (match(TokenType::COLON)) {
+        Token typeToken = peek();
+        returnType = stringToType(typeToken.lexeme);
+        advance();
+    }
+    auto body = parseBlock();
+    return std::make_unique<FunctionNode>(fnToken, name, returnType, std::move(parameters), std::move(body));
 }
 
-void PrattParser::parseFnCall()
+std::unique_ptr<ASTNode> PrattParser::parseFnCall()
 {
-    //    Token name = previous();
-    //    //consume(TokenType::IDENTIFIER, "Expected function name for call");
-    //    consume(TokenType::LEFT_PAREN, "Expected '(' after function name in call");
-
-    //    // Parse arguments (optional)
-    //    Value arguments;
-    //    if (peek().type != TokenType::RIGHT_PAREN) {
-    //        do {
-    //            parseExpression();
-    //            arguments.push_back(previous().lexeme);
-    //        } while (match(TokenType::COMMA));
-    //    }
-    //    consume(TokenType::RIGHT_PAREN, "Expected ')' after function call arguments");
-    //    // Emit bytecode for function call with arguments
-    //    for (const auto &arg : arguments) {
-    //        emit(Opcode::PUSH_ARGS, name.line, Value{std::make_shared<Type>(TypeTag::String), arg});
-    //    }
-
-    //    // Emit bytecode for function call with arguments
-    //    emit(Opcode::INVOKE_FUNCTION,
-    //         name.line,
-    //         Value{std::make_shared<Type>(TypeTag::String), name.lexeme});
+    Token fnToken = previous();
+    std::string name = fnToken.lexeme;
+    consume(TokenType::LEFT_PAREN, "Expected '(' after function name");
+    std::vector<std::unique_ptr<Expression>> arguments;
+    while (!check(TokenType::RIGHT_PAREN)) {
+        arguments.push_back(parseExpression());
+        if (match(TokenType::COMMA)) {
+            continue;
+        }
+    }
+    consume(TokenType::RIGHT_PAREN, "Expected ')' after arguments");
+    return std::make_unique<CallNode>(fnToken, name, std::move(arguments));
 }
 
-void PrattParser::parseImport()
+std::unique_ptr<ASTNode> PrattParser::parseImport()
 {
-    //    consume(TokenType::IMPORT, "Expected 'import' keyword");
-
-    //    std::vector<std::string> importPath;
-
-    //    do {
-    //        if (check(TokenType::IDENTIFIER)) {
-    //            importPath.push_back(current().lexeme);
-    //            advance();
-    //        } else if (match(TokenType::STRING)) {
-    //            importPath.push_back(previous().literal.toString());
-    //        } else {
-    //            error(current(), "Expected module name or string literal in import statement");
-    //            return;
-    //        }
-
-    //        // Handle submodules
-    //        if (match(TokenType::DOT)) {
-    //            if (!check(TokenType::IDENTIFIER)) {
-    //                error(current(), "Expected identifier after '.' in import statement");
-    //                return;
-    //            }
-    //        }
-    //    } while (match(TokenType::DOT));
-
-    //    // Now importPath contains the complete module path
-
-    //    // Perform semantic checks
-    //    std::string moduleName = ""; // Construct the full module name
-    //    for (const auto &component : importPath) {
-    //        if (!moduleName.empty()) {
-    //            moduleName += ".";
-    //        }
-    //        moduleName += component;
-
-    //        // Check if moduleName exists and is accessible
-    //        //        if (!moduleExists(moduleName)) {
-    //        //            error(current(), "Module '" + moduleName + "' not found or inaccessible");
-    //        //            return;
-    //        //        }
-    //    }
-
-    //    // Example logic: Print the imported module path
-    //    std::cout << "Imported module path: ";
-    //    for (const auto &pathComponent : importPath) {
-    //        std::cout << pathComponent << ".";
-    //    }
-    //    std::cout << std::endl;
+    Token importToken = previous();
+    consume(TokenType::IDENTIFIER, "Expected module name");
+    std::string moduleName = previous().lexeme;
+    std::optional<std::string> alias = std::nullopt;
+    if (match(TokenType::AS)) {
+        consume(TokenType::IDENTIFIER, "Expected alias name");
+        alias = previous().lexeme;
+    }
+    consume(TokenType::SEMICOLON, "Expected ';' after import statement");
+    return std::make_unique<ImportNode>(importToken, moduleName, alias);
 }
 
-void PrattParser::parseModules()
+std::unique_ptr<ASTNode> PrattParser::parseModules()
 {
-    //    consume(TokenType::MODULE, "Expected 'module' keyword");
-    //    if (check(TokenType::IDENTIFIER)) {
-    //        std::string moduleName = peek().lexeme;
-    //        consume(TokenType::IDENTIFIER, "Expected module name")
-    //    }
-    //    consume(TokenType::LEFT_BRACE, "Expected '{' after module name");
-
-    //    // Enter the module scope
-    //    enterScope(moduleName);
-
-    //    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-    //        parseDeclaration(); // Parse declarations within the module
-    //    }
-
-    //    consume(TokenType::RIGHT_BRACE, "Expected '}' after module contents");
-    //    consume(TokenType::SEMICOLON, "Expected ';' after module declaration");
-
-    //    // Exit the module scope
-    //    exitScope();
+    Token moduleToken = previous();
+    consume(TokenType::IDENTIFIER, "Expected module name");
+    std::string moduleName = previous().lexeme;
+    consume(TokenType::LEFT_BRACE, "Expected '{' after module name");
+    std::vector<std::unique_ptr<Statement>> declarations;
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        declarations.push_back(parseDeclaration());
+    }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after module declarations");
+    return std::make_unique<ModuleNode>(moduleToken, moduleName, std::move(declarations));
 }
 
-void PrattParser::parseTypes()
+std::unique_ptr<ASTNode> PrattParser::parseTypes()
 {
-    inferType(peek());
+    Token typeToken = previous();
+    TypeTag type = stringToType(typeToken.lexeme);
+    return std::make_unique<TypeNode>(typeToken, type);
 }
 
-std::vector<Instruction> PrattParser::getBytecode() const
+std::unique_ptr<ASTNode> PrattParser::parseClassDeclaration()
 {
-    // std::cout << "Getting the bytecode: " << std::endl;
-    // Get the generated bytecode
-    return bytecode;
+    Token classToken = previous();
+    consume(TokenType::IDENTIFIER, "Expected class name");
+    std::string className = previous().lexeme;
+    std::optional<std::string> baseClass = std::nullopt;
+    if (match(TokenType::COLON)) {
+        consume(TokenType::IDENTIFIER, "Expected base class name");
+        baseClass = previous().lexeme;
+    }
+    consume(TokenType::LEFT_BRACE, "Expected '{' after class declaration");
+    std::vector<std::unique_ptr<Statement>> members;
+    while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
+        members.push_back(parseDeclaration());
+    }
+    consume(TokenType::RIGHT_BRACE, "Expected '}' after class members");
+    return std::make_unique<ClassNode>(classToken, className, baseClass, std::move(members));
 }
