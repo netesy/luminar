@@ -1,595 +1,707 @@
-#pragma once
-
-#include "token.hh"
-#include "value.hh" // Include the value system
 #include <memory>
-#include <optional>
-#include <stdexcept>
 #include <string>
 #include <vector>
-
-#ifndef AST_HH
-#define AST_HH
-
-// Forward declarations
-class ASTVisitor;
-
-// Enhanced source location with more detail
-struct SourceLocation {
-    size_t startOffset;
-    size_t endOffset;
-    size_t line;
-    size_t column;
-    std::string filename;
-};
-
-
-// Enhanced metadata for analysis
-struct NodeMetadata {
-    bool isConstant = false;
-    bool isPure = false;
-    bool isUsed = false;
-    bool synthetic = false;
-    std::string documentation;
-    std::optional<std::string> errorMsg;
-};
-
-class ASTNode {
-public:
-    virtual ~ASTNode() = default;
-    virtual TypeTag getType() const = 0;
-    virtual void accept(ASTVisitor& visitor) = 0;
-    // Location management
-    virtual SourceLocation getLocation() const { return location; }
-    void setLocation(SourceLocation loc) { location = loc; }
-    // Tree structure
-    void setParent(std::shared_ptr<ASTNode> p) { parent = p; }
-    std::shared_ptr<ASTNode> getParent() const { return parent.lock(); }
-
-protected:
-    SourceLocation location;
-    // NodeMetadata metadata;
-    // TypePtr inferredType;
-    std::weak_ptr<ASTNode> parent;
-    // uint32_t scopeLevel = 0;
-};
-
-// Literal Nodes
-class NumberNode : public ASTNode {
-private:
-    ValuePtr value;
-
-public:
-    NumberNode(int64_t num) {
-        auto type = std::make_shared<Type>(TypeTag::Int64);
-        value = std::make_shared<Value>(Value{type, num});
-    }
-
-    NumberNode(double num) {
-        auto type = std::make_shared<Type>(TypeTag::Float64);
-        value = std::make_shared<Value>(Value{type, num});
-    }
-
-    TypeTag getType() const override { return value->type->tag; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    ValuePtr getValue() const { return value; }
-};
-
-class StringLiteralNode : public ASTNode {
-private:
-    ValuePtr value;
-
-public:
-    StringLiteralNode(const std::string& str) {
-        auto type = std::make_shared<Type>(TypeTag::String);
-        value = std::make_shared<Value>(Value{type, str});
-    }
-
-    TypeTag getType() const override { return TypeTag::String; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    ValuePtr getValue() const { return value; }
-};
-
-
-class LiteralNode : public ASTNode {
-private:
-    std::variant<int, double, std::string, bool> value;
-
-public:
-    explicit LiteralNode(const Value value)
-        : value(value) {}
-
-    TypeTag getType() const override { return TypeTag::Literal; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    const std::variant<int, double, std::string, bool>& getValue() const { return value; }
-};
-
-
-// Expression Nodes
-class BinaryNode : public ASTNode {
-private:
-    TokenType op;
-    std::unique_ptr<ASTNode> left, right;
-
-public:
-    BinaryNode(TokenType op, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right)
-        : op(op), left(std::move(left)), right(std::move(right)) {}
-
-    TypeTag getType() const override { return TypeTag::Any; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-
-    TokenType getOp() const { return op; }
-    ASTNode* getLeft() const { return left.get(); }
-    ASTNode* getRight() const { return right.get(); }
-};
-
-class UnaryExprNode : public ASTNode {
-private:
-    TokenType op;
-    std::unique_ptr<ASTNode> expr;
-
-public:
-    UnaryExprNode(TokenType op, std::unique_ptr<ASTNode> expr)
-        : op(op), expr(std::move(expr)) {}
-
-    TypeTag getType() const override { return TypeTag::Any; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-
-    TokenType getOp() const { return op; }
-    ASTNode* getExpr() const { return expr.get(); }
-};
-
-class LogicalExprNode : public ASTNode {
-private:
-    TokenType op;
-    std::unique_ptr<ASTNode> left, right;
-
-public:
-    LogicalExprNode(TokenType op, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right)
-        : op(op), left(std::move(left)), right(std::move(right)) {}
-
-    TypeTag getType() const override { return TypeTag::Logical; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-// Control Flow Nodes
-class ConditionalNode : public ASTNode {
-private:
-    std::unique_ptr<ASTNode> condition;
-    std::unique_ptr<ASTNode> thenBranch;
-    std::unique_ptr<ASTNode> elseBranch;
-
-public:
-    ConditionalNode(std::unique_ptr<ASTNode> condition,
-                    std::unique_ptr<ASTNode> thenBranch,
-                    std::unique_ptr<ASTNode> elseBranch)
-        : condition(std::move(condition)),
-        thenBranch(std::move(thenBranch)),
-        elseBranch(std::move(elseBranch)) {}
-
-    TypeTag getType() const override { return TypeTag::Conditional; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-class WhileNode : public ASTNode {
-private:
-    std::unique_ptr<ASTNode> condition;
-    std::unique_ptr<ASTNode> body;
-
-public:
-    WhileNode(std::unique_ptr<ASTNode> condition, std::unique_ptr<ASTNode> body)
-        : condition(std::move(condition)), body(std::move(body)) {}
-
-    TypeTag getType() const override { return TypeTag::While; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-class ForNode : public ASTNode {
-private:
-    std::unique_ptr<ASTNode> iterator;
-    std::unique_ptr<ASTNode> body;
-
-public:
-    ForNode(std::unique_ptr<ASTNode> iterator, std::unique_ptr<ASTNode> body)
-        : iterator(std::move(iterator)), body(std::move(body)) {}
-
-    TypeTag getType() const override { return TypeTag::For; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-// Functionality Nodes
-class FunctionNode : public ASTNode {
-private:
-    std::string name;
-    std::vector<std::pair<std::string, TypePtr>> parameters;
-    TypePtr returnType;
-    std::unique_ptr<ASTNode> body;
-
-public:
-    FunctionNode(const std::string& name,
-                 std::vector<std::pair<std::string, TypePtr>> parameters,
-                 TypePtr returnType,
-                 std::unique_ptr<ASTNode> body)
-        : name(name),
-        parameters(std::move(parameters)),
-        returnType(std::move(returnType)),
-        body(std::move(body)) {}
-
-    TypeTag getType() const override { return TypeTag::Function; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-// Function Call Node
-class FunctionCallNode : public ASTNode {
-private:
-    std::string callee;
-    std::vector<std::unique_ptr<ASTNode>> arguments;
-
-public:
-    FunctionCallNode(const std::string& callee, std::vector<std::unique_ptr<ASTNode>> args)
-        : callee(callee), arguments(std::move(args)) {}
-
-    TypeTag getType() const override { return TypeTag::Function; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    const std::string& getCallee() const { return callee; }
-    const std::vector<std::unique_ptr<ASTNode>>& getArguments() const { return arguments; }
-};
-
-
-class VariableNode : public ASTNode {
-private:
-    std::string name;
-    std::optional<std::string> type; // Optional type annotation
-
-public:
-    VariableNode(const std::string& name, std::optional<std::string> type = std::nullopt)
-        : name(name), type(type) {}
-
-    TypeTag getType() const override { return TypeTag::Any; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    const std::string& getName() const { return name; }
-    const std::optional<std::string>& getTypeAnnotation() const { return type; }
-};
-
-
-
-// Assignment Nodes
-class AssignmentNode : public ASTNode {
-private:
-    std::unique_ptr<VariableNode> variable;
-    std::unique_ptr<ASTNode> value;
-
-public:
-    AssignmentNode(std::unique_ptr<VariableNode> variable, std::unique_ptr<ASTNode> value)
-        : variable(std::move(variable)), value(std::move(value)) {}
-
-    TypeTag getType() const override { return TypeTag::Any; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    VariableNode* getVariable() const { return variable.get(); }
-    ASTNode* getValue() const { return value.get(); }
-};
-
-
-// Class Nodes
-class ClassNode : public ASTNode {
-private:
-    std::string name;
-    std::vector<std::unique_ptr<VariableNode>> members;
-    std::vector<std::unique_ptr<ASTNode>> methods;
-
-public:
-    ClassNode(const std::string& name)
-        : name(name) {}
-
-    TypeTag getType() const override { return TypeTag::Class; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    const std::string& getName() const { return name; }
-    void addMember(std::unique_ptr<VariableNode> member) { members.push_back(std::move(member)); }
-    void addMethod(std::unique_ptr<ASTNode> method) { methods.push_back(std::move(method)); }
-    const std::vector<std::unique_ptr<VariableNode>>& getMembers() const { return members; }
-    const std::vector<std::unique_ptr<ASTNode>>& getMethods() const { return methods; }
-};
-
-// Method Nodes
-class MethodNode : public ASTNode {
-private:
-    std::string name;
-    std::vector<std::pair<std::string, TypePtr>> parameters;
-    TypePtr returnType;
-    std::unique_ptr<ASTNode> body;
-
-public:
-    MethodNode(const std::string& name,
-               std::vector<std::pair<std::string, TypePtr>> parameters,
-               TypePtr returnType,
-               std::unique_ptr<ASTNode> body)
-        : name(name), parameters(std::move(parameters)), returnType(std::move(returnType)), body(std::move(body)) {}
-
-    TypeTag getType() const override { return TypeTag::Method; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-    const std::string& getName() const { return name; }
-    const std::vector<std::pair<std::string, TypePtr>>& getParameters() const { return parameters; }
-    TypePtr getReturnType() const { return returnType; }
-    ASTNode* getBody() const { return body.get(); }
-};
-
-// Additional Constructs
-class RangeNode : public ASTNode {
-private:
-    std::unique_ptr<ASTNode> start;
-    std::unique_ptr<ASTNode> end;
-    std::unique_ptr<ASTNode> step;
-
-public:
-    RangeNode(std::unique_ptr<ASTNode> start, std::unique_ptr<ASTNode> end, std::unique_ptr<ASTNode> step = nullptr)
-        : start(std::move(start)), end(std::move(end)), step(std::move(step)) {}
-
-    TypeTag getType() const override { return TypeTag::Range; }
-    void accept(ASTVisitor& visitor) override { visitor.visit(*this); }
-};
-
-
-// Base visitor interface
-class ASTVisitor {
-public:
-    virtual ~ASTVisitor() = default;
-
-    // Core expressions
-    virtual void visit(NumberNode& node) = 0;
-    virtual void visit(BinaryNode& node) = 0;
-    virtual void visit(UnaryExprNode& node) = 0; // Corrected name
-    virtual void visit(StringLiteralNode& node) = 0;
-    // virtual void visit(ListNode& node) = 0;
-    virtual void visit(VariableNode& node) = 0; // Added
-    virtual void visit(AssignmentNode& node) = 0; // Added
-
-    // Functions and calls
-    virtual void visit(FunctionNode& node) = 0;
-    // virtual void visit(CallNode& node) = 0;
-    // virtual void visit(ReturnNode& node) = 0;
-
-    // Control flow
-    virtual void visit(ConditionalNode& node) = 0;
-    virtual void visit(WhileNode& node) = 0;
-    virtual void visit(ForNode& node) = 0; // Added
-    // virtual void visit(BlockNode& node) = 0; // Added
-    // virtual void visit(PatternMatchNode& node) = 0;
-
-    // Other
-    // virtual void visit(EnumNode& node) = 0;
-    // virtual void visit(ParallelNode& node) = 0;
-    // virtual void visit(ConcurrentNode& node) = 0;
-    virtual void visit(RangeNode& node) = 0;
-    virtual void visit(LogicalExprNode& node) = 0;
-
-};
-#endif
-
-
-
-#pragma once
-
-#include "token.hh"
+#include <map>
+#include <optional>
 #include "value.hh"
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
-#ifndef AST_HH
-#define AST_HH
+// Base Classes
+class SourceLocation {
+public:
+    int line;
+    int column;
+    std::optional<std::string> filename;
 
-// Forward declarations
-class ASTVisitor;
+    SourceLocation(int line, int column)
+        : line(line), column(column) {}
 
-// Enhanced source location with more detail
-struct SourceLocation {
-    size_t startOffset;
-    size_t endOffset;
-    size_t line;
-    size_t column;
-    std::string filename;
+    SourceLocation(int line, int column, const std::string& filename)
+        : line(line), column(column), filename(filename) {}
 };
 
-// Enhanced metadata for analysis
-struct NodeMetadata {
+class NodeMetadata {
+public:
     bool isConstant = false;
     bool isPure = false;
     bool isUsed = false;
     bool synthetic = false;
     std::string documentation;
-    std::optional<std::string> errorMsg;
+
+    struct ErrorDetail {
+        enum class Severity {
+            Warning,
+            Error,
+            Critical
+        };
+
+        Severity severity;
+        std::string message;
+        std::optional<std::string> suggestion; // Optional fix or hint
+        std::optional<SourceLocation> location; // Optional source location
+
+        ErrorDetail(Severity severity, const std::string &message,
+                    std::optional<std::string> suggestion = std::nullopt,
+                    std::optional<SourceLocation> location = std::nullopt)
+            : severity(severity), message(message), suggestion(suggestion), location(location) {}
+    };
+
+    std::vector<ErrorDetail> errors;
+
+    void addError(ErrorDetail::Severity severity, const std::string &message,
+                  std::optional<std::string> suggestion = std::nullopt,
+                  std::optional<SourceLocation> location = std::nullopt) {
+        errors.emplace_back(severity, message, suggestion, location);
+    }
+
+    std::string formatErrors() const {
+        std::ostringstream output;
+        for (const auto &error : errors) {
+            output << (error.severity == ErrorDetail::Severity::Warning ? "[Warning] "
+                       : error.severity == ErrorDetail::Severity::Error   ? "[Error] "
+                                                                        : "[Critical] ");
+            output << error.message;
+            if (error.location) {
+                output << " (Line: " << error.location->line
+                       << ", Column: " << error.location->column << ")";
+                if (error.location->filename) {
+                    output << " in file " << *error.location->filename;
+                }
+            }
+            if (error.suggestion) {
+                output << "\n  Suggestion: " << *error.suggestion;
+            }
+            output << "\n";
+        }
+        return output.str();
+    }
 };
 
-// Base AST Node
-class ASTNode {
+class ASTNode
+{
 public:
-    virtual ~ASTNode() = default;
-    virtual TypeTag getType() const = 0;
-    virtual void accept(ASTVisitor& visitor) = 0;
-
-    // Location management
-    virtual SourceLocation getLocation() const { return location; }
-    void setLocation(SourceLocation loc) { location = loc; }
-
-    // Tree structure
-    void setParent(std::shared_ptr<ASTNode> p) { parent = p; }
-    std::shared_ptr<ASTNode> getParent() const { return parent.lock(); }
-
-protected:
     SourceLocation location;
-    NodeMetadata metadata;
-    std::weak_ptr<ASTNode> parent;
-};
+    std::optional<NodeMetadata> metadata;
 
-// Expression Base Class
-class Expression : public ASTNode {
-public:
-    virtual ~Expression() = default;
-    virtual TypePtr getInferredType() const { return inferredType; }
-    void setInferredType(TypePtr type) { inferredType = type; }
+    ASTNode(SourceLocation loc)
+        : location(loc)
+    {}
 
-protected:
-    TypePtr inferredType;
-};
-
-// Statement Base Class
-class Statement : public ASTNode {
-public:
-    virtual ~Statement() = default;
-    virtual bool isTerminator() const { return false; }
-};
-
-// Literal Expressions
-class LiteralExpression : public Expression {
-protected:
-    ValuePtr value;
-
-public:
-    ValuePtr getValue() const { return value; }
-};
-
-class NumberNode : public LiteralExpression {
-public:
-    NumberNode(int64_t num) {
-        auto type = std::make_shared<Type>(TypeTag::Int64);
-        value = std::make_shared<Value>(Value{type, num});
+    // Access or create metadata lazily
+    NodeMetadata &getOrCreateMetadata()
+    {
+        if (!metadata) {
+            metadata = NodeMetadata();
+        }
+        return *metadata;
     }
 
-    NumberNode(double num) {
-        auto type = std::make_shared<Type>(TypeTag::Float64);
-        value = std::make_shared<Value>(Value{type, num});
+    // Check if metadata exists without creating it
+    bool hasMetadata() const
+    {
+        return metadata.has_value();
     }
 
-    TypeTag getType() const override { return value->type->tag; }
-    void accept(ASTVisitor& visitor) override;
+    virtual ~ASTNode() = default;
+    virtual void accept(class ASTVisitor &visitor) = 0;
 };
 
-class StringLiteralNode : public LiteralExpression {
+// Visitor Interface
+class ASTVisitor
+{
 public:
-    StringLiteralNode(const std::string& str) {
-        auto type = std::make_shared<Type>(TypeTag::String);
-        value = std::make_shared<Value>(Value{type, str});
-    }
-
-    TypeTag getType() const override { return TypeTag::String; }
-    void accept(ASTVisitor& visitor) override;
+    virtual void visit(class NumberNode &node) = 0;
+    virtual void visit(class StringLiteralNode &node) = 0;
+    virtual void visit(class BinaryNode &node) = 0;
+    virtual void visit(class ConditionalNode &node) = 0;
+    virtual void visit(class BlockNode &node) = 0;
+    virtual void visit(class WhileNode &node) = 0;
+    virtual void visit(class ForNode &node) = 0;
+    virtual void visit(class RangeNode &node) = 0;
+    virtual void visit(class ListNode &node) = 0;
+    virtual void visit(class DictNode &node) = 0;
+    virtual void visit(class ParallelNode &node) = 0;
+    virtual void visit(class VariableNode &node) = 0;
+    virtual void visit(class AssignmentNode &node) = 0;
+    virtual void visit(class ConcurrentNode &node) = 0;
+    virtual void visit(class FunctionNode &node) = 0;
+    virtual void visit(class ClassNode &node) = 0;
+    virtual void visit(class ModuleNode &node) = 0;
+    virtual void visit(class ErrorHandlingNode &node) = 0;
+    virtual void visit(class MatchNode &node) = 0;
+    virtual void visit(class StreamProcessingNode &node) = 0;
+    virtual void visit(class AtomicNode &node) = 0;
+    virtual void visit(class ChannelNode &node) = 0;
+    virtual void visit(FieldNode &node) = 0;
+    virtual void visit(LambdaNode &node) = 0;
+    virtual void visit(ImportNode &node) = 0;
+    virtual void visit(ContractNode &node) = 0;
+    virtual void visit(InterfaceNode &node) = 0;
+    virtual void visit(MixinNode &node) = 0;
+    virtual void visit(UnsafeNode &node) = 0;
 };
 
-// Expression Nodes
-class BinaryNode : public Expression {
-private:
-    TokenType op;
-    std::unique_ptr<Expression> left, right;
-
+// Node Implementations
+class Expression : public ASTNode
+{
 public:
-    BinaryNode(TokenType op, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right)
-        : op(op), left(std::move(left)), right(std::move(right)) {}
-
-    TypeTag getType() const override { return TypeTag::Any; }
-    void accept(ASTVisitor& visitor) override;
-
-    TokenType getOp() const { return op; }
-    Expression* getLeft() const { return left.get(); }
-    Expression* getRight() const { return right.get(); }
+    Type type;
+    Expression(SourceLocation loc, Type type)
+        : ASTNode(loc)
+        , type(type)
+    {}
 };
 
-// Statement Nodes
-class ExpressionStatement : public Statement {
-private:
-    std::unique_ptr<Expression> expr;
-
+class Statement : public ASTNode
+{
 public:
-    ExpressionStatement(std::unique_ptr<Expression> expr)
-        : expr(std::move(expr)) {}
-
-    TypeTag getType() const override { return TypeTag::Statement; }
-    void accept(ASTVisitor& visitor) override;
-    Expression* getExpression() const { return expr.get(); }
+    Statement(SourceLocation loc)
+        : ASTNode(loc)
+    {}
 };
 
-class Block : public Statement {
+class NumberNode : public Expression
+{
+public:
+    Value value; // From ../values.hh
+
+    NumberNode(SourceLocation loc, Type type, Value val)
+        : Expression(loc, type)
+        , value(val)
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class BlockNode : public Statement {
 private:
     std::vector<std::unique_ptr<Statement>> statements;
 
 public:
-    TypeTag getType() const override { return TypeTag::Block; }
-    void accept(ASTVisitor& visitor) override;
+    BlockNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> statements)
+        : Statement(loc),
+        statements(std::move(statements)) {}
 
-    void addStatement(std::unique_ptr<Statement> stmt) {
-        statements.push_back(std::move(stmt));
-    }
-
-    const std::vector<std::unique_ptr<Statement>>& getStatements() const {
-        return statements;
-    }
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-// Declaration Nodes
-class Declaration : public Statement {
-protected:
+class StringLiteralNode : public Expression
+{
+public:
+    Value value; // From ../values.hh
+
+    StringLiteralNode(SourceLocation loc, Type type, Value val)
+        : Expression(loc, type)
+        , value(val)
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class BinaryNode : public Expression
+{
+public:
+    std::string operatorType;
+    std::unique_ptr<Expression> left;
+    std::unique_ptr<Expression> right;
+
+    BinaryNode(SourceLocation loc,
+               Type type,
+               const std::string &op,
+               std::unique_ptr<Expression> lhs,
+               std::unique_ptr<Expression> rhs)
+        : Expression(loc, type)
+        , operatorType(op)
+        , left(std::move(lhs))
+        , right(std::move(rhs))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ConditionalNode : public Statement
+{
+public:
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<Statement> thenBranch;
+    std::optional<std::unique_ptr<Statement>> elseBranch;
+
+    ConditionalNode(SourceLocation loc,
+                    std::unique_ptr<Expression> cond,
+                    std::unique_ptr<Statement> thenBranch,
+                    std::optional<std::unique_ptr<Statement>> elseBranch)
+        : Statement(loc)
+        , condition(std::move(cond))
+        , thenBranch(std::move(thenBranch))
+        , elseBranch(std::move(elseBranch))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class WhileNode : public Statement
+{
+public:
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<Statement> body;
+
+    WhileNode(SourceLocation loc, std::unique_ptr<Expression> cond, std::unique_ptr<Statement> body)
+        : Statement(loc)
+        , condition(std::move(cond))
+        , body(std::move(body))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ForNode : public Statement
+{
+public:
+    std::unique_ptr<ASTNode> initializer;
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<ASTNode> increment;
+    std::unique_ptr<Statement> body;
+
+    ForNode(SourceLocation loc,
+            std::unique_ptr<ASTNode> init,
+            std::unique_ptr<Expression> cond,
+            std::unique_ptr<ASTNode> incr,
+            std::unique_ptr<Statement> body)
+        : Statement(loc)
+        , initializer(std::move(init))
+        , condition(std::move(cond))
+        , increment(std::move(incr))
+        , body(std::move(body))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class RangeNode : public Expression
+{
+public:
+    std::unique_ptr<Expression> start;
+    std::unique_ptr<Expression> end;
+    std::optional<std::unique_ptr<Expression>> step;
+
+    RangeNode(SourceLocation loc,
+              Type type,
+              std::unique_ptr<Expression> start,
+              std::unique_ptr<Expression> end,
+              std::optional<std::unique_ptr<Expression>> step)
+        : Expression(loc, type)
+        , start(std::move(start))
+        , end(std::move(end))
+        , step(std::move(step))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ListNode : public Expression
+{
+public:
+    std::vector<std::unique_ptr<Expression>> elements;
+
+    ListNode(SourceLocation loc, Type type, std::vector<std::unique_ptr<Expression>> elements)
+        : Expression(loc, type)
+        , elements(std::move(elements))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class DictNode : public Expression
+{
+public:
+    std::map<std::string, std::unique_ptr<Expression>> entries;
+
+    DictNode(SourceLocation loc,
+             Type type,
+             std::map<std::string, std::unique_ptr<Expression>> entries)
+        : Expression(loc, type)
+        , entries(std::move(entries))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ParallelNode : public Statement
+{
+public:
+    std::vector<std::unique_ptr<Statement>> branches;
+
+    ParallelNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> branches)
+        : Statement(loc)
+        , branches(std::move(branches))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ConcurrentNode : public Statement
+{
+public:
+    std::vector<std::unique_ptr<Statement>> branches;
+
+    ConcurrentNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> branches)
+        : Statement(loc)
+        , branches(std::move(branches))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class VariableNode : public Expression {
+private:
     std::string name;
-    TypePtr declaredType;
+    std::optional<std::unique_ptr<Expression>> initialValue;
+    bool isMutable_;
 
 public:
-    Declaration(const std::string& name, TypePtr type)
-        : name(name), declaredType(type) {}
+    VariableNode(SourceLocation loc,
+                 Type type,
+                 const std::string& name,
+                 bool isMutable = true,
+                 std::optional<std::unique_ptr<Expression>> initialValue = std::nullopt)
+        : Expression(loc, type)
+        , name(name)
+        , initialValue(std::move(initialValue))
+        , isMutable_(isMutable) {}
 
     const std::string& getName() const { return name; }
-    TypePtr getDeclaredType() const { return declaredType; }
+    bool isMutable() const { return isMutable_; }
+
+    bool hasInitializer() const {
+        return initialValue.has_value();
+    }
+
+    Expression* getInitializer() const {
+        return initialValue ? initialValue->get() : nullptr;
+    }
+
+    void accept(ASTVisitor &visitor) override {
+        visitor.visit(*this);
+    }
 };
 
-// Enhanced Visitor Pattern
-class ASTVisitor {
+class AssignmentNode : public Statement {
+private:
+    std::unique_ptr<Expression> target;
+    std::unique_ptr<Expression> value;
+
 public:
-    virtual ~ASTVisitor() = default;
+    AssignmentNode(SourceLocation loc,
+                   std::unique_ptr<Expression> targetExpr,
+                   std::unique_ptr<Expression> valueExpr)
+        : Statement(loc)
+        , target(std::move(targetExpr))
+        , value(std::move(valueExpr)) {}
 
-    // Expressions
-    virtual void visit(NumberNode& node) = 0;
-    virtual void visit(StringLiteralNode& node) = 0;
-    virtual void visit(BinaryNode& node) = 0;
-    virtual void visit(UnaryExprNode& node) = 0;
-    virtual void visit(VariableNode& node) = 0;
+    Expression* getTarget() const { return target.get(); }
+    Expression* getValue() const { return value.get(); }
 
-    // Statements
-    virtual void visit(ExpressionStatement& node) = 0;
-    virtual void visit(Block& node) = 0;
-    virtual void visit(ConditionalNode& node) = 0;
-    virtual void visit(WhileNode& node) = 0;
-    virtual void visit(ForNode& node) = 0;
-
-    // Declarations
-    virtual void visit(FunctionNode& node) = 0;
-    virtual void visit(ClassNode& node) = 0;
-    virtual void visit(MethodNode& node) = 0;
-    virtual void visit(VariableDeclaration& node) = 0;
-
-    // Other
-    virtual void visit(RangeNode& node) = 0;
-    virtual void visit(LogicalExprNode& node) = 0;
+    void accept(ASTVisitor &visitor) override {
+        visitor.visit(*this);
+    }
 };
 
-// Abstract Visitor Implementation
-class AbstractASTVisitor : public ASTVisitor {
+// Function Support
+class Parameter
+{
 public:
-    // Default implementations that do nothing
-    void visit(NumberNode& node) override {}
-    void visit(StringLiteralNode& node) override {}
-    void visit(BinaryNode& node) override {}
-    void visit(UnaryExprNode& node) override {}
-    void visit(VariableNode& node) override {}
-    void visit(ExpressionStatement& node) override {}
-    void visit(Block& node) override {}
-    void visit(ConditionalNode& node) override {}
-    void visit(WhileNode& node) override {}
-    void visit(ForNode& node) override {}
-    void visit(FunctionNode& node) override {}
-    void visit(ClassNode& node) override {}
-    void visit(MethodNode& node) override {}
-    void visit(VariableDeclaration& node) override {}
-    void visit(RangeNode& node) override {}
-    void visit(LogicalExprNode& node) override {}
+    std::string name;
+    Type type;
+    std::optional<Value> defaultValue; // From ../values.hh
+
+    Parameter(const std::string &name,
+              Type type,
+              std::optional<Value> defaultValue = std::nullopt)
+        : name(name)
+        , type(type)
+        , defaultValue(defaultValue)
+    {}
 };
 
-#endif
+class FunctionNode : public Statement
+{
+public:
+    std::string name;
+    Type returnType;
+    std::vector<Parameter> parameters;
+    std::vector<std::unique_ptr<Statement>> body;
+
+    FunctionNode(SourceLocation loc,
+                 const std::string &name,
+                 Type returnType,
+                 std::vector<Parameter> params,
+                 std::vector<std::unique_ptr<Statement>> body)
+        : Statement(loc)
+        , name(name)
+        , returnType(returnType)
+        , parameters(std::move(params))
+        , body(std::move(body))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Class Support
+class ClassNode : public Statement
+{
+public:
+    std::string name;
+    std::optional<std::string> baseClass; // For inheritance
+    std::vector<std::unique_ptr<Statement>> members; // Methods and fields
+
+    ClassNode(SourceLocation loc,
+              const std::string &name,
+              std::optional<std::string> baseClass = std::nullopt,
+              std::vector<std::unique_ptr<Statement>> members = {})
+        : Statement(loc)
+        , name(name)
+        , baseClass(baseClass)
+        , members(std::move(members))
+    {}
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Example Nodes for Class Members
+class FieldNode : public Statement
+{
+public:
+    std::string name;
+    Type type;
+    std::optional<Value> initialValue; // From ../values.hh
+
+    FieldNode(SourceLocation loc,
+              const std::string &name,
+              Type type,
+              std::optional<Value> initialValue = std::nullopt)
+        : Statement(loc)
+        , name(name)
+        , type(type)
+        , initialValue(initialValue)
+    {}
+
+    void accept(ASTVisitor &visitor) override {
+    visitor.visit(*this);
+
+    }
+};
+
+class MethodNode : public FunctionNode
+{
+public:
+    bool isStatic;
+
+    MethodNode(SourceLocation loc,
+               const std::string &name,
+               Type returnType,
+               std::vector<Parameter> params,
+               std::vector<std::unique_ptr<Statement>> body,
+               bool isStatic = false)
+        : FunctionNode(loc, name, returnType, std::move(params), std::move(body))
+        , isStatic(isStatic)
+    {}
+
+    void accept(ASTVisitor &visitor) override {
+        // Delegate to the base FunctionNode's visit method
+        visitor.visit(static_cast<FunctionNode&>(*this));
+    }
+};
+
+// Module Support
+class ModuleNode : public Statement {
+public:
+    std::string name;
+    std::vector<std::unique_ptr<Statement>> declarations;
+
+    ModuleNode(SourceLocation loc,
+               const std::string& moduleName,
+               std::vector<std::unique_ptr<Statement>> moduleDeclarations)
+        : Statement(loc)
+        , name(moduleName)
+        , declarations(std::move(moduleDeclarations))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Error Handling Node
+class ErrorHandlingNode : public Expression {
+public:
+    enum class ErrorType {
+        Optional,
+        Result,
+        Matching
+    };
+
+    ErrorType errorType;
+    std::unique_ptr<Expression> expression;
+    std::optional<std::unique_ptr<Expression>> errorHandler;
+
+    ErrorHandlingNode(SourceLocation loc,
+                      Type type,
+                      ErrorType errType,
+                      std::unique_ptr<Expression> expr,
+                      std::optional<std::unique_ptr<Expression>> handler = std::nullopt)
+        : Expression(loc, type)
+        , errorType(errType)
+        , expression(std::move(expr))
+        , errorHandler(std::move(handler))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Pattern Matching Node
+class MatchNode : public Statement {
+public:
+    std::unique_ptr<Expression> matchExpression;
+    std::vector<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Statement>>> matchCases;
+    std::optional<std::unique_ptr<Statement>> defaultCase;
+
+    MatchNode(SourceLocation loc,
+              std::unique_ptr<Expression> expr,
+              std::vector<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Statement>>> cases,
+              std::optional<std::unique_ptr<Statement>> defaultCase = std::nullopt)
+        : Statement(loc)
+        , matchExpression(std::move(expr))
+        , matchCases(std::move(cases))
+        , defaultCase(std::move(defaultCase))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Stream Processing Node
+class StreamProcessingNode : public Statement {
+public:
+    std::unique_ptr<Expression> inputStream;
+    std::unique_ptr<Expression> processingFunction;
+    std::unique_ptr<Expression> outputChannel;
+
+    StreamProcessingNode(SourceLocation loc,
+                         std::unique_ptr<Expression> input,
+                         std::unique_ptr<Expression> processFunc,
+                         std::unique_ptr<Expression> output)
+        : Statement(loc)
+        , inputStream(std::move(input))
+        , processingFunction(std::move(processFunc))
+        , outputChannel(std::move(output))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Atomic Operation Node
+class AtomicNode : public Expression {
+public:
+    enum class Operation {
+        FetchAdd,
+        CompareExchange,
+        Load,
+        Store
+    };
+
+    Operation op;
+    std::unique_ptr<Expression> target;
+    std::optional<std::unique_ptr<Expression>> value;
+
+    AtomicNode(SourceLocation loc,
+               Type type,
+               Operation operation,
+               std::unique_ptr<Expression> target,
+               std::optional<std::unique_ptr<Expression>> value = std::nullopt)
+        : Expression(loc, type)
+        , op(operation)
+        , target(std::move(target))
+        , value(std::move(value))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Channel Communication Node
+class ChannelNode : public Statement {
+public:
+    enum class ChannelOperation {
+        Send,
+        Receive,
+        Collect
+    };
+
+    ChannelOperation op;
+    std::unique_ptr<Expression> channel;
+    std::optional<std::unique_ptr<Expression>> data;
+
+    ChannelNode(SourceLocation loc,
+                ChannelOperation operation,
+                std::unique_ptr<Expression> channelExpr,
+                std::optional<std::unique_ptr<Expression>> channelData = std::nullopt)
+        : Statement(loc)
+        , op(operation)
+        , channel(std::move(channelExpr))
+        , data(std::move(channelData))
+    {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class LambdaNode : public Expression {
+public:
+    std::vector<Parameter> parameters;
+    std::unique_ptr<Statement> body;
+
+    LambdaNode(SourceLocation loc, Type type, std::vector<Parameter> params, std::unique_ptr<Statement> body)
+        : Expression(loc, type), parameters(std::move(params)), body(std::move(body)) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ImportNode : public Statement {
+public:
+    std::string moduleName;
+    std::optional<std::string> alias;
+
+    ImportNode(SourceLocation loc, const std::string &moduleName, std::optional<std::string> alias = std::nullopt)
+        : Statement(loc), moduleName(moduleName), alias(alias) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// New Node for Contract
+class ContractNode : public Statement {
+public:
+    std::unique_ptr<Expression> condition;
+    std::string message;
+    std::string action;
+
+    ContractNode(SourceLocation loc, std::unique_ptr<Expression> cond, const std::string &msg, const std::string &act)
+        : Statement(loc), condition(std::move(cond)), message(msg), action(act) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// New Node for Interface
+class InterfaceNode : public Statement {
+public:
+    std::string name;
+    std::vector<std::unique_ptr<Statement>> methods;
+
+    InterfaceNode(SourceLocation loc, const std::string &name, std::vector<std::unique_ptr<Statement>> methods)
+        : Statement(loc), name(name), methods(std::move(methods)) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// New Node for Mixin
+class MixinNode : public Statement {
+public:
+    std::string name;
+    std::vector<std::unique_ptr<Statement>> methods;
+
+    MixinNode(SourceLocation loc, const std::string &name, std::vector<std::unique_ptr<Statement>> methods)
+        : Statement(loc), name(name), methods(std::move(methods)) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// New Node for Unsafe Block
+class UnsafeNode : public Statement {
+public:
+    std::vector<std::unique_ptr<Statement>> body;
+
+    UnsafeNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> body)
+        : Statement(loc), body(std::move(body)) {}
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
