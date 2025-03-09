@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <stack>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -25,238 +26,131 @@
 #include <intrin.h>
 #endif
 
+
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 #define TRACE_INFO() (std::string(__FUNCTION__) + " at line " + TOSTRING(__LINE__))
 
-// Size classes for small allocations (in bytes)
-constexpr std::array<size_t, 8> SMALL_SIZES = {16, 32, 64, 128, 256, 512, 1024, 2048};
-constexpr size_t MAX_SMALL_SIZE = SMALL_SIZES.back();
-constexpr size_t BLOCK_SIZE = 64 * 1024; // 64KB blocks
-constexpr size_t MAX_BLOCKS_PER_CHUNK = 64;
-constexpr size_t POOL_INITIAL_SIZE = 1024 * 1024; // 1MB initial pool size
+constexpr size_t MIN_ALLOC_SIZE = 8;
+constexpr size_t MAX_ALLOC_SIZE = 256;
+constexpr size_t POOL_CHUNK_SIZE = 1024;
 
-class DefaultAllocator {
+class MemoryPool {
 private:
-    std::mutex mutex;
-    static constexpr size_t TEMP_BUFFER_SIZE = 4096;
-    static constexpr size_t POOL_GROWTH_FACTOR = 2;
-
-    struct ObjectPool {
-        std::mutex pool_mutex;
-        std::vector<void*> free_objects;
-        size_t object_size;
-        size_t capacity;
-        std::atomic<size_t> allocation_count{0};
-        std::unordered_map<void*, bool> allocated_objects; // Track allocated objects
-
-        ObjectPool(size_t size, size_t initial_capacity)
-            : object_size(size)
-            , capacity(initial_capacity)
-        {
-            expand(initial_capacity);
-        }
-
-        void expand(size_t additional_capacity) {
-            std::lock_guard<std::mutex> lock(pool_mutex);
-            try {
-                size_t old_size = free_objects.size();
-                free_objects.reserve(old_size + additional_capacity);
-
-                uint8_t* memory = new uint8_t[object_size * additional_capacity];
-                for (size_t i = 0; i < additional_capacity; ++i) {
-                    free_objects.push_back(memory + (i * object_size));
-                }
-                capacity += additional_capacity;
-            } catch (const std::bad_alloc& e) {
-                // Log error and try to recover
-                std::cerr << "Failed to expand pool: " << e.what() << std::endl;
-                throw;
-            }
-        }
-
-        void* allocate() {
-            // std::lock_guard<std::mutex> lock(pool_mutex);
-            // if (free_objects.empty()) {
-            //     expand(capacity * POOL_GROWTH_FACTOR);
-            // }
-
-            // void* ptr = free_objects.back();
-            // free_objects.pop_back();
-            // allocation_count.fetch_add(1, std::memory_order_relaxed);
-            // return ptr;
-            std::lock_guard<std::mutex> lock(pool_mutex);
-            if (free_objects.empty()) {
-                expand(capacity * POOL_GROWTH_FACTOR);
-            }
-
-            void* ptr = free_objects.back();
-            free_objects.pop_back();
-            allocated_objects[ptr] = true;
-            return ptr;
-        }
-
-        bool deallocate(void* ptr) {
-            // std::lock_guard<std::mutex> lock(pool_mutex);
-            // free_objects.push_back(ptr);
-            // allocation_count.fetch_sub(1, std::memory_order_relaxed);
-            std::lock_guard<std::mutex> lock(pool_mutex);
-            auto it = allocated_objects.find(ptr);
-            if (it != allocated_objects.end()) {
-                free_objects.push_back(ptr);
-                allocated_objects.erase(it);
-                return true;
-            }
-            return false;
-        }
-
-        ~ObjectPool() {
-            std::lock_guard<std::mutex> lock(pool_mutex);
-            // Clean up all allocated memory
-            std::unordered_set<uint8_t*> base_pointers;
-
-            for (void* ptr : free_objects) {
-                base_pointers.insert(static_cast<uint8_t*>(ptr) -
-                                     ((reinterpret_cast<std::uintptr_t>(ptr) / object_size) * object_size));
-            }
-
-            for (uint8_t* ptr : base_pointers) {
-                delete[] ptr;
-            }
-        }
-    };
-
-    // Thread-local cache with proper initialization
-    struct ThreadCache {
-        struct CacheEntry {
-            std::vector<void*> objects;
-            size_t size_class;
-            size_t hit_count;  // Changed from atomic
-            size_t miss_count; // Changed from atomic
-
-            CacheEntry() : size_class(0), hit_count(0), miss_count(0) {}
-            explicit CacheEntry(size_t sc) : size_class(sc), hit_count(0), miss_count(0) {}
-
-            // Now we can safely copy and assign
-            CacheEntry(const CacheEntry& other) = default;
-            CacheEntry& operator=(const CacheEntry& other) = default;
-        };
-
-        std::array<CacheEntry, SMALL_SIZES.size()> small_cache;
-        std::vector<std::pair<void*, size_t>> large_allocations;
-        static constexpr size_t MAX_CACHE_OBJECTS = 32;
-        std::mutex cache_mutex; // Added mutex for thread safety
-
-        ThreadCache() {
-            for (size_t i = 0; i < SMALL_SIZES.size(); ++i) {
-                small_cache[i] = CacheEntry(SMALL_SIZES[i]);
-            }
-        }
-
-        void* fetchFromCache(size_t size_class_index) {
-            std::lock_guard<std::mutex> lock(cache_mutex);
-            auto& cache = small_cache[size_class_index];
-            if (!cache.objects.empty()) {
-                void* ptr = cache.objects.back();
-                cache.objects.pop_back();
-                cache.hit_count++;
-                return ptr;
-            }
-            cache.miss_count++;
-            return nullptr;
-        }
-
-        void returnToCache(void* ptr, size_t size_class_index) {
-            std::lock_guard<std::mutex> lock(cache_mutex);
-            auto& cache = small_cache[size_class_index];
-            if (cache.objects.size() < MAX_CACHE_OBJECTS) {
-                cache.objects.push_back(ptr);
-            } else {
-                delete[] static_cast<uint8_t*>(ptr);
-            }
-        }
-
-        ~ThreadCache() {
-            std::lock_guard<std::mutex> lock(cache_mutex);
-            // Clean up cache
-            for (auto& cache : small_cache) {
-                for (void* ptr : cache.objects) {
-                    delete[] static_cast<uint8_t*>(ptr);
-                }
-            }
-
-            // Clean up large allocations
-            for (auto& [ptr, size] : large_allocations) {
-                delete[] static_cast<uint8_t*>(ptr);
-            }
-        }
-    };
-
-    static thread_local ThreadCache thread_cache;
-    std::mutex global_mutex;
-
-    // Initialize object pools in constructor
-    std::array<std::unique_ptr<ObjectPool>, SMALL_SIZES.size()> object_pools;
-
-    void initializePools() {
-        for (size_t i = 0; i < SMALL_SIZES.size(); ++i) {
-            object_pools[i] = std::make_unique<ObjectPool>(
-                SMALL_SIZES[i],
-                POOL_INITIAL_SIZE / SMALL_SIZES[i]
-                );
-        }
-    }
+    std::vector<void*> freeBlocks;
+    std::vector<void*> allocatedBlocks;
+    std::mutex poolMutex;
+    size_t blockSize;
+    size_t poolSize;
 
 public:
-    DefaultAllocator() {
-        initializePools();
-    }
-
-    void* allocate(size_t size, size_t alignment) {
-        // Handle alignment requirements
-        size = std::max(size, alignment);
-
-        if (size <= MAX_SMALL_SIZE) {
-            size_t pool_index = get_size_class(size);
-            if (pool_index < object_pools.size()) {
-                return object_pools[pool_index]->allocate();
-            }
-        }
-
-        // Fall back to regular allocation for large sizes
-        try {
-            return new uint8_t[size];
-        } catch (const std::bad_alloc& e) {
-            std::cerr << "Failed to allocate " << size << " bytes: " << e.what() << std::endl;
-            throw;
+    MemoryPool(size_t blockSize, size_t poolSize)
+        : blockSize(blockSize), poolSize(poolSize) {
+        allocatedBlocks.reserve(poolSize);
+        for (size_t i = 0; i < poolSize; ++i) {
+            void* block = std::malloc(blockSize);
+            freeBlocks.push_back(block);
+            allocatedBlocks.push_back(block);
         }
     }
 
-    void deallocate(void* ptr) noexcept {
-        if (!ptr) return;
-
-        // Try to find the pointer in object pools
-        for (size_t i = 0; i < object_pools.size(); ++i) {
-            if (object_pools[i]->deallocate(ptr)) {
-                return;
-            }
+    ~MemoryPool() {
+        for (void* block : allocatedBlocks) {
+            std::free(block);
         }
-
-        // If not found in pools, it must be a large allocation
-        delete[] static_cast<uint8_t*>(ptr);
     }
 
-private:
-    static size_t get_size_class(size_t size) {
-        for (size_t i = 0; i < SMALL_SIZES.size(); ++i) {
-            if (size <= SMALL_SIZES[i]) return i;
+    void* allocate() {
+        std::lock_guard<std::mutex> lock(poolMutex);
+        if (freeBlocks.empty()) {
+            return std::malloc(blockSize);
         }
-        return static_cast<size_t>(-1);
+        void* block = freeBlocks.back();
+        freeBlocks.pop_back();
+        return block;
+    }
+
+    void deallocate(void* ptr) {
+        std::lock_guard<std::mutex> lock(poolMutex);
+        freeBlocks.push_back(ptr);
     }
 };
 
-// Define the thread_local static member outside the class
-//thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
+class ObjectPool {
+private:
+    std::stack<void*> pool;
+    std::mutex poolMutex;
+    size_t objectSize;
+
+public:
+    ObjectPool(size_t objectSize, size_t initialSize) : objectSize(objectSize) {
+        for (size_t i = 0; i < initialSize; ++i) {
+            pool.push(std::malloc(objectSize));
+        }
+    }
+
+    ~ObjectPool() {
+        while (!pool.empty()) {
+            std::free(pool.top());
+            pool.pop();
+        }
+    }
+
+    void* allocate() {
+        std::lock_guard<std::mutex> lock(poolMutex);
+        if (pool.empty()) {
+            return std::malloc(objectSize);
+        }
+        void* obj = pool.top();
+        pool.pop();
+        return obj;
+    }
+
+    void deallocate(void* obj) {
+        std::lock_guard<std::mutex> lock(poolMutex);
+        pool.push(obj);
+    }
+};
+
+class DefaultAllocator {
+private:
+    std::unordered_map<size_t, MemoryPool*> memoryPools;
+    ObjectPool objectPool;
+
+public:
+    DefaultAllocator()
+        : objectPool(256, POOL_CHUNK_SIZE) {
+        for (size_t size = MIN_ALLOC_SIZE; size <= MAX_ALLOC_SIZE; size *= 2) {
+            memoryPools[size] = new MemoryPool(size, POOL_CHUNK_SIZE);
+        }
+    }
+
+    ~DefaultAllocator() {
+        for (auto& pair : memoryPools) {
+            delete pair.second;
+        }
+    }
+
+    void* allocate(size_t size, size_t alignment = alignof(std::max_align_t)) {
+        if (size <= MAX_ALLOC_SIZE) {
+            return memoryPools[size]->allocate();
+        }
+        return objectPool.allocate();
+    }
+
+    void deallocate(void* ptr, size_t size) {
+        if (size <= MAX_ALLOC_SIZE) {
+            memoryPools[size]->deallocate(ptr);
+        } else {
+            objectPool.deallocate(ptr);
+        }
+    }
+
+    void deallocate(void* ptr) {
+
+            objectPool.deallocate(ptr);
+    }
+};
 
 struct AllocationInfo
 {
@@ -346,8 +240,15 @@ public:
 
     void deallocate(void *ptr)
     {
+        // Get the size from the allocation tracker
+        MemoryAnalyzer::AllocationInfo* info = analyzer.getAllocationInfo(ptr);
+        size_t size = info ? info->size : 0;
+
+        // Record deallocation
         analyzer.recordDeallocation(ptr);
-        allocator.deallocate(ptr);
+
+        // Deallocate with the size parameter
+        allocator.deallocate(ptr, size);
     }
 
     void analyzeMemoryUsage() const {

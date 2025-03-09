@@ -44,11 +44,25 @@ add_executable(luminar src/main.cpp
 
 )
 
+find_library(GCCJIT_LIBRARY NAMES libgccjit.so libgccjit.dll)
+
+# # Use execute_process to get the correct include path dynamically
+# execute_process(
+#     COMMAND gcc -print-file-name=include
+#     OUTPUT_VARIABLE GCC_INCLUDE_DIR
+#     OUTPUT_STRIP_TRAILING_WHITESPACE
+# )
+
+# include_directories(${GCC_INCLUDE_DIR}/jit)
+
+# target_link_libraries(luminar ${GCCJIT_LIBRARY})
+
 include(GNUInstallDirs)
 install(TARGETS luminar
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
 # Install the documentation files
 install(FILES
     doc/readme.md

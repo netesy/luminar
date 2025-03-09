@@ -122,7 +122,7 @@ while (count < 3) {
 // ---------------------------------------------------
 
 // Experimental: File handling
-fn write_to_file(filename: str, content: str): void {
+fn write_to_file(filename: str, content: str): nil {
   var file = open(filename, "write");
   file.write(content);
   file.close();
@@ -165,35 +165,20 @@ module MathUtils {
 
 import MathUtils;
 print(MathUtils.add(5, 3));         // Output: 8
-print(MathUtils.factorial(4));      // Output: 24
+print(MathUtils.factorial(4));      // Should Output: 24 but the module method is not public
 
 // ---------------------------------------------------
 // Error Handling
 // ---------------------------------------------------
 
 fn divide(a: int, b: int): int? {
-  if b == 0 {
-    return error("Division by zero");
-  }
+  contract(b != 0, "Divisor must not be zero");
   return a / b;
 }
 
 match divide(10, 0) {
   Some(result) => print("Result: {result}"),
   None => print("Error: Division by zero")
-}
-
-
-// Contract function for enforcing conditions at runtime or comptime
-fn contract(condition: bool, message: str, action: str = "throw") {
-    if !condition {
-        match action {
-            "throw"  => throw Error(message),
-            "warn"   => debug("Warning: " + message),
-            "log"    => log("Contract Violation: " + message),
-            _        => throw Error("Invalid contract action")
-        }
-    }
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -234,9 +219,6 @@ class BankAccount {
         self.balance -= amount;
     }
 }
-
-
-
 
 // ────────────────────────────────────────────────────────────────────
 // Loop Contracts: Maintaining Invariants
@@ -336,7 +318,7 @@ class Vehicle {
     }
 
     @public
-    fn display(): void {
+    fn display(): nil {
         print("Vehicle Name: {self.name}, Speed: {self.speed}");
     }
 }
@@ -350,7 +332,7 @@ class Car(Vehicle) {
     }
 
     @public
-    fn display(): void {
+    fn display(): nil {
         print("Car Model: {self.model}, Name: {self.name}, Speed: {self.speed}");
     }
 }
@@ -370,18 +352,18 @@ interface Serializable {
 
 @open
 mixin Loggable {
-    fn log(message: str): void {
+    fn log(message: str): nil {
         self.logger.info(message);
     }
 
-    fn error(message: str): void {
+    fn error(message: str): nil {
         self.logger.error(message);
     }
 }
 
 @open
-class Base {
-    fn init(): void {
+class Base(Loggable) {
+    fn init(): nil {
         self.data = "";
     }
 
@@ -390,7 +372,7 @@ class Base {
     }
 }
 
-class DataHandler(Base): implements Serializable with Loggable {
+class DataHandler(Base): implements Serializable {
     var _data: str;
 
     @property
@@ -399,7 +381,7 @@ class DataHandler(Base): implements Serializable with Loggable {
     }
 
     @public
-    fn set_data(value: str): void {
+    fn set_data(value: str): nil {
         if len(value) > 0 {
             self._data = value;
         }
@@ -537,7 +519,7 @@ unsafe {
 
 // Unsafe memory operations through classes
 class RawBuffer {
-    var ptr: *void;
+    var ptr: *nil;
     var size: uint;
 
     RawBuffer(size: uint) {
@@ -577,13 +559,13 @@ class SafeBuffer {
         self.raw = RawBuffer(size);
     }
 
-    fn resize(new_size: uint): Result<void, str> {
+    fn resize(new_size: uint): Result<nil, str> {
         contract(new_size > 0, "New size must be positive");
 
         if !self.raw.resize(new_size) {
             return Error("Failed to resize buffer");
         }
-        return Success(void);
+        return Success(nil);
     }
 }
 
@@ -601,7 +583,7 @@ class FastArray<T> {
         }
     }
 
-    fn push(item: T): void {
+    fn push(item: T): nil {
         if self.length == self.capacity {
             self.grow();
         }
@@ -612,7 +594,7 @@ class FastArray<T> {
         }
     }
 
-    private fn grow(): void {
+    private fn grow(): nil {
         unsafe {
             var new_capacity = self.capacity * 2;
             var new_data = memory.allocate(new_capacity * sizeof(T));

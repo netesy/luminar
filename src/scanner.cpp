@@ -409,6 +409,8 @@ TokenType Scanner::checkKeyword(const std::string &identifier) const
         return TokenType::FALSE;
     if (identifier == "for")
         return TokenType::FOR;
+    if (identifier == "as")
+        return TokenType::AS;
     if (identifier == "fn")
         return TokenType::FN;
     if (identifier == "if")

@@ -1,20 +1,11 @@
 //Memory Analyzer
 #pragma once
 #include <algorithm>
-#include <cstddef>
-#include <iomanip>
-#include <map>
-#include <mutex>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bitset>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <fstream>
 #include <iomanip>
@@ -188,6 +179,39 @@ public:
             activeAllocations.erase(it);
         }
     }
+
+    struct AllocationInfo {
+        size_t size;
+        std::chrono::steady_clock::time_point allocationTime;
+        std::string stackTrace;
+        std::string threadId;
+        bool isFreed;
+        size_t alignmentPadding;
+        size_t accessCount;
+        std::vector<std::string> accessPatterns;
+    };
+
+    AllocationInfo* getAllocationInfo(void* ptr) {
+        std::lock_guard<std::mutex> lock(analyzerMutex);
+
+        auto it = activeAllocations.find(ptr);
+        if (it != activeAllocations.end()) {
+            // Convert MemoryBlock to AllocationInfo
+            static AllocationInfo info;
+            info.size = it->second.size;
+            info.allocationTime = it->second.allocationTime;
+            info.stackTrace = it->second.stackTrace;
+            info.threadId = it->second.threadId;
+            info.isFreed = it->second.isFreed;
+            info.alignmentPadding = it->second.alignmentPadding;
+            info.accessCount = it->second.accessCount;
+            info.accessPatterns = it->second.accessPatterns;
+            return &info;
+        }
+
+        return nullptr;
+    }
+
     struct MemoryUsageReport {
         // Basic metrics
         size_t totalAllocated;
@@ -806,7 +830,7 @@ private:
     }
 
     size_t getSizeClass(size_t size) const {
-        return static_cast<size_t>(std::log2(size));
+        return static_cast<size_t>(std::log(size));
     }
 
     FragmentationInfo analyzeFragmentation() const {
