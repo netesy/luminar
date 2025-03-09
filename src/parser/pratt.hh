@@ -1,4 +1,5 @@
-//parser.hh
+#pragma once
+
 #include "../instructions.hh"
 #include "../precedence.hh"
 #include "../scanner.hh"
@@ -14,249 +15,85 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include "../ast.hh"
 
-// Define a vector type to hold bytecode instructions
 using Bytecode = std::vector<Instruction>;
 
 // Forward declarations
 class PrattParser;
 
-// Function pointer type for Pratt parsing functions
-using ParseFn = void (PrattParser::*)();
+// Define function pointer types for the parser
+typedef std::unique_ptr<ASTNode> (PrattParser::*PrefixParseFn)(Token);
+typedef std::unique_ptr<ASTNode> (PrattParser::*InfixParseFn)(std::unique_ptr<ASTNode>, Token);
 
-class PrattParser
-{
+class PrattParser {
 public:
-    // Constructor
     PrattParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem);
-
-    // Main parsing function
     Bytecode parse();
-    std::string toString() const;                 //debug the parser
-    std::vector<Instruction> getBytecode() const; //get the bytecode generated from the parser
+    std::string toString() const;
 
 private:
-    std::vector<size_t> endJumps;
-    std::vector<Token> tokens;
-    bool hadError = false;
-    size_t current = 0;                // get the current index position
-    std::vector<Instruction> bytecode; // Declare bytecode as a local variable
-    bool isNewExpression = true;
-    // Scanner instance
-    Scanner &scanner;
+    // Core parsing methods
+    std::unique_ptr<ASTNode> parseExpression(Precedence precedence);
+    std::unique_ptr<ASTNode> parseDeclaration();
+    std::unique_ptr<ASTNode> parseStatement();
+    std::unique_ptr<ASTNode> parseExpressionStatement();
+    std::unique_ptr<ASTNode> createEmptyNode(); // Added from commented code
 
-    //variables
-    Variables variable; // Instance of Variables class
-    //    std::unordered_set<std::string> variableMap;
-    std::unordered_map<std::string, int> variableMap; // Use unordered_map to track variable indices
-    int variableCounter = 0;                          // Initialize variable counter
-    std::shared_ptr<TypeSystem> typeSystem;
+    // Added specialized parsers from commented code
+    std::unique_ptr<ASTNode> parsePrimary();
+    std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseLogical();
+    std::unique_ptr<ASTNode> parseComparison();
+    std::unique_ptr<ASTNode> parseString();
+    std::unique_ptr<ASTNode> parseIf();
+    std::unique_ptr<ASTNode> parseBlock();
+    std::unique_ptr<ASTNode> parseReturnStatement();
 
-    // Token variables
-    Token currentToken;
-    Token previousToken;
-
-    // Pratt parsing functions (adapt from first parser or rewrite)
-    std::unique_ptr<ASTNode> parsePrintStatement();      // print(), or debug() statements
-    std::unique_ptr<ASTNode> parseIfStatement();         // if, elif , else statement
-    std::unique_ptr<ASTNode> parseWhileLoop();           // while loop
-    std::unique_ptr<ASTNode> parseForLoop();             //Python like forloop
-    std::unique_ptr<ASTNode> parseMatchStatement();      // python like match and case
-    std::unique_ptr<ASTNode> parseConcurrentStatement(); // Concurrent Operations
-    std::unique_ptr<ASTNode> parseParallelStatement();   // Parallel Operations
-    std::unique_ptr<ASTNode> parseFnDeclaration();       // Adapt from first parser (if supported)
-    std::unique_ptr<ASTNode> parseFnCall();
-    std::unique_ptr<ASTNode> parseClassDeclaration();    // Class Declaration
-    std::unique_ptr<ASTNode> parseReturnStatement();     // Adapt from first parser
-    //To be implemented
+    // Added specialized statement parsers from commented code
+    std::unique_ptr<ASTNode> parseConcurrentStatement();
+    std::unique_ptr<ASTNode> parseParallelStatement();
     std::unique_ptr<ASTNode> parseImport();
     std::unique_ptr<ASTNode> parseModules();
     void parseTypes();
+    std::unique_ptr<ASTNode> parseUnexpected();
+    std::unique_ptr<ASTNode> parseParenthesis();
 
-    // Pratt parsing utility functions
-    ParseFn getParseFn(TokenType type);
-    void parsePrecedence(Precedence precedence);
-    Precedence getTokenPrecedence(TokenType type);
+    // Function retrieval methods
+    PrefixParseFn getPrefixParseFn(TokenType type);
+    InfixParseFn getInfixParseFn(TokenType type);
 
-    // Token manipulation functions
+    // Utility methods
+    Token advance();
     Token peek();
     Token peekNext();
-    Token previous();
-    void advance();
-
-    void consume(TokenType type, const std::string &message);
-    bool match(TokenType type);
-    bool check(TokenType type);
     bool isAtEnd();
-    bool isExpression(TokenType type);
+    Token previous();
+    bool check(TokenType type);
+    bool match(TokenType type);
+    void consume(TokenType type, const std::string &message);
+    Precedence getTokenPrecedence(TokenType type);
+    void error(const std::string &message);
+    void synchronize();
+    bool isExpression(TokenType type); // Added from commented code
 
+    // Bytecode emission methods
     Instruction emit(Opcode opcode, uint32_t lineNumber);
     Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
 
-    // Parse expression functions
-    std::unique_ptr<ASTNode> parsePrimary();
-    std::unique_ptr<ASTNode> parseExpression();
-    std::unique_ptr<ASTNode> parseBinary();
-    std::unique_ptr<ASTNode> parseLogical();
-    std::unique_ptr<ASTNode> parseAnd();
-    std::unique_ptr<ASTNode> parseOr();
-    std::unique_ptr<ASTNode> parseEOF();
-    void parseUnexpected();
-    std::unique_ptr<ASTNode> parseComparison();
-    std::unique_ptr<ASTNode> parseBoolean();
-    std::unique_ptr<ASTNode> parseUnary();
-    std::unique_ptr<ASTNode> parseLiteral();
-    std::unique_ptr<ASTNode> parseString();
-    std::unique_ptr<ASTNode> parseIf();
-    void parseElseIf();
-    void parseElse();
-    std::unique_ptr<ASTNode> parseIdentifier();
-    void parseDecVariable();
-    void parseLoadVariable();
-    std::unique_ptr<ASTNode> parseAssignment();
-    std::unique_ptr<ASTNode> parseCall();
-
-    // Parse statement functions
-    std::unique_ptr<ASTNode> parseStatement();
-    std::unique_ptr<ASTNode> parseExpressionStatement();
-    std::unique_ptr<ASTNode> parseDeclaration();
-    std::unique_ptr<ASTNode> parseBlock();
-    void parseParenthesis();
-
-    // Other helper functions
-    void error(const std::string &message);
-
-    //var methods
+    // Variable management - Added from commented code
     void declareVariable(const Token &name,
                          const TypePtr &type,
-                         std::optional<ValuePtr> defaultValue = std::nullopt)
-    {
-        try {
-            int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
-            emit(Opcode::DECLARE_VARIABLE,
-                 name.line,
-                 Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
-        } catch (const std::runtime_error &e) {
-            error(e.what());
-        }
-    }
-
-    int32_t getVariableMemoryLocation(const Token &name)
-    {
-        try {
-            return variable.getVariableMemoryLocation(name.lexeme);
-        } catch (const std::runtime_error &e) {
-            error(e.what());
-            return -1; // Error case
-        }
-    }
-
+                         std::optional<ValuePtr> defaultValue = std::nullopt);
+    int32_t getVariableMemoryLocation(const Token &name);
     void enterScope() { variable.enterScope(); }
-
     void exitScope() { variable.exitScope(); }
+    void parseLoadVariable(); // Added from commented code
+    void parseDecVariable();  // Already had this, but keeping for consistency
 
-    void synchronize();
-    Value setValue(TypePtr type, const std::string &input)
-    {
-        try {
-            Value value;
-            value.type = type;
-
-            switch (type->tag) {
-            case TypeTag::Bool:
-                if (input == "true")
-                    value.data = true;
-                else if (input == "false")
-                    value.data = false;
-                else
-                    throw std::runtime_error("Invalid boolean value: " + input);
-                break;
-            case TypeTag::Int:
-            case TypeTag::Int64:
-                value.data = static_cast<int64_t>(std::stoll(input));
-                break;
-            case TypeTag::Int8:
-                value.data = static_cast<int8_t>(std::stol(input));
-                break;
-            case TypeTag::Int16:
-                value.data = static_cast<int16_t>(std::stol(input));
-                break;
-            case TypeTag::Int32:
-                value.data = static_cast<int32_t>(std::stol(input));
-                break;
-                //            case TypeTag::Int64:
-                //                value.data = std::stoll(input);
-                //                break;
-            case TypeTag::UInt:
-            case TypeTag::UInt64:
-                value.data = static_cast<uint64_t>(std::stoull(input));
-                break;
-            case TypeTag::UInt8:
-                value.data = static_cast<uint8_t>(std::stoull(input));
-                break;
-            case TypeTag::UInt16:
-                value.data = static_cast<uint16_t>(std::stoull(input));
-                break;
-            case TypeTag::UInt32:
-                value.data = static_cast<uint32_t>(std::stoull(input));
-                break;
-            case TypeTag::Float32:
-                value.data = std::stof(input);
-                break;
-            case TypeTag::Float64:
-                value.data = std::stod(input);
-                break;
-            case TypeTag::String:
-                value.data = input;
-                break;
-            case TypeTag::List:
-                // Assuming input is a comma-separated list of values
-                {
-                    //                    ListValue listValue;
-                    //                    std::istringstream iss(input);
-                    //                    std::string item;
-                    //                    while (std::getline(iss, item, ',')) {
-                    //                        listValue.elements.push_back(setValue(type->elementType, item));
-                    //                    }
-                    //                    value.data = listValue;
-                }
-                break;
-            case TypeTag::Dict:
-                // Assuming input is in the format "key1:value1,key2:value2"
-                {
-                    //                    DictValue dictValue;
-                    //                    std::istringstream iss(input);
-                    //                    std::string pair;
-                    //                    while (std::getline(iss, pair, ',')) {
-                    //                        size_t colonPos = pair.find(':');
-                    //                        if (colonPos != std::string::npos) {
-                    //                            std::string key = pair.substr(0, colonPos);
-                    //                            std::string val = pair.substr(colonPos + 1);
-                    //                            dictValue.elements[setValue(type->tag, key)] = setValue(type->tag, val);
-                    //                        }
-                    //                    }
-                    //                    value.data = dictValue;
-                }
-                break;
-            case TypeTag::Sum:
-            case TypeTag::UserDefined:
-                // These types might require more complex parsing logic
-                throw std::runtime_error(
-                    "Sum and UserDefined types are not supported in this setValue function");
-            default:
-                throw std::runtime_error("Unsupported type for value setting: " + type->toString());
-            }
-
-            return value;
-        } catch (const std::exception &e) {
-            throw std::runtime_error("Failed to set value: " + std::string(e.what()));
-        }
-    }
-
+    // Type inference and handling - Added from commented code
     TypeTag inferType(const Token &token)
     {
-        //std::cout << "Current token: " << scanner.tokenTypeToString(token.type, token.lexeme)
-        //<< std::endl;
         switch (token.type) {
         case TokenType::NUMBER:
             // Check if the number contains a decimal point
@@ -271,7 +108,7 @@ private:
         case TokenType::FALSE:
             return TypeTag::Bool;
         case TokenType::NIL_TYPE:
-            return TypeTag::Nil; // or create a Null type if needed
+            return TypeTag::Nil;
         case TokenType::INT_TYPE:
             return TypeTag::Int;
         case TokenType::INT8_TYPE:
@@ -310,18 +147,135 @@ private:
         case TokenType::FUNCTION_TYPE:
             return TypeTag::Function;
         default:
-            return TypeTag::Any; // Default to Any for unknown types
+            return TypeTag::Any;
+        }
+    }
+    TypeTag stringToType(const std::string &typeStr);
+    Value setValue(TypePtr type, const std::string &input)
+    {
+        try {
+            Value value;
+            value.type = type;
+
+            switch (type->tag) {
+            case TypeTag::Bool:
+                if (input == "true")
+                    value.data = true;
+                else if (input == "false")
+                    value.data = false;
+                else
+                    throw std::runtime_error("Invalid boolean value: " + input);
+                break;
+            case TypeTag::Int:
+            case TypeTag::Int64:
+                value.data = static_cast<int64_t>(std::stoll(input));
+                break;
+            case TypeTag::Int8:
+                value.data = static_cast<int8_t>(std::stol(input));
+                break;
+            case TypeTag::Int16:
+                value.data = static_cast<int16_t>(std::stol(input));
+                break;
+            case TypeTag::Int32:
+                value.data = static_cast<int32_t>(std::stol(input));
+                break;
+            case TypeTag::UInt:
+            case TypeTag::UInt64:
+                value.data = static_cast<uint64_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt8:
+                value.data = static_cast<uint8_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt16:
+                value.data = static_cast<uint16_t>(std::stoull(input));
+                break;
+            case TypeTag::UInt32:
+                value.data = static_cast<uint32_t>(std::stoull(input));
+                break;
+            case TypeTag::Float32:
+                value.data = std::stof(input);
+                break;
+            case TypeTag::Float64:
+                value.data = std::stod(input);
+                break;
+            case TypeTag::String:
+                value.data = input;
+                break;
+            case TypeTag::List:
+                // List handling is commented out in original code
+                throw std::runtime_error("List type not fully implemented.");
+                break;
+            case TypeTag::Dict:
+                // Dict handling is commented out in original code
+                throw std::runtime_error("Dict type not fully implemented.");
+                break;
+            case TypeTag::Sum:
+            case TypeTag::UserDefined:
+                throw std::runtime_error(
+                    "Sum and UserDefined types are not supported in this setValue function");
+            default:
+                throw std::runtime_error("Unsupported type for value setting: " + type->toString());
+            }
+
+            return value;
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Failed to set value: " + std::string(e.what()));
         }
     }
 
-    // Structure to hold string - TypeTag pairs
-    struct TypeMapping
-    {
+    // Prefix parse functions (handle tokens that start an expression)
+    std::unique_ptr<ASTNode> parseLiteral(Token token);
+    std::unique_ptr<ASTNode> parseBoolean(Token token);
+    std::unique_ptr<ASTNode> parseUnary(Token token);
+    std::unique_ptr<ASTNode> parseGrouping(Token token);
+    std::unique_ptr<ASTNode> parseIdentifier(Token token);
+    std::unique_ptr<ASTNode> parseDecVariable(Token token);
+    std::unique_ptr<ASTNode> parseFnDeclaration(Token token);
+
+    // Infix parse functions (handle tokens that appear after a left operand)
+    std::unique_ptr<ASTNode> parseBinaryOp(std::unique_ptr<ASTNode> left, Token token);
+    std::unique_ptr<ASTNode> parseAndOp(std::unique_ptr<ASTNode> left, Token token);
+    std::unique_ptr<ASTNode> parseOrOp(std::unique_ptr<ASTNode> left, Token token);
+    std::unique_ptr<ASTNode> parseAssignment(std::unique_ptr<ASTNode> left, Token token);
+    std::unique_ptr<ASTNode> parseCall(std::unique_ptr<ASTNode> left, Token token);
+
+    // Statement parse functions
+    std::unique_ptr<ASTNode> parseBlock(Token token);
+    std::unique_ptr<ASTNode> parsePrintStatement(Token token);
+    std::unique_ptr<ASTNode> parseIfStatement(Token token);
+    std::unique_ptr<ASTNode> parseWhileLoop(Token token);
+    std::unique_ptr<ASTNode> parseForLoop(Token token);
+    std::unique_ptr<ASTNode> parseMatchStatement(Token token);
+    std::unique_ptr<ASTNode> parseClassDeclaration(Token token);
+    std::unique_ptr<ASTNode> parseFnCall(); // Added from commented code
+    std::unique_ptr<ASTNode> parseEOF();    // Added from commented code
+
+    // Member variables
+    Scanner &scanner;
+    std::shared_ptr<TypeSystem> typeSystem;
+    std::vector<Token> tokens;
+    size_t current = 0;
+    Bytecode bytecode;
+    std::vector<std::unique_ptr<ASTNode>> ast;
+    bool hadError = false;
+    bool isNewExpression = true;
+
+    // Additional member variables from commented code
+    std::vector<size_t> endJumps;
+    Token currentToken;
+    Token previousToken;
+    Variables variable;
+    std::unordered_map<std::string, int> variableMap;
+    int variableCounter = 0;
+    ASTNode* currentNode = nullptr; // Track the current node
+
+    // Type mapping structure from commented code
+    struct TypeMapping {
         const char *str;
         TypeTag tag;
     };
 
-    // Array of type mappings
+    // Array of type mappings from commented code
     static constexpr std::array<TypeMapping, 23> typeMappings = {
         {{"int", TypeTag::Int},     {"i8", TypeTag::Int8},       {"i16", TypeTag::Int16},
          {"i32", TypeTag::Int32},   {"i64", TypeTag::Int64},     {"i128", TypeTag::Int64},
@@ -330,19 +284,4 @@ private:
          {"f32", TypeTag::Float32}, {"f64", TypeTag::Float64},   {"float", TypeTag::Float64},
          {"bool", TypeTag::Bool},   {"string", TypeTag::String}, {"dict", TypeTag::Dict},
          {"list", TypeTag::List},   {"enum", TypeTag::Enum},     {"any", TypeTag::Any}}};
-
-    TypeTag stringToType(const std::string &typeStr)
-    {
-        auto it = std::find_if(typeMappings.begin(),
-                               typeMappings.end(),
-                               [&typeStr](const TypeMapping &mapping) {
-                                   return typeStr == mapping.str;
-                               });
-
-        if (it != typeMappings.end()) {
-            return it->tag;
-        }
-
-        return TypeTag::UserDefined;
-    }
 };

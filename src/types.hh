@@ -26,21 +26,109 @@ private:
         if (from == to || to->tag == TypeTag::Any)
             return true;
 
-        if ((from->tag == TypeTag::Int || from->tag == TypeTag::Int8 || from->tag == TypeTag::Int16
-             || from->tag == TypeTag::Int32 || from->tag == TypeTag::Int64
-             || from->tag == TypeTag::UInt || from->tag == TypeTag::UInt8
-             || from->tag == TypeTag::UInt16 || from->tag == TypeTag::UInt32
-             || from->tag == TypeTag::UInt64)
-            && (to->tag == TypeTag::Int || to->tag == TypeTag::Int8 || to->tag == TypeTag::Int16
-                || to->tag == TypeTag::Int32 || to->tag == TypeTag::Int64 || to->tag == TypeTag::UInt
-                || to->tag == TypeTag::UInt8 || to->tag == TypeTag::UInt16
-                || to->tag == TypeTag::UInt32 || to->tag == TypeTag::UInt64))
-            return true;
+        // Numeric type conversions with range checks
+        if (isNumericType(from->tag) && isNumericType(to->tag)) {
+            // Check if conversion is safe (no overflow/precision loss)
+            return isSafeNumericConversion(from->tag, to->tag);
+        }
+
+        // Handle list and dict type compatibility
+        if (from->tag == TypeTag::List && to->tag == TypeTag::List) {
+            auto fromListType = std::get<ListType>(from->extra);
+            auto toListType = std::get<ListType>(to->extra);
+            return canConvert(fromListType.elementType, toListType.elementType);
+        }
+
+        if (from->tag == TypeTag::Dict && to->tag == TypeTag::Dict) {
+            auto fromDictType = std::get<DictType>(from->extra);
+            auto toDictType = std::get<DictType>(to->extra);
+            return canConvert(fromDictType.keyType, toDictType.keyType) &&
+                   canConvert(fromDictType.valueType, toDictType.valueType);
+        }
+
+        // Union and sum type compatibility
+        if (from->tag == TypeTag::Union) {
+            auto unionTypes = std::get<UnionType>(from->extra).types;
+            return std::any_of(unionTypes.begin(), unionTypes.end(),
+                               [&](TypePtr type) { return canConvert(type, to); });
+        }
 
         return false;
     }
+    bool isNumericType(TypeTag tag) {
+        return (tag >= TypeTag::Int8 && tag <= TypeTag::Float64);
+    }
     bool isListType(TypePtr type) const { return type->tag == TypeTag::List; }
     bool isDictType(TypePtr type) const { return type->tag == TypeTag::Dict; }
+    bool isSafeNumericConversion(TypeTag from, TypeTag to) {
+        // Conversion matrix to determine safe numeric conversions
+        switch (from) {
+        case TypeTag::Int8:
+            return to == TypeTag::Int8 ||
+                   to == TypeTag::Int16 ||
+                   to == TypeTag::Int32 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::Int16:
+            return to == TypeTag::Int16 ||
+                   to == TypeTag::Int32 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::Int32:
+            return to == TypeTag::Int32 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::Int64:
+            return to == TypeTag::Int64 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::UInt8:
+            return to == TypeTag::UInt8 ||
+                   to == TypeTag::UInt16 ||
+                   to == TypeTag::UInt32 ||
+                   to == TypeTag::UInt64 ||
+                   to == TypeTag::Int16 ||
+                   to == TypeTag::Int32 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::UInt16:
+            return to == TypeTag::UInt16 ||
+                   to == TypeTag::UInt32 ||
+                   to == TypeTag::UInt64 ||
+                   to == TypeTag::Int32 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::UInt32:
+            return to == TypeTag::UInt32 ||
+                   to == TypeTag::UInt64 ||
+                   to == TypeTag::Int64 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::UInt64:
+            return to == TypeTag::UInt64 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::Float32:
+            return to == TypeTag::Float32 ||
+                   to == TypeTag::Float64;
+
+        case TypeTag::Float64:
+            return to == TypeTag::Float64;
+
+        default:
+            return false;
+        }
+    }
     ValuePtr stringToNumber(const std::string &str, TypePtr targetType)
     {
         ValuePtr result = std::make_shared<Value>();
@@ -175,16 +263,6 @@ public:
             }
             break;
         case TypeTag::UserDefined:
-            //            if (const auto *userType = std::get_if<UserDefinedType>(&type->extra)) {
-            //                UserDefinedValue udv;
-            //                udv.variantName = userType->name;
-            //                for (const auto &[fieldName, fieldType] : userType->fields) {
-            //                    udv.fields[fieldName] = createValue(fieldType);
-            //                }
-            //                value->data = std::move(udv);
-            //            } else {
-            //                throw std::runtime_error("Invalid user-defined type");
-            //            }
             value->data = UserDefinedValue{};
             break;
         case TypeTag::Function:
@@ -305,24 +383,7 @@ public:
             break;
         }
 
-            //        case TypeTag::UserDefined: {
-            //            const auto &userType = std::get<UserDefinedType>(expectedType->extra);
-            //            if (const auto *userValue = std::get_if<UserDefinedValue>(&value->data)) {
-            //                if (userType.name != userValue->variantName) {
-            //                    return false;
-            //                }
-            //                for (const auto &[fieldName, fieldType] : userType.fields) {
-            //                    auto it = userValue->fields.find(fieldName);
-            //                    if (it == userValue->fields.end() || !checkType(it->second, fieldType)) {
-            //                        return false;
-            //                    }
-            //                }
-            //                return true;
-            //            }
-            //            break;
-            //        }
-
-        case TypeTag::Enum: {
+       case TypeTag::Enum: {
             if (const auto *enumType = std::get_if<EnumType>(&expectedType->extra)) {
                 if (!enumType->values.empty()) {
                     value->data = EnumValue(enumType->values[0], expectedType);

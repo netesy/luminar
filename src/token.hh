@@ -71,6 +71,7 @@ enum class TokenType {
     NIL_TYPE,      //nil type
 
     // Group: Keywords
+    AS,         // as
     FN,         // fn
     IF,         // if
     IN,         // in
@@ -80,7 +81,7 @@ enum class TokenType {
     VAR,        // var
     MUT,        // mut
     THIS,       // this
-    WITH,       //with
+    WITH,       // with
     TRUE,       // true
     ELIF,       // elif
     ELSE,       // else
@@ -101,7 +102,7 @@ enum class TokenType {
     ATTEMPT,    // attempt
     PARALLEL,   // parallel
     CONCURRENT, // concurrent
-    IMPLEMENTS, //implements
+    IMPLEMENTS, // implements
 
     // Other
     UNDEFINED, // undefined token
