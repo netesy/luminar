@@ -745,12 +745,12 @@ public:
     std::string name;
     std::vector<std::unique_ptr<Expression>> arguments;
 
-    CallNode(const Token& token, const std::string& name, std::vector<std::unique_ptr<Expression>> args)
-        : Expression(SourceLocation(token.line, token.column, token.filename), Type(TypeTag::Any)),
+    CallNode(SourceLocation loc, const Token& token, const std::string& name, std::vector<std::unique_ptr<Expression>> args)
+        : Expression(loc, Type(TypeTag::Any)),
         name(name), arguments(std::move(args)) {}
 
-    CallNode(const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
-        : Expression(SourceLocation(0, 0), Type(TypeTag::Any)), name(name) {
+    CallNode(SourceLocation loc, const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
+        : Expression(loc, Type(TypeTag::Any)), name(name) {
         // More robust conversion of ASTNode to Expression
         for (auto& arg : args) {
             if (auto* expr = dynamic_cast<Expression*>(arg.get())) {
