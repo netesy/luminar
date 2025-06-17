@@ -19,7 +19,8 @@ class TypeSystem
 private:
     std::map<std::string, TypePtr> userDefinedTypes;
     std::map<std::string, TypePtr> typeAliases;
-    MemoryManager<> memoryManager;
+    MemoryManager<> &memoryManager;
+    MemoryManager<>::Region &region;
 
     bool canConvert(TypePtr from, TypePtr to)
     {
@@ -55,8 +56,30 @@ private:
 
         return false;
     }
+    TypePtr getWiderType(TypePtr a, TypePtr b) {
+        // Define type hierarchy (from narrowest to widest)
+        static const std::unordered_map<TypeTag, int> typeRanks = {
+            {TypeTag::Int8, 0},    {TypeTag::UInt8, 1},
+            {TypeTag::Int16, 2},   {TypeTag::UInt16, 3},
+            {TypeTag::Int32, 4},   {TypeTag::UInt32, 5},
+            {TypeTag::Int64, 6},   {TypeTag::UInt64, 7},
+            {TypeTag::Float32, 8}, {TypeTag::Float64, 9}
+        };
+
+        auto itA = typeRanks.find(a->tag);
+        auto itB = typeRanks.find(b->tag);
+
+        if (itA == typeRanks.end() || itB == typeRanks.end()) {
+            throw std::runtime_error("Invalid numeric type in type promotion");
+        }
+
+        return (itA->second >= itB->second) ? a : b;
+    }
     bool isNumericType(TypeTag tag) {
-        return (tag >= TypeTag::Int8 && tag <= TypeTag::Float64);
+        return tag == TypeTag::Int8 || tag == TypeTag::Int16 || tag == TypeTag::Int32 ||
+        tag == TypeTag::Int64 || tag == TypeTag::UInt8 || tag == TypeTag::UInt16 ||
+        tag == TypeTag::UInt32 || tag == TypeTag::UInt64 || tag == TypeTag::Float32 ||
+        tag == TypeTag::Float64;
     }
     bool isListType(TypePtr type) const { return type->tag == TypeTag::List; }
     bool isDictType(TypePtr type) const { return type->tag == TypeTag::Dict; }
@@ -66,6 +89,7 @@ private:
         case TypeTag::Int8:
             return to == TypeTag::Int8 ||
                    to == TypeTag::Int16 ||
+                   to == TypeTag::Int ||
                    to == TypeTag::Int32 ||
                    to == TypeTag::Int64 ||
                    to == TypeTag::Float32 ||
@@ -73,6 +97,7 @@ private:
 
         case TypeTag::Int16:
             return to == TypeTag::Int16 ||
+                   to == TypeTag::Int ||
                    to == TypeTag::Int32 ||
                    to == TypeTag::Int64 ||
                    to == TypeTag::Float32 ||
@@ -80,6 +105,7 @@ private:
 
         case TypeTag::Int32:
             return to == TypeTag::Int32 ||
+            to == TypeTag::Int ||
                    to == TypeTag::Int64 ||
                    to == TypeTag::Float32 ||
                    to == TypeTag::Float64;
@@ -91,9 +117,11 @@ private:
         case TypeTag::UInt8:
             return to == TypeTag::UInt8 ||
                    to == TypeTag::UInt16 ||
+                   to == TypeTag::UInt ||
                    to == TypeTag::UInt32 ||
                    to == TypeTag::UInt64 ||
                    to == TypeTag::Int16 ||
+                   to == TypeTag::Int ||
                    to == TypeTag::Int32 ||
                    to == TypeTag::Int64 ||
                    to == TypeTag::Float32 ||
@@ -101,6 +129,7 @@ private:
 
         case TypeTag::UInt16:
             return to == TypeTag::UInt16 ||
+                   to == TypeTag::UInt ||
                    to == TypeTag::UInt32 ||
                    to == TypeTag::UInt64 ||
                    to == TypeTag::Int32 ||
@@ -110,6 +139,7 @@ private:
 
         case TypeTag::UInt32:
             return to == TypeTag::UInt32 ||
+                   to == TypeTag::UInt ||
                    to == TypeTag::UInt64 ||
                    to == TypeTag::Int64 ||
                    to == TypeTag::Float64;
@@ -131,7 +161,7 @@ private:
     }
     ValuePtr stringToNumber(const std::string &str, TypePtr targetType)
     {
-        ValuePtr result = std::make_shared<Value>();
+        ValuePtr result = memoryManager.makeRef<Value>(region);
         result->type = targetType;
 
         try {
@@ -150,7 +180,7 @@ private:
     }
     ValuePtr numberToString(const ValuePtr &value)
     {
-        ValuePtr result = std::make_shared<Value>();
+        ValuePtr result = memoryManager.makeRef<Value>(region);
         result->type = STRING_TYPE;
 
         std::visit(overloaded{[&](int64_t v) { result->data = std::to_string(v); },
@@ -164,6 +194,9 @@ private:
     }
 
 public:
+    TypeSystem(MemoryManager<> &memManager, MemoryManager<>::Region &reg)
+        : memoryManager(memManager), region(reg) {}
+
     const TypePtr NIL_TYPE = std::make_shared<Type>(TypeTag::Nil);
     const TypePtr BOOL_TYPE = std::make_shared<Type>(TypeTag::Bool);
     const TypePtr INT_TYPE = std::make_shared<Type>(TypeTag::Int);
@@ -187,7 +220,7 @@ public:
 
     ValuePtr createValue(TypePtr type)
     {
-        ValuePtr value = std::make_shared<Value>();
+        ValuePtr value = memoryManager.makeRef<Value>(region);
         value->type = type;
 
         switch (type->tag) {
@@ -197,7 +230,6 @@ public:
         case TypeTag::Bool:
             value->data = false;
             break;
-        case TypeTag::Int:
         case TypeTag::Int64:
             value->data = int64_t(0);
             break;
@@ -207,10 +239,10 @@ public:
         case TypeTag::Int16:
             value->data = int16_t(0);
             break;
+        case TypeTag::Int:
         case TypeTag::Int32:
             value->data = int32_t(0);
             break;
-        case TypeTag::UInt:
         case TypeTag::UInt64:
             value->data = uint64_t(0);
             break;
@@ -220,6 +252,7 @@ public:
         case TypeTag::UInt16:
             value->data = uint16_t(0);
             break;
+        case TypeTag::UInt:
         case TypeTag::UInt32:
             value->data = uint32_t(0);
             break;
@@ -262,6 +295,19 @@ public:
                 throw std::runtime_error("Invalid sum type");
             }
             break;
+
+        case TypeTag::Union:
+            // For union types, we'll set it to the first type with a default value
+            if (const auto *unionType = std::get_if<UnionType>(&type->extra)) {
+                if (!unionType->types.empty()) {
+                    value->data = createValue(unionType->types[0])->data;
+                } else {
+                    throw std::runtime_error("Empty union type");
+                }
+            } else {
+                throw std::runtime_error("Invalid union type");
+            }
+            break;
         case TypeTag::UserDefined:
             value->data = UserDefinedValue{};
             break;
@@ -283,17 +329,35 @@ public:
     bool isCompatible(TypePtr source, TypePtr target) { return canConvert(source, target); }
 
     TypePtr getCommonType(TypePtr a, TypePtr b)
-    {
-        if (a == b) {
-            return a;
-        }
-        if (canConvert(a, b)) {
-            return b;
-        }
-        if (canConvert(b, a)) {
-            return a;
-        }
-        throw std::runtime_error("Incompatible types: " + a->toString() + " and " + b->toString());
+    {   if(!a || !b)
+            return nullptr;
+    // Handle Any type
+    if (a->tag == TypeTag::Any) return b;
+    if (b->tag == TypeTag::Any) return a;
+
+    // Handle Nil type
+    if (a->tag == TypeTag::Nil) return b;
+    if (b->tag == TypeTag::Nil) return a;
+
+    // Handle Bool type
+    if (a->tag == TypeTag::Bool && b->tag == TypeTag::Bool) {
+        return a;
+    }
+
+    // If types are the same, return either
+    if (a->tag == b->tag) {
+        return a;
+    }
+
+    // Handle numeric type promotions
+    if (isNumericType(a->tag) && isNumericType(b->tag)) {
+        return getWiderType(a, b);
+    }
+
+    // Handle other type conversions
+    if (canConvert(a, b)) return b;
+    if (canConvert(b, a)) return a;
+    throw std::runtime_error("Incompatible types: " + a->toString() + " and " + b->toString());
     }
 
     void addUserDefinedType(const std::string &name, TypePtr type)
@@ -880,19 +944,6 @@ public:
         return result;
     }
 
-    MemoryManager<>::Ref<Value> convert(const MemoryManager<>::Ref<Value> &value, TypePtr targetType)
-    {
-        // Create a temporary shared_ptr to use with the existing convert function
-        auto sharedValue = std::make_shared<Value>(*value);
-        auto convertedSharedValue = convert(sharedValue, targetType);
 
-        // Use the region from the input value
-        auto &region = value.getRegion();
-
-        // Create a new Ref<Value> in the same region as the input value
-        return memoryManager.makeRef<Value>(
-            region,
-            *convertedSharedValue); //MemoryManager<>::makeRef<Value>(region, *convertedSharedValue);
-    }
 };
 

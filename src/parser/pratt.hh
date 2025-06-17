@@ -241,7 +241,7 @@ private:
 
     // Statement parse functions
     std::unique_ptr<ASTNode> parseBlock(Token token);
-    std::unique_ptr<ASTNode> parsePrintStatement(Token token);
+   // std::unique_ptr<ASTNode> parsePrintStatement(Token token);
     std::unique_ptr<ASTNode> parseIfStatement(Token token);
     std::unique_ptr<ASTNode> parseWhileLoop(Token token);
     std::unique_ptr<ASTNode> parseForLoop(Token token);

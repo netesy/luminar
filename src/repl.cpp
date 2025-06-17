@@ -1,18 +1,25 @@
 #include "repl.hh"
 #include "parser/packrat.hh"
+//#include "parser/pratt.hh"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <variant>
 
-REPL::REPL(std::unique_ptr<Algorithm> parser)
-    :backend(std::make_unique<StackBackend>(bytecode, functions)),
-     vm(nullptr)
-    , parser(std::move(parser))
-    , functions(std::make_shared<TypeSystem>())
-{}
+
+// Static member initialization
+MemoryManager<> REPL::memoryManager;
+MemoryManager<>::Region REPL::region(REPL::memoryManager);
+std::shared_ptr<TypeSystem> REPL::typeSystem = std::make_shared<TypeSystem>(REPL::memoryManager, REPL::region);
+Functions REPL::functions(REPL::typeSystem);
+std::vector<Instruction> REPL::bytecode;
+std::unique_ptr<Algorithm> REPL::parser = nullptr;
+std::unique_ptr<StackBackend> REPL::backend = nullptr;
+
+std::unique_ptr<VM> REPL::vm = nullptr;
+
+REPL::REPL(){}
 
 void REPL::start(const std::string &filename = "test.lm")
 {
@@ -48,28 +55,39 @@ void REPL::start(const std::string &filename = "test.lm")
 
 void REPL::run(std::string input, const std::string &filename = "", const std::string &filepath = "")
 {
-        // Tokenize input
-    Scanner scanner(input, filename, filepath);
-    std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
-    Functions functions(std::make_shared<TypeSystem>());
+   // Tokenize input
+   Scanner scanner(input, filename, filepath);
 
-    // Create the parser inside the run method
-    std::unique_ptr<Algorithm> parser = std::make_unique<PackratParser>(scanner, typeSystem, functions);
+   // Reuse the parser object by resetting it
+   parser = std::make_unique<PackratParser>(scanner, typeSystem, functions);
+   parser->parse();
+   bytecode = parser->getBytecode();
 
-    parser->parse();
-    // debug(scanner, *parser);
-    std::vector<Instruction> bytecode = parser->getBytecode();
-    auto backend = std::make_unique<StackBackend>(bytecode, functions); // passing by value
-    VM vm(*parser, std::move(backend));
+   // Recreate backend with new bytecode but reuse Functions
+   backend = std::make_unique<StackBackend>(bytecode, functions, REPL::memoryManager);
 
-    try {
-        vm.run();
-        vm.dumpRegisters();
+  // Recreate VM each time (VM doesn't need to persist state between runs)
+ // vm = std::make_unique<VM>(*parser, std::move(backend));
 
-    } catch (const std::exception &e) {
-        std::cerr << " Repl Error: " << e.what() << std::endl;
-        // Debugger::error(e.what(), 0, 0, "", Debugger::getSuggestion(e.what()));
-    }
+//  try {
+//     vm->run();
+//     vm->dumpRegisters();
+// } catch (const std::exception &e) {
+//     std::cerr << "Repl Error: " << e.what() << std::endl;
+// }
+
+   // Create a local VM for this execution - VM is recreated each time
+   auto vms = std::make_unique<VM>(*parser, std::move(backend));
+
+   try {
+       vms->run();
+       vms->dumpRegisters();
+   } catch (const std::exception &e) {
+       std::cerr << "Repl Error: " << e.what() << std::endl;
+   }
+
+    // Restore the backend which was moved to VM
+    backend = std::make_unique<StackBackend>(bytecode, functions, REPL::memoryManager);
 }
 
 void REPL::startDevMode(const std::string &filename = "")

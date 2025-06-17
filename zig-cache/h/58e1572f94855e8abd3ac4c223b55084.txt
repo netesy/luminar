@@ -1,0 +1,16 @@
+0
+10513 18295873488535427 1750173518930683100 3df85175277e3c363e59d165a4783531 0 C:\Users\Fablur\Desktop\Projects\luminar\src\main.cpp
+13662 4785074606423946 1741756647377339200 4ddd52b2ec775aef3b5a96b6b36ad217 0 C:\Users\Fablur\Desktop\Projects\luminar\src\debugger.cpp
+5778 70650219154394247 1750200656321512800 80ce2bf88679237792ebb7cee4fe5873 0 C:\Users\Fablur\Desktop\Projects\luminar\src\repl.cpp
+19523 24206847999459231 1741756714845706600 2f30e89f952e1b5938b5c8f8a5e7c06e 0 C:\Users\Fablur\Desktop\Projects\luminar\src\scanner.cpp
+0 20829148278931315 1741756714838538700 82547a8dd7f3efb3f077622e34876868 0 C:\Users\Fablur\Desktop\Projects\luminar\src\ast.cpp
+18 4503599629713325 1741756647386468100 139f6a0c82b644e4765418b384f45a67 0 C:\Users\Fablur\Desktop\Projects\luminar\src\vm.cpp
+24 18577348465246099 1741756647379467000 5650db5576063f749f9bc0f4924d0c79 0 C:\Users\Fablur\Desktop\Projects\luminar\src\memory.cpp
+12462 3377699723327108 1750175405807141100 518eea3fcf2c812998d0700856649a73 0 C:\Users\Fablur\Desktop\Projects\luminar\src\function.cpp
+0 4785074606423935 1741756647373340300 82547a8dd7f3efb3f077622e34876868 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\jit.cpp
+5086 21673573209063292 1741756647372339300 d9fa22e8a4484b570c148a60dee0a050 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\codegen.cpp
+15120 18014398511824769 1741756647374337600 8e2c67fe4a8cbe0ddf95f371b3ce856c 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\register.cpp
+43841 3940649676714325 1750200432989986900 1e0781b41233bac658b78c44e5ce7821 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\stack.cpp
+12835 18858823441956741 1741756647375338700 7363edc14639096a42005ce3708f6482 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\yasm.cpp
+66677 9007199257266481 1750170520307328800 fa8101d80e186f022a12223fa9cc9cee 0 C:\Users\Fablur\Desktop\Projects\luminar\src\parser\packrat.cpp
+42250 7599824372651308 1750035820747268700 7c8580da5bf3d724f286ea5475a74903 0 C:\Users\Fablur\Desktop\Projects\luminar\src\parser\pratt.cpp

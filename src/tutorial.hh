@@ -92,7 +92,7 @@ struct Tutorial {
             "Pattern Matching",
             "Using pattern matching for control flow",
             {
-                "fn match_example(value: Any): void {",
+                "fn match_example(value: Any): nil {",
                 "  match value {",
                 "    int => print(\"Integer: {value}\"),",
                 "    str => print(\"String: {value}\"),",

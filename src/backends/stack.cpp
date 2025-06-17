@@ -4,18 +4,13 @@
 #include <cmath>
 #include <iostream>
 #include <type_traits>
+#include <variant>
+#include "../memory.hh"
+
 // Define the thread_local static member outside the class
 //thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 //thread_local DefaultAllocator::ThreadCache DefaultAllocator::thread_cache;
 
-StackBackend::StackBackend(std::vector<Instruction> &program, Functions& funcs)
-    : function(funcs)
-    , program(program)
-    , memoryManager(true)
-    , globalRegion(memoryManager)
-{
-    regionStack.push(&globalRegion);
-}
 
 StackBackend::~StackBackend()
 {
@@ -43,10 +38,11 @@ void StackBackend::run(const std::vector<Instruction> &program)
                 std::cout << "Program halted normally." << std::endl;
                 break;
             }
-            instruction.debug();
+
 
             execute(instruction);
             pc++;
+          //  instruction.debug();
         }
         /// program[pc].debug();
         if (pc >= this->program.size()) {
@@ -68,11 +64,13 @@ void StackBackend::run(const std::vector<Instruction> &program)
     channels.clear();
 
     // Print memory statistics
-    memoryManager.~MemoryManager();
+    memoryManager.analyzeMemoryUsage();
+    //memoryManager.printStatistics();
 }
 
 void StackBackend::execute(const Instruction &instruction)
 {
+    std::cout << "DEBUG: Executing instruction: " << instruction.opcodeToString(instruction.opcode) << std::endl;
     switch (instruction.opcode) {
     case NEGATE:
     case NOT:
@@ -225,7 +223,7 @@ void StackBackend::execute(const Instruction &instruction)
 void StackBackend::dumpRegisters()
 {
     std::cout << "Stack:\n";
-    std::stack<MemoryManager<>::Ref<Value>> tempStack = stack;
+    std::stack<ValuePtr> tempStack = stack;
     while (!tempStack.empty()) {
         auto value = tempStack.top();
         tempStack.pop();
@@ -263,7 +261,7 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
 
     auto value = pop();
 
-    ValuePtr result = std::make_shared<Value>();
+    ValuePtr result = memoryManager.makeRef<Value>(*regionStack.top());
     result->type = value->type;
 
     switch (instruction.opcode) {
@@ -297,10 +295,28 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
 
 void StackBackend::performBinaryOperation(const Instruction &instruction)
 {
-    if (stack.size() < 2) {
-        std::cerr << "Error: Invalid value stack for binary operation" << std::endl;
-        return;
-    }
+
+    std::cout << "[DEBUG] performBinaryOperation: Starting operation "
+    << static_cast<int>(instruction.opcode) << std::endl;
+
+if (stack.size() < 2) {
+std::cerr << "[ERROR] Stack underflow in binary operation" << std::endl;
+throw std::runtime_error("Stack underflow in binary operation");
+}
+
+// ValuePtr right = pop();
+// ValuePtr left = pop();
+
+// std::cout << "[DEBUG] performBinaryOperation: Left type: "
+//     << (left && left->type ? left->type->toString() : "null")
+//     << ", Right type: "
+//     << (right && right->type ? right->type->toString() : "null")
+//     << std::endl;
+
+//     if (stack.size() < 2) {
+//         std::cerr << "Error: Invalid value stack for binary operation" << std::endl;
+//         return;
+//     }
 
     auto value2 = pop();
     auto value1 = pop();
@@ -311,75 +327,148 @@ void StackBackend::performBinaryOperation(const Instruction &instruction)
         std::cerr << "Error: Incompatible types for binary operation" << std::endl;
         return;
     }
+
     ValuePtr result = std::make_shared<Value>();
     result->type = commonType;
 
-    if (commonType->tag == TypeTag::Int) {
-        int64_t v1 = std::get<int64_t>(value1->data);
-        int64_t v2 = std::get<int64_t>(value2->data);
+    try {
+        if (commonType->tag == TypeTag::Int || commonType->tag == TypeTag::Int32 ||
+            commonType->tag == TypeTag::Int64) {
 
-        switch (instruction.opcode) {
-        case ADD:
-            result->data = v1 + v2;
-            break;
-        case SUBTRACT:
-            result->data = v1 - v2;
-            break;
-        case MULTIPLY:
-            result->data = v1 * v2;
-            break;
-        case DIVIDE:
-            if (v2 == 0) {
-                std::cerr << "Error: Division by zero" << std::endl;
+            int64_t v1 = 0, v2 = 0;
+
+            // Safely convert value1 to int64_t using the overloaded visitor
+            std::visit(overloaded{
+                [&](int8_t val) { v1 = val; },
+                [&](int16_t val) { v1 = val; },
+                [&](int32_t val) { v1 = val; },
+                [&](int64_t val) { v1 = val; },
+                [&](uint8_t val) { v1 = val; },
+                [&](uint16_t val) { v1 = val; },
+                [&](uint32_t val) { v1 = val; },
+                [&](uint64_t val) { v1 = static_cast<int64_t>(val); },
+                [](const auto&) {
+                    throw std::runtime_error("Unsupported type for integer operation");
+                }
+            }, value1->data);
+
+            // Safely convert value2 to int64_t using the overloaded visitor
+            std::visit(overloaded{
+                [&](int8_t val) { v2 = val; },
+                [&](int16_t val) { v2 = val; },
+                [&](int32_t val) { v2 = val; },
+                [&](int64_t val) { v2 = val; },
+                [&](uint8_t val) { v2 = val; },
+                [&](uint16_t val) { v2 = val; },
+                [&](uint32_t val) { v2 = val; },
+                [&](uint64_t val) { v2 = static_cast<int64_t>(val); },
+                [](const auto&) {
+                    throw std::runtime_error("Unsupported type for integer operation");
+                }
+            }, value2->data);
+
+            switch (instruction.opcode) {
+            case ADD:
+                result->data = v1 + v2;
+                break;
+            case SUBTRACT:
+                result->data = v1 - v2;
+                break;
+            case MULTIPLY:
+                result->data = v1 * v2;
+                break;
+            case DIVIDE:
+                if (v2 == 0) {
+                    std::cerr << "Error: Division by zero" << std::endl;
+                    return;
+                }
+                result->data = v1 / v2;
+                break;
+            case MODULUS:
+                if (v2 == 0) {
+                    std::cerr << "Error: Modulo by zero" << std::endl;
+                    return;
+                }
+                result->data = v1 % v2;
+                break;
+            default:
+                std::cerr << "Error: Invalid binary operation opcode" << std::endl;
                 return;
             }
-            result->data = v1 / v2;
-            break;
-        case MODULUS:
-            if (v2 == 0) {
-                std::cerr << "Error: Modulo by zero" << std::endl;
+        } else if (commonType->tag == TypeTag::Float64 || commonType->tag == TypeTag::Float32) {
+            double v1 = 0.0, v2 = 0.0;
+
+            // Safely convert value1 to double using the overloaded visitor
+            std::visit(overloaded{
+                [&](int8_t val) { v1 = static_cast<double>(val); },
+                [&](int16_t val) { v1 = static_cast<double>(val); },
+                [&](int32_t val) { v1 = static_cast<double>(val); },
+                [&](int64_t val) { v1 = static_cast<double>(val); },
+                [&](uint8_t val) { v1 = static_cast<double>(val); },
+                [&](uint16_t val) { v1 = static_cast<double>(val); },
+                [&](uint32_t val) { v1 = static_cast<double>(val); },
+                [&](uint64_t val) { v1 = static_cast<double>(val); },
+                [&](float val) { v1 = val; },
+                [&](double val) { v1 = val; },
+                [](const auto&) {
+                    throw std::runtime_error("Unsupported type for float operation");
+                }
+            }, value1->data);
+
+            // Safely convert value2 to double using the overloaded visitor
+            std::visit(overloaded{
+                [&](int8_t val) { v2 = static_cast<double>(val); },
+                [&](int16_t val) { v2 = static_cast<double>(val); },
+                [&](int32_t val) { v2 = static_cast<double>(val); },
+                [&](int64_t val) { v2 = static_cast<double>(val); },
+                [&](uint8_t val) { v2 = static_cast<double>(val); },
+                [&](uint16_t val) { v2 = static_cast<double>(val); },
+                [&](uint32_t val) { v2 = static_cast<double>(val); },
+                [&](uint64_t val) { v2 = static_cast<double>(val); },
+                [&](float val) { v2 = val; },
+                [&](double val) { v2 = val; },
+                [](const auto&) {
+                    throw std::runtime_error("Unsupported type for float operation");
+                }
+            }, value2->data);
+
+            switch (instruction.opcode) {
+            case ADD:
+                result->data = v1 + v2;
+                break;
+            case SUBTRACT:
+                result->data = v1 - v2;
+                break;
+            case MULTIPLY:
+                result->data = v1 * v2;
+                break;
+            case DIVIDE:
+                if (v2 == 0.0) {
+                    std::cerr << "Error: Division by zero" << std::endl;
+                    return;
+                }
+                result->data = v1 / v2;
+                break;
+            case MODULUS:
+                result->data = std::fmod(v1, v2);
+                break;
+            default:
+                std::cerr << "Error: Invalid binary operation opcode" << std::endl;
                 return;
             }
-            result->data = v1 % v2;
-            break;
-        default:
-            std::cerr << "Error: Invalid binary operation opcode" << std::endl;
+        } else {
+            std::cerr << "Error: Unsupported types for binary operation" << std::endl;
             return;
         }
-    } else if (commonType->tag == TypeTag::Float64) {
-        double v1 = std::get<double>(value1->data);
-        double v2 = std::get<double>(value2->data);
 
-        switch (instruction.opcode) {
-        case ADD:
-            result->data = v1 + v2;
-            break;
-        case SUBTRACT:
-            result->data = v1 - v2;
-            break;
-        case MULTIPLY:
-            result->data = v1 * v2;
-            break;
-        case DIVIDE:
-            if (v2 == 0.0) {
-                std::cerr << "Error: Division by zero" << std::endl;
-                return;
-            }
-            result->data = v1 / v2;
-            break;
-        case MODULUS:
-            result->data = std::fmod(v1, v2);
-            break;
-        default:
-            std::cerr << "Error: Invalid binary operation opcode" << std::endl;
-            return;
-        }
-    } else {
-        std::cerr << "Error: Unsupported types for binary operation" << std::endl;
-        return;
+        push(result);
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error in binary operation: " << e.what() << std::endl;
+        // Push back the values to maintain stack consistency
+        push(std::move(value1));
+        push(std::move(value2));
     }
-
-    push(result);
 }
 
 void StackBackend::performLogicalOperation(const Instruction &instruction)
@@ -485,17 +574,54 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         return;
     }
 
-    push(result);
 }
 
 void StackBackend::handleLoadConst(const ValuePtr &constantValue)
 {
-    //push(constantValue);
-    auto linearValue = memoryManager.makeLinear<Value>(currentRegion(), *constantValue);
-    auto sharedValue = std::make_shared<Value>(*linearValue);
+    if (!constantValue) {
+        std::cerr << "[ERROR] handleLoadConst: constantValue is null" << std::endl;
+        return;
+    }
 
-    // Push the linear value onto the stack
-    push(sharedValue);
+    if (!constantValue->type) {
+        std::cerr << "[ERROR] handleLoadConst: constantValue type is null" << std::endl;
+        return;
+    }
+
+    try {
+        std::cout << "[DEBUG] handleLoadConst: Creating value copy of type: " 
+                  << constantValue->type->toString() << std::endl;
+
+        // Create the value in the current region
+        Value* rawValue = currentRegion().create<Value>(*constantValue);
+        if (!rawValue) {
+            std::cerr << "[ERROR] Failed to allocate value in region" << std::endl;
+            return;
+        }
+
+        // Create a shared_ptr with a custom deleter that will call the destructor
+        // but not deallocate memory (the region will handle that)
+        ValuePtr valueCopy(rawValue, [](Value* ptr) {
+            if (ptr) {
+                ptr->~Value();
+                // Memory will be freed when the region is destroyed
+            }
+        });
+
+        std::cout << "[DEBUG] Successfully created value copy at " 
+                  << rawValue << std::endl;
+
+        // Push the copy onto the stack
+        push(valueCopy);
+        std::cout << "[DEBUG] Value pushed to stack" << std::endl;
+
+    } catch (const std::exception& e) {
+        std::cerr << "[EXCEPTION] in handleLoadConst: " << e.what() << std::endl;
+        throw;
+    } catch (...) {
+        std::cerr << "[UNKNOWN EXCEPTION] in handleLoadConst" << std::endl;
+        throw;
+    }
 }
 
 void StackBackend::handleInterpolateString()
@@ -554,9 +680,18 @@ void StackBackend::handleInterpolateString()
     result = templateString.substr(0, pos) + interpolatedValue + templateString.substr(pos + 2);
 
     // Create a new Value for the interpolated string
-    ValuePtr interpolatedString = std::make_shared<Value>();
-    interpolatedString->type = typeSystem.STRING_TYPE;
-    interpolatedString->data = result;
+    std::cout << "[DEBUG] Creating interpolated string value" << std::endl;
+    ValuePtr interpolatedString;
+    try {
+        // Create with type first
+        interpolatedString = std::make_shared<Value>(typeSystem.STRING_TYPE);
+        // Then assign the string data
+        interpolatedString->data = result;
+        std::cout << "[DEBUG] Successfully created interpolated string value" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[ERROR] Failed to create interpolated string value: " << e.what() << std::endl;
+        throw;
+    }
 
     // Push the result back onto the stack
     push(interpolatedString);
@@ -885,27 +1020,58 @@ void StackBackend::popRegion()
 
 MemoryManager<>::Region &StackBackend::currentRegion()
 {
+    if (regionStack.empty() || !regionStack.top()) {
+        std::cerr << "Error: regionStack is empty or top is null in push()" << std::endl;
+        //return;
+    }
     return *regionStack.top();
 }
 
 void StackBackend::push(const ValuePtr &valuePtr)
 {
-    auto refValue = memoryManager.makeRef<Value>(currentRegion(), *valuePtr);
+    std::cout << "DEBUG: Pushing value to stack: ";
+    auto &region = currentRegion();
+    if (!valuePtr) {
+        std::cerr << "Error: valuePtr is null before makeRef" << std::endl;
+        return;
+    }
+    if (regionStack.empty() || !regionStack.top()) {
+        std::cerr << "Error: regionStack is empty or top is null before makeRef" << std::endl;
+        return;
+    }
+    std::cout << "[DEBUG] valuePtr address: " << static_cast<const void*>(valuePtr.get()) << std::endl;
+    auto refValue = memoryManager.makeRef<Value>(region, *valuePtr);
 
     stack.push(refValue); // Push the converted value onto the stack
+    std::cout << "DEBUG: Pushing value to stack: ";
 }
 
 ValuePtr StackBackend::pop()
 {
+    // if (stack.empty()) {
+    //     std::cerr << "Error: Stack underflow" << std::endl;
+    //     return nullptr;
+    // }
+
+    // auto refValue = stack.top(); // Pop the value from the stack
+    // stack.pop();
+
+    // return std::make_shared<Value>(*refValue); // Convert MemoryManager<>::Ref<Value> to ValuePtr
     if (stack.empty()) {
         std::cerr << "Error: Stack underflow" << std::endl;
         return nullptr;
     }
 
-    auto refValue = stack.top(); // Pop the value from the stack
+    auto refValue = stack.top();
     stack.pop();
 
-    return std::make_shared<Value>(*refValue); // Convert MemoryManager<>::Ref<Value> to ValuePtr
+    auto result = std::make_shared<Value>(*refValue);
+
+    std::cout << "DEBUG: Popped value from stack: ";
+   // debugPrintValue(result);
+    std::cout << "DEBUG: Stack size after pop: " << stack.size() << std::endl;
+
+    return result;
 }
 
 void StackBackend::clearStack()

@@ -1,7 +1,9 @@
 // builtin_functions.hh
 #pragma once
-#include "function.hh"
+class Functions;
 #include "types.hh"
+#include "function_types.hh"
+#include <variant>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -807,8 +809,24 @@ private:
             return "bool";
         case TypeTag::Int:
             return "int";
+        case TypeTag::Int8:
+            return "int8";
+        case TypeTag::Int16:
+            return "int16";
         case TypeTag::Int32:
             return "int32";
+        case TypeTag::Int64:
+            return "int64";
+        case TypeTag::UInt:
+            return "uint";
+        case TypeTag::UInt8:
+            return "uint8";
+        case TypeTag::UInt16:
+            return "uint16";
+        case TypeTag::UInt32:
+            return "uint32";
+        case TypeTag::UInt64:
+            return "uint64";
         case TypeTag::Float32:
             return "float32";
         case TypeTag::Float64:
@@ -823,6 +841,14 @@ private:
             return "function";
         case TypeTag::Any:
             return "any";
+        case TypeTag::Sum:
+            return "sum";
+        case TypeTag::Union:
+            return "union";
+        case TypeTag::UserDefined:
+            return "userdefined"; 
+        case TypeTag::Enum:
+            return "enum";    
         default:
             return "unknown";
         }

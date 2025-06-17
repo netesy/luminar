@@ -1,70 +1,170 @@
 const std = @import("std");
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
+    // Standard target and optimization options
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    // Create the main executable
     const exe = b.addExecutable(.{
         .name = "luminar",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
+    exe.subsystem = .Console;
 
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
+    // Define C++ compiler flags
+    const cpp_flags = &[_][]const u8{
+        "-std=c++17",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-g", // Debug symbols
+        "-O2", // Optimization (you can adjust based on build type)
+    };
+
+    // Core source files (matching your CMake structure)
+    const source_files = [_][]const u8{
+        "src/main.cpp",
+        "src/debugger.cpp",
+        "src/repl.cpp",
+        "src/scanner.cpp",
+        "src/ast.cpp",
+        "src/vm.cpp",
+        "src/memory.cpp",
+        "src/function.cpp",
+        "src/backends/jit.cpp",
+        "src/backends/codegen.cpp",
+        "src/backends/register.cpp",
+        "src/backends/stack.cpp",
+        "src/backends/yasm.cpp",
+        "src/parser/packrat.cpp",
+        "src/parser/pratt.cpp",
+    };
+
+    // Add all source files to the executable
+    for (source_files) |file_path| {
+        exe.addCSourceFile(.{
+            .file = .{ .path = file_path },
+            .flags = cpp_flags,
+        });
+    }
+
+    // Link against system libraries
+    exe.linkLibC();
+    exe.linkLibCpp();
+
+    // Add include directories
+    const include_paths = [_][]const u8{
+        "src",
+        "src/backends",
+        "src/parser",
+        "test", // For test files
+    };
+
+    for (include_paths) |path| {
+        exe.addIncludePath(.{ .path = path });
+    }
+
+    // Optional: Add GCC JIT library support (uncomment if needed)
+    // This matches your commented CMake section
+    // exe.linkSystemLibrary("gccjit");
+
+    // Install the executable
     b.installArtifact(exe);
 
-    // This *creates* a Run step in the build graph, to be executed when another
-    // step is evaluated that depends on it. The next line below will establish
-    // such a dependency.
+    // Create run step
     const run_cmd = b.addRunArtifact(exe);
-
-    // By making the run step depend on the install step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    // This is not necessary, however, if the application depends on other installed
-    // files, this ensures they will be present and in the expected location.
     run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
+    
+    // Forward command line arguments to the executable
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
 
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("run", "Run the luminar application");
     run_step.dependOn(&run_cmd.step);
 
-    // Creates a step for unit testing. This only builds the test executable
-    // but does not run it.
-    const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
+    // Test build disabled
+    // // Create test executable for C++ tests
+    // const test_exe = b.addExecutable(.{
+    //     .name = "luminar-test",
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    // test_exe.subsystem = .Console;
+
+    // // Test source files
+    // const test_source_files = [_][]const u8{
+    //     "test/tst_parser.cpp",
+    //     "test/tst_scanner.cpp",
+    //     // Add other test files as needed
+    // };
+
+    // // Add test-specific source files
+    // for (test_source_files) |file_path| {
+    //     test_exe.addCSourceFile(.{
+    //         .file = .{ .path = file_path },
+    //         .flags = cpp_flags,
+    //     });
+    // }
+
+    // // Add core source files needed for tests (excluding main.cpp to avoid multiple main functions)
+    // const test_core_files = [_][]const u8{
+    //     "src/debugger.cpp",
+    //     "src/repl.cpp",
+    //     "src/scanner.cpp",
+    //     "src/ast.cpp",
+    //     "src/vm.cpp",
+    //     "src/memory.cpp",
+    //     "src/function.cpp",
+    //     "src/backends/jit.cpp",
+    //     "src/backends/codegen.cpp",
+    //     "src/backends/register.cpp",
+    //     "src/backends/stack.cpp",
+    //     "src/backends/yasm.cpp",
+    //     "src/parser/packrat.cpp",
+    //     "src/parser/pratt.cpp",
+    // };
+
+    // for (test_core_files) |file_path| {
+    //     test_exe.addCSourceFile(.{
+    //         .file = .{ .path = file_path },
+    //         .flags = cpp_flags,
+    //     });
+    // }
+
+    // // Link test executable
+    // test_exe.linkLibC();
+    // test_exe.linkLibCpp();
+
+    // // Add include paths for tests
+    // for (include_paths) |path| {
+    //     test_exe.addIncludePath(.{ .path = path });
+    // }
+
+    // // Install test executable
+    // b.installArtifact(test_exe);
+
+    // // Create test run step
+    // const test_run_cmd = b.addRunArtifact(test_exe);
+    // test_run_cmd.step.dependOn(b.getInstallStep());
+
+    // const test_step = b.step("test", "Run C++ unit tests");
+    // test_step.dependOn(&test_run_cmd.step);
+
+
+
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = .{ .path = "doc" },
+        .install_dir = .prefix,
+        .install_subdir = "share/doc/luminar",
     });
 
-    const run_unit_tests = b.addRunArtifact(unit_tests);
+    const doc_step = b.step("install-docs", "Install documentation files");
+    doc_step.dependOn(&install_docs.step);
 
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_unit_tests.step);
+    // Create a clean step for convenience
+    const clean_step = b.step("clean", "Clean build artifacts");
+    clean_step.dependOn(&b.addRemoveDirTree(b.install_path).step);
 }

@@ -3,6 +3,7 @@
 
 #include "instructions.hh" // Assumes you have a struct for Instruction with Opcode and Value
 #include "opcodes.hh"
+#include "types.hh"
 #include <chrono> // For timing
 #include <iostream>
 #include <memory>
@@ -126,7 +127,6 @@ public:
     }
 
 private:
-    std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
 
     // Helper function for debug logging
     static void debugLog(const std::string &message, bool debug)
@@ -288,7 +288,9 @@ private:
     static bool constantFolding(Bytecode &bytecode)
     {
         bool changesMade = false;
-        std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>();
+        MemoryManager<> memoryManager;
+        MemoryManager<>::Region region(memoryManager);
+        std::shared_ptr<TypeSystem> typeSystem = std::make_shared<TypeSystem>(memoryManager, region);
 
         for (size_t i = 0; i < bytecode.size() - 2; ++i) {
             auto &first = bytecode[i];

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 project(luminar LANGUAGES CXX)
 
@@ -28,7 +28,7 @@ add_executable(luminar src/main.cpp
     src/token.hh
     src/backends/yasm.hh src/backends/yasm.cpp
     src/scope.hh
-    src/function.hh src/builtin_function.hh
+     src/function.hh src/function.cpp src/function_types.hh src/builtin_function.hh
     src/parser/packrat.hh src/parser/packrat.cpp
     src/parser/pratt.hh src/parser/pratt.cpp
     src/parser/algorithm.hh

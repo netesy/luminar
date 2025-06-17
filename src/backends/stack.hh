@@ -1,22 +1,32 @@
-#ifndef STACK_HH
-#define STACK_HH
+#ifndef STACK_BACKEND_HH
+#define STACK_BACKEND_HH
 
 #include "../function.hh"
 #include "../memory.hh"
 #include "../types.hh"
 #include "backend.hh"
+#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <queue>
 #include <stack>
 #include <string>
 #include <thread>
+
 #include <vector>
 
 class StackBackend : public Backend
 {
 public:
-    explicit StackBackend(std::vector<Instruction> &program, Functions& funcs);
+    explicit StackBackend(std::vector<Instruction>& program, Functions& funcs, MemoryManager<>& memManager)
+        : function(funcs),
+          program(program),
+          typeSystem(memManager, globalRegion),
+          memoryManager(memManager),
+          globalRegion(memManager)
+    {
+        regionStack.push(&globalRegion);
+    }
     ~StackBackend();
 
     void run(const std::vector<Instruction> &program) override;
@@ -30,16 +40,15 @@ private:
     std::stack<std::pair<size_t, size_t>> callStack; // Stores (PC, stackSize) pairs
     // std::shared_ptr<Functions> functions;
     Functions function;
-    std::stack<MemoryManager<>::Ref<Value>> stack;
-    std::vector<MemoryManager<>::Ref<Value>> constants;
-    std::vector<MemoryManager<>::Ref<Value>> variables;
+    std::stack<ValuePtr> stack;
+    std::vector<ValuePtr> constants;
+    std::vector<ValuePtr> variables;
     // Functions functions;
     std::vector<std::thread> threads;
     std::mutex mtx;
     std::vector<Instruction> program;
     size_t pc = 0;
     TypeSystem typeSystem;
-    std::shared_ptr<TypeSystem> typeSystems = std::make_shared<TypeSystem>();
     bool unsafeMode = false;
 
     // New parallel execution support structures
@@ -66,7 +75,7 @@ private:
     std::unordered_map<std::string, std::unique_ptr<ChannelConfig>> channels;
 
     // Add MemoryManager
-    MemoryManager<> memoryManager;
+    MemoryManager<> &memoryManager;
     MemoryManager<>::Region globalRegion;
     std::stack<MemoryManager<>::Region *> regionStack;
 

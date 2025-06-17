@@ -132,23 +132,76 @@ public:
     }
 
     void* allocate(size_t size, size_t alignment = alignof(std::max_align_t)) {
+        // Calculate the actual size needed to satisfy alignment
+        // // size_t actualSize = size + (alignment - 1) + sizeof(void*);
+        
         if (size <= MAX_ALLOC_SIZE) {
-            return memoryPools[size]->allocate();
+            // Find the next power of two that can hold the requested size
+            size_t poolSize = 1;
+            while (poolSize < size) {
+                poolSize <<= 1;
+            }
+            
+            void* mem = memoryPools[poolSize]->allocate();
+            if (!mem) {
+                std::cerr << "[ERROR] Failed to allocate " << size 
+                          << " bytes from pool of size " << poolSize << std::endl;
+                return nullptr;
+            }
+            
+            // Align the memory
+            void* alignedPtr = reinterpret_cast<void*>(
+                (reinterpret_cast<size_t>(mem) + sizeof(void*) + alignment - 1) & ~(alignment - 1)
+            );
+            
+            // Store the original pointer right before the aligned memory
+            *(reinterpret_cast<void**>(alignedPtr) - 1) = mem;
+            
+            std::cout << "[DEBUG] Allocated " << size << " bytes at " << alignedPtr 
+                      << " (aligned from " << mem << ")" << std::endl;
+            return alignedPtr;
         }
-        return objectPool.allocate();
+        
+        // For large allocations, use the object pool
+        void* mem = objectPool.allocate();
+        if (!mem) {
+            std::cerr << "[ERROR] Failed to allocate " << size 
+                      << " bytes from object pool" << std::endl;
+            return nullptr;
+        }
+        
+        // For object pool allocations, we don't need to handle alignment specially
+        // since they're already aligned to the object size
+        return mem;
     }
 
     void deallocate(void* ptr, size_t size) {
+        if (!ptr) return;
+        
         if (size <= MAX_ALLOC_SIZE) {
-            memoryPools[size]->deallocate(ptr);
+            // For aligned allocations, we need to get the original pointer
+            // which is stored right before the aligned memory
+            void* originalPtr = *(reinterpret_cast<void**>(ptr) - 1);
+            
+            // Find the pool size (next power of two >= size)
+            size_t poolSize = 1;
+            while (poolSize < size) {
+                poolSize <<= 1;
+            }
+            
+            std::cout << "[DEBUG] Deallocating " << size << " bytes at " << ptr 
+                      << " (original: " << originalPtr << ")" << std::endl;
+            
+            // Return the original pointer to the pool
+            memoryPools[poolSize]->deallocate(originalPtr);
         } else {
+            std::cout << "[DEBUG] Deallocating large object of size " << size << " at " << ptr << std::endl;
             objectPool.deallocate(ptr);
         }
     }
 
     void deallocate(void* ptr) {
-
-            objectPool.deallocate(ptr);
+        objectPool.deallocate(ptr);
     }
 };
 
@@ -231,9 +284,23 @@ public:
         auditMode = enable;
     }
 
-    void *allocate(size_t size, size_t alignment = alignof(std::max_align_t))
+    void* allocate(size_t size, size_t alignment = alignof(std::max_align_t))
     {
+        if (size == 0) {
+            throw std::invalid_argument("Attempt to allocate zero bytes");
+        }
+
         void *ptr = allocator.allocate(size, alignment);
+
+        if (!ptr) {
+            std::cerr << "[ERROR] MemoryManager::allocate failed to allocate "
+                        << size << " bytes" << std::endl;
+            throw std::bad_alloc();
+        }
+
+        // Zero-initialize the memory
+        std::memset(ptr, 0, size);
+
         analyzer.recordAllocation(ptr, size, auditMode ? TRACE_INFO() : "");
         return ptr;
     }
@@ -280,23 +347,72 @@ public:
             }
         }
 
-        template<typename T, typename... Args>
+        template <typename T, typename... Args>
         T *create(Args &&...args)
         {
             void *memory = manager.allocate(sizeof(T), alignof(T));
-            T *obj = new (memory) T(std::forward<Args>(args)...);
-            size_t generation = ++currentGeneration;
-            objectGenerations[memory] = generation;
-            return obj;
+            if (!memory) {
+                return nullptr;
+            }
+            try {
+                T *obj = new (memory) T(std::forward<Args>(args)...);
+                objectGenerations[memory] = ++currentGeneration;
+                return obj;
+            } catch (...) {
+                manager.deallocate(memory);
+                throw;
+            }
         }
 
-        void deallocate(void *ptr)
+        template<typename T>
+        void deallocate(void *ptr, size_t size, size_t alignment)
         {
-            auto it = objectGenerations.find(ptr);
-            if (it != objectGenerations.end()) {
-                manager.deallocate(ptr);
-                objectGenerations.erase(it);
+            if (!ptr) {
+                std::cout << "[DEBUG] Region::deallocate: Attempted to deallocate null pointer" << std::endl;
+                return;
             }
+
+            std::cout << "[DEBUG] Region::deallocate: Freeing memory at " << ptr
+                      << " (size: " << size << ", alignment: " << alignment << ")" << std::endl;
+
+            try {
+                // Call destructor if it's a non-trivial type
+                if constexpr (!std::is_trivially_destructible_v<T>) {
+                    static_cast<T*>(ptr)->~T();
+                    std::cout << "[DEBUG] Region::deallocate: Called destructor for " << typeid(T).name() << std::endl;
+                }
+
+                // Deallocate the memory
+                manager.deallocate(ptr);
+
+                // Remove from generations map
+                auto it = objectGenerations.find(ptr);
+                if (it != objectGenerations.end()) {
+                    std::cout << "[DEBUG] Region::deallocate: Removed object generation tracking for " << ptr
+                              << " (generation: " << it->second << ")" << std::endl;
+                    objectGenerations.erase(it);
+                } else {
+                    std::cerr << "[WARNING] Region::deallocate: No generation tracking found for " << ptr << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "[ERROR] Exception in Region::deallocate: " << e.what() << std::endl;
+                // Still try to deallocate the memory even if destructor fails
+                manager.deallocate(ptr);
+                objectGenerations.erase(ptr);
+                throw;
+            } catch (...) {
+                std::cerr << "[ERROR] Unknown exception in Region::deallocate" << std::endl;
+                manager.deallocate(ptr);
+                objectGenerations.erase(ptr);
+                throw;
+            }
+        }
+
+        // Add convenience overload for deallocate
+        template<typename T>
+        void deallocate(void* ptr)
+        {
+            deallocate<T>(ptr, sizeof(T), alignof(T));
         }
 
         size_t getGeneration(void *ptr) const
@@ -369,7 +485,7 @@ public:
         {
             if (ptr && ownsResource) {
                 ptr->~T();
-                region->deallocate(ptr);
+                region->template deallocate<T>(ptr);  // Use convenience overload
                 ptr = nullptr;
                 ownsResource = false;
             }
@@ -399,7 +515,7 @@ public:
                 delete refCount;
                 if (ptr && isValid()) {
                     ptr->~T();
-                    region->deallocate(ptr);
+                    region->template deallocate<T>(ptr);  // Use convenience overload
                 }
                 ptr = nullptr;
                 region = nullptr;
@@ -504,15 +620,65 @@ public:
     template<typename T, typename... Args>
     Linear<T> makeLinear(Region &region, Args &&...args)
     {
+        static_assert(std::is_nothrow_destructible<T>::value,
+                      "Type must be nothrow destructible for safe cleanup");
+
+        std::cout << "[DEBUG] makeLinear: Creating object of type " << typeid(T).name()
+                  << " (size: " << sizeof(T) << ", alignment: " << alignof(T) << ")" << std::endl;
+
         T *obj = region.template create<T>(std::forward<Args>(args)...);
+
+        if (!obj) {
+            throw std::bad_alloc();
+        }
+
+        std::cout << "[DEBUG] makeLinear: Created at address " << static_cast<void*>(obj)
+                  << " in region " << static_cast<void*>(&region) << std::endl;
+
         return Linear<T>(region, obj, *this);
     }
 
-    template<typename T, typename... Args>
-    Ref<T> makeRef(Region &region, Args &&...args)
+        template<typename T, typename... Args>
+    std::shared_ptr<T> makeRef(Region &region, Args &&...args)
     {
-        T *obj = region.template create<T>(std::forward<Args>(args)...);
-        return Ref<T>(region, obj);
+        std::cout << "[DEBUG] makeRef: Starting creation of object of type "
+                  << typeid(T).name() << std::endl;
+
+        static_assert(std::is_nothrow_destructible<T>::value,
+                      "Type must be nothrow destructible for safe cleanup");
+
+        try {
+            std::cout << "[DEBUG] makeRef: Creating object of type " << typeid(T).name()
+            << " (size: " << sizeof(T) << ", alignment: " << alignof(T) << ")" << std::endl;
+
+            T *obj = region.template create<T>(std::forward<Args>(args)...);
+
+            if (!obj) {
+                std::cerr << "[ERROR] makeRef: Failed to create object - returned nullptr" << std::endl;
+                throw std::bad_alloc();
+            }
+
+            size_t generation = region.getGeneration(obj);
+
+            std::cout << "[DEBUG] makeRef: Successfully created object at " << static_cast<void*>(obj)
+                      << " in region " << static_cast<void*>(&region)
+                      << " with generation " << generation << std::endl;
+
+            // Custom deleter
+            auto deleter = [&region](T* ptr) {
+                std::cout << "[DEBUG] Custom deleter called for object at " << static_cast<void*>(ptr) << std::endl;
+                region.template deallocate<T>(ptr);
+            };
+
+            return std::shared_ptr<T>(obj, deleter);
+
+        } catch (const std::exception& e) {
+            std::cerr << "[EXCEPTION] makeRef: " << e.what() << std::endl;
+            throw;
+        } catch (...) {
+            std::cerr << "[EXCEPTION] makeRef: Unknown exception" << std::endl;
+            throw;
+        }
     }
 
     class Unsafe
