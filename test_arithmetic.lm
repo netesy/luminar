@@ -1,0 +1,9 @@
+// Simple arithmetic test
+var a = 12 * 33;
+var b = 45 + 67;
+var c = 100 - 42;
+var d = 144 / 12;
+print(a);
+print(b);
+print(c);
+print(d);

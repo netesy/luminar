@@ -577,44 +577,9 @@ inline ValuePtr EnumValue::create(const std::string& variantName, const TypePtr&
     return value;
 }
 
-inline std::ostream &operator<<(std::ostream &os, const Value &value)
-{
-    os << "Value(" << value.type->toString() << "): ";
-
-    std::visit(overloaded{[&](const std::monostate &) { os << "nil"; },
-                          [&](bool b) { os << (b ? "true" : "false"); },
-                          [&](int8_t i) { os << static_cast<int>(i); },
-                          [&](int16_t i) { os << i; },
-                          [&](int32_t i) { os << i; },
-                          [&](int64_t i) { os << i; },
-                          [&](uint8_t u) { os << static_cast<unsigned>(u); },
-                          [&](uint16_t u) { os << u; },
-                          [&](uint32_t u) { os << u; },
-                          [&](uint64_t u) { os << u; },
-                          [&](float f) { os << f; },
-                          [&](double d) { os << d; },
-                          [&](const std::string &s) { os << s; },
-                          [&](const ListValue &lv) {
-                              os << "[";
-                              for (const auto &elem : lv.elements) {
-                                  os << *elem << ", ";
-                              }
-                              os << "]";
-                          },
-                          [&](const DictValue &dv) {
-                              os << "{";
-                              for (const auto &[key, val] : dv.elements) {
-                                  os << *key << ": " << *val << ", ";
-                              }
-                              os << "}";
-                          },
-                          [&](const SumValue &sv) { os << "Sum(" << sv.activeVariant << ")"; },
-                          [&](const UserDefinedValue &uv) {
-                              os << "UserDefined(" << uv.variantName << ")";
-                          },
-                          [&](const auto &) { os << "unknown"; }},
-               value.data);
-
+// Implementation of operator<< for Value
+inline std::ostream &operator<<(std::ostream &os, const Value &value) {
+    os << value.toString();
     return os;
 }
 

@@ -1,7 +1,7 @@
 0
-10513 18295873488535427 1750173518930683100 3df85175277e3c363e59d165a4783531 0 C:\Users\Fablur\Desktop\Projects\luminar\src\main.cpp
-10513 18295873488535427 1750173518930683100 3df85175277e3c363e59d165a4783531 0 C:\Users\Fablur\Desktop\Projects\luminar\src\main.cpp
-1037 7881299348025946 1750172628261065800 8235a2ba3cc2abab3aac22143aa1924f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\repl.hh
+10724 18295873488535427 1750254403753389800 0076cbccbef6fcff17efbce871a30c0f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\main.cpp
+10724 18295873488535427 1750254403753389800 0076cbccbef6fcff17efbce871a30c0f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\main.cpp
+886 1688849863068556 1750254279056496700 0da95718e64386e13e7b7a29285ae3b6 0 C:\Users\Fablur\Desktop\Projects\luminar\src\repl.hh
 132 4785074606423934 1741756647373340300 8a5d2baa63897bdbc5a93923030b0e92 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\import.hh
 481 12103424000900987 1741756647372339300 afbcdc0a62f92472ea2e7463bf102558 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\backend.hh
 7742 17732923535114128 1741756647378340900 2dca6042860ab89368e7cafecdffce2f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\instructions.hh
@@ -721,11 +721,11 @@
 12027 281474978896761 1691117041000000000 df1d56d9157f42d0fe16ef485920788f 1 libcxx\include\stack
 84875 281474978896685 1691117041000000000 c2bc0d4cf5f3b726a5808654df797694 1 libcxx\include\deque
 78784 281474978896783 1691117041000000000 abb68f64b95f4868fc267fa38b819d05 1 libcxx\include\unordered_set
-21439 8162774327249531 1750084115461869500 22ea05f5ee8c3d20be25d83b71ff015a 0 C:\Users\Fablur\Desktop\Projects\luminar\src\value.hh
+19259 8162774327249531 1750352769368653000 dfbbf1a6e9e6baa8a5d3f2324b9e990b 0 C:\Users\Fablur\Desktop\Projects\luminar\src\value.hh
 20489 281474978896644 1691117041000000000 11d1d027fde05830838b6f4bbd881a89 1 libcxx\include\any
 16090 5629499536555894 1741756714839701400 d3d269f673ab036792c5b9d294533666 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\jit.hh
 1732 4785074606423938 1741756647374337600 6f3e9dc03c92ee36c9afc918649f5bf5 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\register.hh
-4534 37436171902764092 1750200619741226100 cdd2b1a0870806cd4b28a8bce5d14193 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\stack.hh
+4707 37436171902764092 1750256906802571400 376dddf6774c7c899b1603767cd2c9a7 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\stack.hh
 2922 21955048185773964 1750175527903207900 d81d838180e3df461fa914f1e1513b22 0 C:\Users\Fablur\Desktop\Projects\luminar\src\function.hh
 1612 16888498605166058 1750175888525708000 03a4000692246d26bb0ed3c29c969421 0 C:\Users\Fablur\Desktop\Projects\luminar\src\function_types.hh
 7742 17732923535114128 1741756647378340900 2dca6042860ab89368e7cafecdffce2f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\instructions.hh
@@ -738,7 +738,7 @@
 1721 22517998139195271 1741756647376339100 5abcb6997431c9fb76f4bbff53109041 0 C:\Users\Fablur\Desktop\Projects\luminar\src\backends\yasm.hh
 1916 18858823441956775 1741756647384470100 f36fccb981dd8fd6a8f4cecfe77cfe72 0 C:\Users\Fablur\Desktop\Projects\luminar\src\scanner.hh
 2888 6755399443398560 1741756714846704300 c230a9f8024cea89c29d5547617f21f3 0 C:\Users\Fablur\Desktop\Projects\luminar\src\token.hh
-718 4503599629713326 1741756647386468100 211e25f6d2c03f57ba7af2c55fb7b5cb 0 C:\Users\Fablur\Desktop\Projects\luminar\src\vm.hh
+831 4503599629713326 1750254805603726400 6292eb8c13dbf0897fcb62c28bb278c7 0 C:\Users\Fablur\Desktop\Projects\luminar\src\vm.hh
 524 19984723348799385 1741756647380470200 b6dcf3d5ace27de0ea714d1ada544bee 0 C:\Users\Fablur\Desktop\Projects\luminar\src\parser\algorithm.hh
 7742 17732923535114128 1741756647378340900 2dca6042860ab89368e7cafecdffce2f 0 C:\Users\Fablur\Desktop\Projects\luminar\src\instructions.hh
 3957 7881299350241823 1749569323818428800 e9f9ed9d8e138716bd2db10bf46011a4 0 C:\Users\Fablur\Desktop\Projects\luminar\src\tutorial.hh

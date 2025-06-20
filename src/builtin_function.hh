@@ -30,12 +30,27 @@ public:
         registerSleep(functions, typeSystem);
         registerContract(functions, typeSystem);
 
-        // registerPrint(functions, typeSystem);
+        registerPrint(functions, typeSystem);
         // registerListFunctions(functions, typeSystem);
         // registerFileOperations(functions, typeSystem);
     }
 
 private:
+    static void validateParameters(const std::vector<ValuePtr> &args,
+                                   size_t expectedCount,
+                                   const std::string &functionName) {
+        if (args.size() < expectedCount) {
+            throw std::runtime_error(functionName + "() missing required arguments");
+        }
+
+        // Check for null parameters
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (!args[i]) {
+                throw std::runtime_error(functionName + "() argument " + std::to_string(i) + " is null");
+            }
+        }
+    }
+
     static void registerLen(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
     {
         // len(value: string|list|dict) -> int
@@ -98,12 +113,32 @@ private:
         std::vector<ParameterInfo> timeParams = {}; // No parameters
 
         auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            // Add parameter count validation
+            if (!args.empty()) {
+                throw std::runtime_error("time() takes no arguments");
+            }
+
             auto now = std::chrono::system_clock::now();
             auto now_time_t = std::chrono::system_clock::to_time_t(now);
 
-              // Use static buffer to avoid reallocation overhead
-            char buffer[20]; // "YYYY-MM-DD HH:MM:SS" requires 20 chars
-            if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now_time_t)) == 0) {
+            // Use thread-safe localtime_r/localtime_s
+            std::tm tm_buf;
+            std::tm* tm_ptr;
+
+#ifdef _WIN32
+            if (localtime_s(&tm_buf, &now_time_t) != 0) {
+                throw std::runtime_error("Failed to convert time");
+            }
+            tm_ptr = &tm_buf;
+#else
+            tm_ptr = localtime_r(&now_time_t, &tm_buf);
+            if (!tm_ptr) {
+                throw std::runtime_error("Failed to convert time");
+            }
+#endif
+
+            char buffer[20];
+            if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm_ptr) == 0) {
                 throw std::runtime_error("Failed to format time");
             }
 
@@ -146,6 +181,7 @@ private:
                ParameterInfo("timestamp", makeType(TypeTag::Int), true, makeIntValue(1))};
 
         auto dateImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "date");
             const std::string &format = std::get<std::string>(args[0]->data);
             int64_t timestamp = 1;
 
@@ -184,6 +220,7 @@ private:
                ParameterInfo("showType", makeType(TypeTag::Bool), true, makeBoolValue(true))};
 
         auto debugImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "debug");
             const auto &value = args[0];
             bool showType = std::get<bool>(args[1]->data);
 
@@ -279,6 +316,7 @@ private:
             ParameterInfo("prompt", makeType(TypeTag::String), true, makeStringValue(""))};
 
         auto inputImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "input");
             // Print prompt if provided
             std::cout << std::get<std::string>(args[0]->data);
             std::cout.flush();
@@ -299,6 +337,7 @@ private:
             ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto absImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "abs");
             const auto &value = args[0];
             if (value->type->tag == TypeTag::Int || value->type->tag == TypeTag::Int32) {
                 int32_t val = std::get<int32_t>(value->data);
@@ -316,6 +355,7 @@ private:
             ParameterInfo("value", makeType(TypeTag::Float64), false)};
 
         auto sqrtImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "sqrt");
             double val = std::get<double>(args[0]->data);
             if (val < 0) {
                 throw std::runtime_error("Math error: sqrt() domain error");
@@ -333,6 +373,7 @@ private:
         std::vector<ParameterInfo> typeParams = {ParameterInfo("value", makeAnyType(), false)};
 
         auto typeImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "type");
             return makeStringValue(typeTagToString(args[0]->type->tag));
         };
 
@@ -347,6 +388,7 @@ private:
                ParameterInfo("message", makeType(TypeTag::String), true, makeStringValue(""))};
 
         auto assertImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "assert");
             if (!std::get<bool>(args[0]->data)) {
                 std::string msg = std::get<std::string>(args[1]->data);
                 throw std::runtime_error("Assertion failed" + (msg.empty() ? "" : ": " + msg));
@@ -365,6 +407,7 @@ private:
                ParameterInfo("places", makeType(TypeTag::Int), true, makeIntValue(0))};
 
         auto roundImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "round");
             double value = std::get<double>(args[0]->data);
             int64_t places = std::get<int64_t>(args[1]->data);
 
@@ -384,6 +427,7 @@ private:
             ParameterInfo("seconds", makeType(TypeTag::Float64), false)};
 
         auto sleepImpl = [&functions](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "sleep");
             // Direct access of the first argument instead of using getParameter
             if (args.empty()) {
                 throw std::runtime_error("Sleep function requires one argument");
@@ -415,6 +459,7 @@ private:
         };
 
         auto contractImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 2, "contract");
             bool condition = std::get<bool>(args[0]->data);
             std::string message = std::get<std::string>(args[1]->data);
             std::string action = std::get<std::string>(args[2]->data);
@@ -439,6 +484,89 @@ private:
     }
 
 
+
+    static void registerPrint(FunctionRegistry &functions, std::shared_ptr<TypeSystem> typeSystem)
+    {
+        // print(value: any, end: string = "\n") -> nil
+        std::vector<ParameterInfo> printParams = {
+            ParameterInfo("value", makeAnyType(), false),
+            ParameterInfo("end", makeType(TypeTag::String), true, makeStringValue("\n"))
+        };
+
+        auto printImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
+            validateParameters(args, 1, "print");
+
+            // Define the printValue function before using it
+            std::function<void(const ValuePtr&, bool)> printValue;
+            printValue = [&printValue](const ValuePtr &val, bool isTopLevel = true) {
+                switch (val->type->tag) {
+                case TypeTag::Nil:
+                    std::cout << "nil";
+                    break;
+                case TypeTag::Bool:
+                    std::cout << (std::get<bool>(val->data) ? "true" : "false");
+                    break;
+                case TypeTag::Int:
+                case TypeTag::Int32:
+                    std::cout << std::get<int32_t>(val->data);
+                    break;
+                case TypeTag::Float32:
+                case TypeTag::Float64:
+                    std::cout << std::get<double>(val->data);
+                    break;
+                case TypeTag::String:
+                    if (isTopLevel) {
+                        std::cout << std::get<std::string>(val->data);
+                    } else {
+                        std::cout << "\"" << std::get<std::string>(val->data) << "\"";
+                    }
+                    break;
+                case TypeTag::List: {
+                    const auto &list = std::get<ListValue>(val->data);
+                    std::cout << "[";
+                    for (size_t i = 0; i < list.elements.size(); ++i) {
+                        printValue(list.elements[i], false);
+                        if (i < list.elements.size() - 1) {
+                            std::cout << ", ";
+                        }
+                    }
+                    std::cout << "]";
+                    break;
+                }
+                case TypeTag::Dict: {
+                    const auto &dict = std::get<DictValue>(val->data);
+                    std::cout << "{";
+                    bool first = true;
+                    for (const auto &[key, value] : dict.elements) {
+                        if (!first) std::cout << ", ";
+                        std::cout << "\"" << key << "\": ";
+                        printValue(value, false);
+                        first = false;
+                    }
+                    std::cout << "}";
+                    break;
+                }
+                default:
+                    std::cout << "<" << typeTagToString(val->type->tag) << ">";
+                }
+            };
+
+            // Print the value
+            printValue(args[0], true);
+
+            // Print end string (defaults to "\n")
+            std::string end = "\n";
+            if (args.size() > 1) {
+                end = std::get<std::string>(args[1]->data);
+            }
+            std::cout << end;
+            std::cout.flush();
+
+            return makeNilValue();
+        };
+
+        functions.addBuiltinFunction("print", printParams, makeType(TypeTag::Nil), printImpl);
+    }
 
 
     // Helper function for value comparison

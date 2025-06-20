@@ -1,14 +1,12 @@
-
-
 #include "repl.hh"
 #include "tutorial.hh"
 #include <iostream>
 #include <string>
 #include <vector>
 #include <functional>
+#include <memory>
 
-struct CLIConfig
-{
+struct CLIConfig {
     std::string mode;
     std::string target;
     std::string sourceFile;
@@ -18,35 +16,30 @@ struct CLIConfig
     bool tutorialMode = false;
 };
 
-class CLIManager
-{
+class CLIManager {
 private:
-    struct Command
-    {
+    struct Command {
         std::string name;
         std::string description;
-        std::function<void(CLIConfig &)> handler;
+        std::function<void(REPL&, CLIConfig&)> handler;
     };
 
     static std::vector<Command> commands;
 
-    static bool startsWith(const std::string &str, const std::string &prefix)
-    {
+    static bool startsWith(const std::string& str, const std::string& prefix) {
         return str.size() >= prefix.size() && str.compare(0, prefix.size(), prefix) == 0;
     }
 
-    static void handleBuild(CLIConfig &config)
-    {
+    static void handleBuild(REPL& repl, CLIConfig& config) {
         if (config.target.empty()) {
             std::cout << "Enter target (windows/mac/linux): ";
             std::cin >> config.target;
         }
         std::cout << "\033[1;33mBuilding for " << config.target << "...\033[0m\n";
-        REPL::start("");
+        // Build logic would go here
     }
 
-    static void handleRun(CLIConfig &config)
-    {
+    static void handleRun(REPL& repl, CLIConfig& config) {
         if (config.sourceFile.empty()) {
             std::cout << "Enter source file to run (or press Enter for REPL): ";
             std::cin.ignore();
@@ -54,33 +47,29 @@ private:
         }
         if (!config.sourceFile.empty()) {
             std::cout << "\033[1;32mRunning " << config.sourceFile << "...\033[0m\n";
-            config.devMode ? REPL::startDevMode(config.sourceFile) : REPL::start(config.sourceFile);
+            config.devMode ? repl.startDevMode(config.sourceFile) : repl.start(config.sourceFile);
         } else {
             std::cout << "\033[1;32mStarting REPL...\033[0m\n";
-            REPL::startDevMode("");
+            repl.startDevMode("");
         }
     }
 
-    static void handleRepl(CLIConfig &config)
-    {
+    static void handleRepl(REPL& repl, CLIConfig& config) {
         std::cout << "\033[1;32mStarting REPL...\033[0m\n";
-        config.devMode ? REPL::startDevMode("") : REPL::start("");
+        config.devMode ? repl.startDevMode("") : repl.start("");
     }
 
-        static void handleNew(CLIConfig &)
-        {
-            std::cout << "\033[1;32mSetting up new Luminar project...\033[0m\n";
-            // Add project setup logic here
-        }
+    static void handleNew(REPL&, CLIConfig&) {
+        std::cout << "\033[1;32mSetting up new Luminar project...\033[0m\n";
+        // Project setup logic
+    }
 
-        static void handleInit(CLIConfig &)
-        {
-            std::cout << "\033[1;32mInitializing Luminar project...\033[0m\n";
-            // Add project initialization logic here
-        }
+    static void handleInit(REPL&, CLIConfig&) {
+        std::cout << "\033[1;32mInitializing Luminar project...\033[0m\n";
+        // Project initialization logic
+    }
 
-    static void handleFormat(CLIConfig &config)
-    {
+    static void handleFormat(REPL&, CLIConfig& config) {
         if (config.sourceFile.empty()) {
             std::cout << "Enter source file to format: ";
             std::cin.ignore();
@@ -89,16 +78,14 @@ private:
         std::cout << "\033[1;32mFormatting " << config.sourceFile << "...\033[0m\n";
     }
 
-    static void handleHelp(CLIConfig &)
-    {
+    static void handleHelp(REPL&, CLIConfig&) {
         showLogo();
         showHelp("luminar");
     }
 
-    static void handleZen(CLIConfig &) { showZenOfLuminar(); }
+    static void handleZen(REPL&, CLIConfig&) { showZenOfLuminar(); }
 
-    static void handleTutorial(CLIConfig &)
-    {
+    static void handleTutorial(REPL& repl, CLIConfig&) {
         std::cout << "\033[1;32mWelcome to the Luminar Tutorial!\033[0m\n";
         showZenOfLuminar();
 
@@ -130,22 +117,20 @@ private:
                     std::string input;
                     std::getline(std::cin, input);
                     if (!input.empty()) {
-                        REPL::run(input, "", "");
+                        repl.run(input, "", "");
                     }
                 }
             }
         }
     }
 
-    static void handleInvalid(CLIConfig &)
-    {
+    static void handleInvalid(REPL&, CLIConfig&) {
         std::cerr << "\033[1;31mError: Invalid command.\033[0m\n";
         showHelp("luminar");
     }
 
 public:
-    static void showZenOfLuminar()
-    {
+    static void showZenOfLuminar() {
         std::cout << "\033[1;36mThe Zen of Luminar:\033[0m\n"
                   << "1. Readability Counts: Code should be easy to read and understand.\n"
                   << "2. Efficiency Matters: Optimize for performance without sacrificing clarity.\n"
@@ -166,9 +151,7 @@ public:
                   << "17. Tooling: Provide robust tools for development, debugging, and deployment.\n";
     }
 
-
-    static void showLogo()
-    {
+    static void showLogo() {
         std::cout << "\033[1;33m"
                      "##      ##    ##  ###    ###  ##  ###    ##  #####   #####   \n"
                      "##      ##    ##  ####  ####  ##  ####   ##  ##  ##  ##  ##  \n"
@@ -180,12 +163,11 @@ public:
                      "\033[0m";
     }
 
-    static void showHelp(const char* programName)
-    {
+    static void showHelp(const char* programName) {
         std::cout << "\033[1;34mUsage:\033[0m " << programName << " [command] [options]\n\n"
                   << "\033[1;36mCommands:\033[0m\n";
 
-        for (const auto &cmd : commands) {
+        for (const auto& cmd : commands) {
             std::cout << "  \033[1;32m" << cmd.name << "\033[0m - " << cmd.description << "\n";
         }
         std::cout << "\n\033[1;36mBuild Targets:\033[0m\n"
@@ -199,29 +181,25 @@ public:
                   << "  \033[1;35m--output=<path>\033[0m Set output path\n"
                   << "  \033[1;35m-h, --help\033[0m    Show this help message\n";
 
-        std::cout <<"\033[1;36mExamples:\033[0m\n"
+        std::cout << "\033[1;36mExamples:\033[0m\n"
                   << "  " << programName << " \033[1;32mrun example.lm\033[0m\n"
-                  <<  "  " << programName << " \033[1;32mbuild linux\033[0m\n"
+                  << "  " << programName << " \033[1;32mbuild linux\033[0m\n"
                   << "  " << programName << " \033[1;32mrepl --dev\033[0m\n";
     }
 
-    static void parseCommandLine(int argc, char *argv[], CLIConfig &config)
-    {
+    static void parseCommandLine(REPL& repl, int argc, char* argv[], CLIConfig& config) {
         std::string command;
 
         if (argc > 1) {
             command = argv[1];
-        }
-        else
-        {
+        } else {
             showLogo();
             showHelp("luminar");
             std::cout << "\033[1;33mEnter a command (or type 'help'): \033[0m";
             std::getline(std::cin, command);
         }
 
-        if (command.empty())
-        {
+        if (command.empty()) {
             std::cerr << "\033[1;31mNo command provided. Type 'help' for available commands.\033[0m\n";
             return;
         }
@@ -229,8 +207,7 @@ public:
         config.mode = command;
 
         // Process additional arguments
-        for (int i = 2; i < argc; i++)
-        {
+        for (int i = 2; i < argc; i++) {
             std::string arg = argv[i];
             if (arg == "--dev") config.devMode = true;
             else if (arg == "--format") config.formatCode = true;
@@ -240,22 +217,18 @@ public:
         }
 
         // Find and execute the command
-        auto it = std::find_if(commands.begin(), commands.end(), [&command](const Command &cmd) {
-            return cmd.name == command;
-        });
+        auto it = std::find_if(commands.begin(), commands.end(), 
+            [&command](const Command& cmd) { return cmd.name == command; });
 
-        if (it != commands.end())
-        {
-            it->handler(config);
-        }
-        else
-        {
-            handleInvalid(config);
+        if (it != commands.end()) {
+            it->handler(repl, config);
+        } else {
+            handleInvalid(repl, config);
         }
     }
 };
 
-// Define available commands and their handlers
+// Initialize static member
 std::vector<CLIManager::Command> CLIManager::commands = {
     {"build", "Build for a specific target", handleBuild},
     {"run", "Run a source file or start the REPL", handleRun},
@@ -268,9 +241,9 @@ std::vector<CLIManager::Command> CLIManager::commands = {
     {"tutorial", "Start the tutorial", handleTutorial}
 };
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char* argv[]) {
     CLIConfig config;
-    CLIManager::parseCommandLine(argc, argv, config);
+    REPL repl;
+    CLIManager::parseCommandLine(repl, argc, argv, config);
     return 0;
 }
