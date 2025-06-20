@@ -64,7 +64,7 @@ void StackBackend::run(const std::vector<Instruction> &program)
     channels.clear();
 
     // Print memory statistics
-    memoryManager.analyzeMemoryUsage();
+ //   memoryManager.analyzeMemoryUsage();
     //memoryManager.printStatistics();
 }
 
@@ -250,6 +250,7 @@ void StackBackend::dumpRegisters()
     //     std::cout << "Function: " << name << "\n";
     // }
     std::cout << "End of Dump Registers\n";
+    memoryManager.analyzeMemoryUsage();
 }
 
 void StackBackend::performUnaryOperation(const Instruction &instruction)
@@ -260,8 +261,8 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
     }
 
     auto value = pop();
-
-    ValuePtr result = memoryManager.makeRef<Value>(*regionStack.top());
+    auto& region = currentRegion();
+    auto result = memoryManager.makeRef<Value>(region);
     result->type = value->type;
 
     switch (instruction.opcode) {
@@ -328,7 +329,9 @@ throw std::runtime_error("Stack underflow in binary operation");
         return;
     }
 
-    ValuePtr result = std::make_shared<Value>();
+    // Use memory manager to create the result
+    auto& region = currentRegion();
+    auto result = memoryManager.makeRef<Value>(region);
     result->type = commonType;
 
     try {
@@ -487,8 +490,9 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
         std::cerr << "Error: Unsupported types for logical operation" << std::endl;
         return;
     }
-
-    ValuePtr result = std::make_shared<Value>();
+    // Use memory manager to create the result
+    auto& region = currentRegion();
+    auto result = memoryManager.makeRef<Value>(region);
     result->type = typeSystem.BOOL_TYPE;
 
     bool v1 = std::get<bool>(value1->data);
@@ -526,7 +530,9 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         return;
     }
 
-    ValuePtr result = std::make_shared<Value>();
+    // Use memory manager to create the result
+    auto& region = currentRegion();
+    auto result = memoryManager.makeRef<Value>(region);
     result->type = typeSystem.BOOL_TYPE;
 
     auto compareValues = [&](auto v1, auto v2) {
@@ -573,7 +579,7 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
         std::cerr << "Error: Unsupported type for comparison operation" << std::endl;
         return;
     }
-
+    push(result);
 }
 
 void StackBackend::handleLoadConst(const ValuePtr &constantValue)
@@ -589,7 +595,7 @@ void StackBackend::handleLoadConst(const ValuePtr &constantValue)
     }
 
     try {
-        std::cout << "[DEBUG] handleLoadConst: Creating value copy of type: " 
+        std::cout << "[DEBUG] handleLoadConst: Creating value copy of type: "
                   << constantValue->type->toString() << std::endl;
 
         // Create the value in the current region
@@ -601,14 +607,16 @@ void StackBackend::handleLoadConst(const ValuePtr &constantValue)
 
         // Create a shared_ptr with a custom deleter that will call the destructor
         // but not deallocate memory (the region will handle that)
-        ValuePtr valueCopy(rawValue, [](Value* ptr) {
+        ValuePtr valueCopy(rawValue, [this](Value* ptr) {
             if (ptr) {
                 ptr->~Value();
                 // Memory will be freed when the region is destroyed
+                    // Explicitly deallocate from the current region
+              //  currentRegion().deallocate(ptr, sizeof(Value), alignof(Value));
             }
         });
 
-        std::cout << "[DEBUG] Successfully created value copy at " 
+        std::cout << "[DEBUG] Successfully created value copy at "
                   << rawValue << std::endl;
 
         // Push the copy onto the stack
