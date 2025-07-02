@@ -1,3 +1,0 @@
-0
-12573 17732923535114161 1741756647387467900 0e23cac66edfb17662dfa9b95be717a1 0 C:\Users\Fablur\Desktop\Projects\luminar\test\tst_scanner.cpp
-12573 17732923535114161 1741756647387467900 0e23cac66edfb17662dfa9b95be717a1 0 C:\Users\Fablur\Desktop\Projects\luminar\test\tst_scanner.cpp

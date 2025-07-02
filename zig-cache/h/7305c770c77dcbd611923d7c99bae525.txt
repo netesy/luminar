@@ -1,3 +1,0 @@
-0
-10993 17732923535114160 1741756647387467900 ed6fc3f75e71fa7a39e0343590ce8e39 0 C:\Users\Fablur\Desktop\Projects\luminar\test\tst_parser.cpp
-10993 17732923535114160 1741756647387467900 ed6fc3f75e71fa7a39e0343590ce8e39 0 C:\Users\Fablur\Desktop\Projects\luminar\test\tst_parser.cpp
