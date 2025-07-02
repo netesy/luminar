@@ -35,6 +35,7 @@ enum class TypeTag {
     Any,
     Sum,
     Union,
+    Range,
     UserDefined
 };
 

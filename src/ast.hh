@@ -305,12 +305,52 @@ class RangeNode : public Expression {
 public:
     std::unique_ptr<Expression> start;
     std::unique_ptr<Expression> end;
-    std::optional<std::unique_ptr<Expression>> step;
+    std::unique_ptr<Expression> step;
+    bool hasStep;
 
-    RangeNode(SourceLocation loc, Type type, std::unique_ptr<Expression> start,
-              std::unique_ptr<Expression> end, std::optional<std::unique_ptr<Expression>> step)
-        : Expression(loc, type), start(std::move(start)), end(std::move(end)), step(std::move(step)) {}
-    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+    RangeNode(SourceLocation loc, 
+              std::unique_ptr<Expression> start,
+              std::unique_ptr<Expression> end,
+              std::unique_ptr<Expression> step = nullptr)
+        : Expression(loc, Type{TypeTag::Range}),
+          start(std::move(start)),
+          end(std::move(end)),
+          step(std::move(step)),
+          hasStep(step != nullptr) {}
+
+    void accept(ASTVisitor &visitor) override { 
+        visitor.visit(*this); 
+    }
+
+    // Type checking for range expressions
+    TypePtr inferType(TypeSystem &typeSystem) override {
+        // Check that start, end, and step (if present) have compatible numeric types
+        TypePtr startType = start->inferType(typeSystem);
+        TypePtr endType = end->inferType(typeSystem);
+        
+        if (!typeSystem.isNumericType(startType->tag) || !typeSystem.isNumericType(endType->tag)) {
+            throw std::runtime_error("Range bounds must be numeric types");
+        }
+
+        if (hasStep) {
+            TypePtr stepType = step->inferType(typeSystem);
+            if (!typeSystem.isNumericType(stepType->tag)) {
+                throw std::runtime_error("Step value must be a numeric type");
+            }
+        }
+
+        // The range itself has a Range type
+        return std::make_shared<Type>(TypeTag::Range);
+    }
+
+    // Type check children expressions
+    void typeCheckChildren(TypeSystem &typeSystem) override {
+        start->typeCheckChildren(typeSystem);
+        end->typeCheckChildren(typeSystem);
+        if (hasStep) {
+            step->typeCheckChildren(typeSystem);
+        }
+    }
 };
 
 class ListNode : public Expression {

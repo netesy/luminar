@@ -7,6 +7,7 @@ enum Precedence {
     PREC_AND,          // Logical AND operator: and
     PREC_EQUALITY,     // Equality operators: ==, !=
     PREC_COMPARISON,   // Comparison operators: <, >, <=, >=
+    PREC_RANGE,        // Range operator: ..
     PREC_TERM,         // Addition and subtraction: +, -
     PREC_FACTOR,       // Multiplication and division: *, /, %
     PREC_UNARY,        // Unary operators: !, -

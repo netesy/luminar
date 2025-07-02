@@ -45,6 +45,7 @@ private:
     std::unique_ptr<ASTNode> parseExpression();
     std::unique_ptr<ASTNode> parseLogical();
     std::unique_ptr<ASTNode> parseComparison();
+    std::unique_ptr<ASTNode> parseRangeExpression();
     std::unique_ptr<ASTNode> parseString();
     std::unique_ptr<ASTNode> parseIf();
     std::unique_ptr<ASTNode> parseBlock();

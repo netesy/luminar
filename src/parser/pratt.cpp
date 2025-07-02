@@ -245,7 +245,7 @@ void PrattParser::synchronize() {
     }
 }
 
-// Token precedence
+// Token precedence - Order matches packrat parser's expression hierarchy
 Precedence PrattParser::getTokenPrecedence(TokenType type) {
     switch (type) {
     case TokenType::OR:
@@ -254,11 +254,14 @@ Precedence PrattParser::getTokenPrecedence(TokenType type) {
         return PREC_AND;
     case TokenType::EQUAL_EQUAL:
     case TokenType::BANG_EQUAL:
+        return PREC_EQUALITY;
     case TokenType::LESS:
     case TokenType::LESS_EQUAL:
     case TokenType::GREATER:
     case TokenType::GREATER_EQUAL:
-        return PREC_EQUALITY;
+        return PREC_COMPARISON;
+    case TokenType::DOT_DOT:
+        return PREC_RANGE;
     case TokenType::PLUS:
     case TokenType::MINUS:
         return PREC_TERM;
@@ -268,12 +271,13 @@ Precedence PrattParser::getTokenPrecedence(TokenType type) {
         return PREC_FACTOR;
     case TokenType::BANG:
         return PREC_UNARY;
-    case TokenType::LEFT_PAREN:
-    case TokenType::DOT:
+    case TokenType::LEFT_PAREN:  // Function calls
+    case TokenType::DOT:         // Method calls and property access
+    case TokenType::LEFT_BRACKET: // Subscript/indexing
         return PREC_CALL;
-    case TokenType::EQUAL:
-    case TokenType::PLUS_EQUAL:
-    case TokenType::MINUS_EQUAL:
+    case TokenType::EQUAL:       // Assignment
+    case TokenType::PLUS_EQUAL:  // Compound assignment
+    case TokenType::MINUS_EQUAL: // Compound assignment
         return PREC_ASSIGNMENT;
     default:
         return PREC_NONE;
@@ -881,35 +885,49 @@ std::unique_ptr<ASTNode> PrattParser::parseLogical() {
             std::unique_ptr<Expression>(rightExpr)
             );
     }
-
+    
     return left;
 }
 
-// Parse comparison expressions
-std::unique_ptr<ASTNode> PrattParser::parseComparison() {
-    auto left = parsePrimary();
-
-    while (match(TokenType::GREATER) || match(TokenType::GREATER_EQUAL) ||
-           match(TokenType::LESS) || match(TokenType::LESS_EQUAL) ||
-           match(TokenType::BANG_EQUAL) || match(TokenType::EQUAL_EQUAL)) {
+std::unique_ptr<ASTNode> PrattParser::parseRangeExpression() {
+    auto left = parseComparison();
+    
+    if (match(TokenType::DOT_DOT)) {
         Token op = previous();
-        auto right = parsePrimary();
-
-                // Cast the nodes to Expression* before creating unique_ptrs
-                auto* leftExpr = dynamic_cast<Expression*>(left.release());
-                auto* rightExpr = dynamic_cast<Expression*>(right.release());
-
-                if (!leftExpr || !rightExpr) {
-                    error("Invalid operands for comparison");
-                    return createEmptyNode();
-                }
-                left = std::make_unique<BinaryNode>(
-                    SourceLocation(op.line, op.column),
-                    Type{inferType(op)},
-                    op.lexeme,
-                    std::unique_ptr<Expression>(leftExpr),
-                    std::unique_ptr<Expression>(rightExpr)
-                );
+        // Parse the end of the range
+        auto right = parseComparison();
+        std::unique_ptr<ASTNode> step = nullptr;
+        
+        // Check for step value (..<step>)
+        if (match(TokenType::LESS)) {
+            step = parseComparison();
+        }
+        
+        // For now, create a BinaryNode to represent the range
+        // In a more complete implementation, we might want a dedicated RangeNode
+        if (step) {
+            // If we have a step, we need to create a more complex representation
+            // For now, we'll just create a binary node with the step as the right operand
+            // and the end value as part of the operator
+            auto rangeNode = std::make_unique<BinaryNode>(
+                SourceLocation(op.line, op.column),
+                Type{TypeTag::Any},  // TODO: Use proper range type
+                "..<",
+                std::unique_ptr<Expression>(dynamic_cast<Expression*>(left.release())),
+                std::unique_ptr<Expression>(dynamic_cast<Expression*>(step.release()))
+            );
+            left = std::move(rangeNode);
+        } else {
+            // Simple range without step
+            auto rangeNode = std::make_unique<BinaryNode>(
+                SourceLocation(op.line, op.column),
+                Type{TypeTag::Any},  // TODO: Use proper range type
+                "..",
+                std::unique_ptr<Expression>(dynamic_cast<Expression*>(left.release())),
+                std::unique_ptr<Expression>(dynamic_cast<Expression*>(right.release()))
+            );
+            left = std::move(rangeNode);
+        }
     }
 
     return left;
