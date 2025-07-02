@@ -31,6 +31,7 @@ add_executable(luminar src/main.cpp
      src/function.hh src/function.cpp src/function_types.hh src/builtin_function.hh
     src/parser/packrat.hh src/parser/packrat.cpp
     src/parser/pratt.hh src/parser/pratt.cpp
+    src/parser/pratt_packrat.hh src/parser/pratt_packrat.cpp
     src/parser/algorithm.hh
     src/memory.hh src/memory.cpp
     test/tst_parser.cpp

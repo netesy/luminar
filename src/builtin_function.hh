@@ -30,7 +30,7 @@ public:
         registerSleep(functions, typeSystem);
         registerContract(functions, typeSystem);
 
-        registerPrint(functions, typeSystem);
+       // registerPrint(functions, typeSystem);
         // registerListFunctions(functions, typeSystem);
         // registerFileOperations(functions, typeSystem);
     }
@@ -113,36 +113,64 @@ private:
         std::vector<ParameterInfo> timeParams = {}; // No parameters
 
         auto timeImpl = [](const std::vector<ValuePtr> &args) -> ValuePtr {
-            // Add parameter count validation
+            // Parameter count validation
             if (!args.empty()) {
                 throw std::runtime_error("time() takes no arguments");
             }
 
-            auto now = std::chrono::system_clock::now();
-            auto now_time_t = std::chrono::system_clock::to_time_t(now);
+            try {
+                auto now = std::chrono::system_clock::now();
+                auto now_time_t = std::chrono::system_clock::to_time_t(now);
 
-            // Use thread-safe localtime_r/localtime_s
-            std::tm tm_buf;
-            std::tm* tm_ptr;
+                // Thread-safe time conversion with proper cross-platform handling
+                std::tm tm_buf;
+                std::tm* tm_ptr = nullptr;
 
-#ifdef _WIN32
-            if (localtime_s(&tm_buf, &now_time_t) != 0) {
-                throw std::runtime_error("Failed to convert time");
-            }
-            tm_ptr = &tm_buf;
-#else
-            tm_ptr = localtime_r(&now_time_t, &tm_buf);
-            if (!tm_ptr) {
-                throw std::runtime_error("Failed to convert time");
-            }
+#if defined(_WIN32) || defined(_MSC_VER)
+                // Windows/MSVC: Use localtime_s
+                errno_t err = localtime_s(&tm_buf, &now_time_t);
+                if (err != 0) {
+                    throw std::runtime_error("Failed to convert time: localtime_s error " + std::to_string(err));
+                }
+                tm_ptr = &tm_buf;
+#elif defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
+                // C11 optional extensions: Use localtime_s if available
+                if (localtime_s(&now_time_t, &tm_buf) == nullptr) {
+                    throw std::runtime_error("Failed to convert time: localtime_s returned null");
+                }
+                tm_ptr = &tm_buf;
+#else \
+    // POSIX systems: Use localtime_r
+                tm_ptr = localtime_r(&now_time_t, &tm_buf);
+                if (!tm_ptr) {
+                    throw std::runtime_error("Failed to convert time: localtime_r returned null");
+                }
 #endif
 
-            char buffer[20];
-            if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm_ptr) == 0) {
-                throw std::runtime_error("Failed to format time");
-            }
+                // Format time with adequate buffer size
+                constexpr size_t BUFFER_SIZE = 64; // Generous buffer size
+                char buffer[BUFFER_SIZE];
 
-            return makeStringValue(std::string(buffer));
+                size_t result = std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm_ptr);
+                if (result == 0) {
+                    throw std::runtime_error("Failed to format time: strftime returned 0");
+                }
+
+                std::string timeStr(buffer);
+
+// Optional: Debug output (remove in production)
+#ifdef DEBUG_TIME_FUNCTION
+                std::cerr << "DEBUG: time() returning: '" << timeStr << "'" << std::endl;
+#endif
+
+                return makeStringValue(timeStr);
+
+            } catch (const std::exception& e) {
+#ifdef DEBUG_TIME_FUNCTION
+                std::cerr << "DEBUG: time() exception: " << e.what() << std::endl;
+#endif
+                throw; // Re-throw the exception
+            }
         };
 
         functions.addBuiltinFunction("time", timeParams, makeType(TypeTag::String), timeImpl);

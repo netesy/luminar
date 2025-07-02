@@ -27,6 +27,11 @@ private:
         if (from == to || to->tag == TypeTag::Any)
             return true;
 
+    // Handle boolean type conversions
+    if (from->tag == TypeTag::Bool && to->tag == TypeTag::Bool) {
+        return true;
+    }   
+
         // Numeric type conversions with range checks
         if (isNumericType(from->tag) && isNumericType(to->tag)) {
             // Check if conversion is safe (no overflow/precision loss)

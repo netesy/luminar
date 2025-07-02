@@ -487,7 +487,7 @@ void StackBackend::performLogicalOperation(const Instruction &instruction)
     // Ensure both values are of type bool
     if (!typeSystem.isCompatible(typeSystem.BOOL_TYPE, value1->type)
         || !typeSystem.isCompatible(typeSystem.BOOL_TYPE, value2->type)) {
-        std::cerr << "Error: Unsupported types for logical operation" << std::endl;
+        std::cerr << "Error: Unsupported types for logical operation"<< value1->toString() << value2->toString() << std::endl;
         return;
     }
     // Use memory manager to create the result
