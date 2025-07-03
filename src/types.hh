@@ -80,12 +80,15 @@ private:
 
         return (itA->second >= itB->second) ? a : b;
     }
+public:
     bool isNumericType(TypeTag tag) {
         return tag == TypeTag::Int8 || tag == TypeTag::Int16 || tag == TypeTag::Int32 ||
         tag == TypeTag::Int64 || tag == TypeTag::UInt8 || tag == TypeTag::UInt16 ||
         tag == TypeTag::UInt32 || tag == TypeTag::UInt64 || tag == TypeTag::Float32 ||
         tag == TypeTag::Float64;
     }
+
+private:
     bool isListType(TypePtr type) const { return type->tag == TypeTag::List; }
     bool isDictType(TypePtr type) const { return type->tag == TypeTag::Dict; }
     bool isSafeNumericConversion(TypeTag from, TypeTag to) {

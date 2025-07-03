@@ -1,3 +1,6 @@
+#ifndef LUMINAR_AST_HH
+#define LUMINAR_AST_HH
+
 #include "token.hh"
 #include "types.hh"
 #include "value.hh"
@@ -211,6 +214,8 @@ private:
     std::vector<std::unique_ptr<Statement>> statements;
 
 public:
+    std::vector<std::unique_ptr<Statement>> &getStatements() { return statements; }
+    const std::vector<std::unique_ptr<Statement>> &getStatements() const { return statements; }
     BlockNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> statements)
         : Statement(loc), statements(std::move(statements)) {}
 
@@ -308,7 +313,7 @@ public:
     std::unique_ptr<Expression> step;
     bool hasStep;
 
-    RangeNode(SourceLocation loc, 
+    RangeNode(SourceLocation loc,
               std::unique_ptr<Expression> start,
               std::unique_ptr<Expression> end,
               std::unique_ptr<Expression> step = nullptr)
@@ -318,8 +323,8 @@ public:
           step(std::move(step)),
           hasStep(step != nullptr) {}
 
-    void accept(ASTVisitor &visitor) override { 
-        visitor.visit(*this); 
+    void accept(ASTVisitor &visitor) override {
+        visitor.visit(*this);
     }
 
     // Type checking for range expressions
@@ -327,7 +332,7 @@ public:
         // Check that start, end, and step (if present) have compatible numeric types
         TypePtr startType = start->inferType(typeSystem);
         TypePtr endType = end->inferType(typeSystem);
-        
+
         if (!typeSystem.isNumericType(startType->tag) || !typeSystem.isNumericType(endType->tag)) {
             throw std::runtime_error("Range bounds must be numeric types");
         }
@@ -766,15 +771,14 @@ public:
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-// Fix UnaryNode implementation
 class UnaryNode : public Expression {
 public:
-    Token op;
-    std::unique_ptr<ASTNode> right;
+    std::string operatorType;  // Changed from Token op to string for consistency
+    std::unique_ptr<ASTNode> operand;  // Changed from 'right' to 'operand' for clarity
 
-    UnaryNode(Token token, std::unique_ptr<ASTNode> right)
+    UnaryNode(Token token, std::unique_ptr<ASTNode> operand)
         : Expression(SourceLocation(token.line, token.column, token.filename), Type(TypeTag::Any)),
-        op(token), right(std::move(right)) {}
+        operatorType(token.lexeme), operand(std::move(operand)) {}  // Extract operator string from token
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -841,3 +845,5 @@ std::unique_ptr<NodeType> createASTNode(Args&&... args) {
         return nullptr;
     }
 }
+
+#endif // LUMINAR_AST_HH
