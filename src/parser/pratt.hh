@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include "../visitors/bytecode_generator.hh"
+#include "../visitors/code_formatter.hh"
 #include <unordered_set>
 #include "../ast.hh"
 
@@ -30,6 +32,15 @@ class PrattParser {
 public:
     PrattParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem);
     Bytecode parse();
+    Bytecode generateBytecode();
+    std::vector<Instruction> getBytecode() const {
+        return bytecode;
+    }
+
+    // Get a const reference to the parsed AST nodes
+    const std::vector<std::unique_ptr<ASTNode>>& getAST() const {
+        return ast;
+    }
     std::string toString() const;
 
 private:
@@ -91,6 +102,12 @@ private:
     void exitScope() { variable.exitScope(); }
     void parseLoadVariable(); // Added from commented code
     void parseDecVariable();  // Already had this, but keeping for consistency
+
+    std::unique_ptr<BytecodeGenerator> bytecodeGenerator;
+
+    void initializeBytecodeGenerator() {
+        bytecodeGenerator = std::make_unique<BytecodeGenerator>(*typeSystem);
+    }
 
     // Type inference and handling - Added from commented code
     TypeTag inferType(const Token &token)

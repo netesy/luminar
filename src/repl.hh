@@ -3,8 +3,6 @@
 #include "backends/import.hh"
 #include "scanner.hh"
 #include "vm.hh"
-#include <optional>
-#include <variant>
 #include <string>
 #include <memory>
 
@@ -13,18 +11,22 @@ class REPL
 public:
     REPL();
     ~REPL();
-    
+
     void start(const std::string &filename = "");
     void startDevMode(const std::string &filename = "");
     void run(const std::string &input, const std::string &filename = "", const std::string &filepath = "");
 
+    // Code formatting functionality
+    std::string formatSourceCode(const std::string& source, const std::string& filename);
+
 private:
     // Core components
+     bool usePrattParser = true;
     std::unique_ptr<MemoryManager<>> memoryManager;
     std::unique_ptr<MemoryManager<>::Region> region;
     std::shared_ptr<TypeSystem> typeSystem;
     std::unique_ptr<Functions> functions;
-    
+
     // Execution state
     std::vector<Instruction> bytecode;
     std::unique_ptr<Algorithm> parser;
@@ -38,4 +40,7 @@ private:
     void initializeVM();
     void cleanup();
     void resetExecutionState();
+    void parseInput(const std::string &input,
+                    const std::string &filename,
+                    const std::string &filepath);
 };

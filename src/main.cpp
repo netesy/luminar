@@ -1,10 +1,13 @@
+#include "parser/pratt.hh"
 #include "repl.hh"
 #include "tutorial.hh"
+#include "visitors/code_formatter.hh"
+#include <filesystem>
+#include <functional>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <functional>
-#include <memory>
 
 struct CLIConfig {
     std::string mode;
@@ -69,13 +72,51 @@ private:
         // Project initialization logic
     }
 
-    static void handleFormat(REPL&, CLIConfig& config) {
+
+    static void handleFormat(REPL& repl, CLIConfig& config) {
         if (config.sourceFile.empty()) {
             std::cout << "Enter source file to format: ";
             std::cin.ignore();
             std::getline(std::cin, config.sourceFile);
         }
-        std::cout << "\033[1;32mFormatting " << config.sourceFile << "...\033[0m\n";
+
+        try {
+            // Read the source file
+            std::ifstream inputFile(config.sourceFile);
+            if (!inputFile) {
+                std::cerr << "Error: Could not open input file: " << config.sourceFile << std::endl;
+                return;
+            }
+
+            std::string source((std::istreambuf_iterator<char>(inputFile)),
+                             std::istreambuf_iterator<char>());
+            inputFile.close();
+
+            // Format the code using REPL's method
+            std::string formattedCode = repl.formatSourceCode(source, config.sourceFile);
+
+            // Create a backup of the original file
+            std::string backupFile = config.sourceFile + ".bak";
+            std::filesystem::copy_file(config.sourceFile, backupFile, 
+                                     std::filesystem::copy_options::overwrite_existing);
+            
+            // Write the formatted code back to the original file
+            std::ofstream outputFile(config.sourceFile);
+            if (!outputFile) {
+                std::cerr << "Error: Could not write to file: " << config.sourceFile << std::endl;
+                return;
+            }
+
+            outputFile << formattedCode;
+            outputFile.close();
+            
+            std::cout << "Successfully formatted " << config.sourceFile << std::endl;
+            std::cout << "Original saved as: " << backupFile << std::endl;
+
+        } catch (const std::exception& e) {
+            std::cerr << "Error formatting file: " << e.what() << std::endl;
+            throw;
+        }
     }
 
     static void handleHelp(REPL&, CLIConfig&) {
@@ -217,7 +258,7 @@ public:
         }
 
         // Find and execute the command
-        auto it = std::find_if(commands.begin(), commands.end(), 
+        auto it = std::find_if(commands.begin(), commands.end(),
             [&command](const Command& cmd) { return cmd.name == command; });
 
         if (it != commands.end()) {

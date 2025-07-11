@@ -1,4 +1,7 @@
 // builtin_functions.hh
+
+#ifndef LUMINAR_BUILTIN_FN_HH
+#define LUMINAR_BUILTIN_FN_HH
 #pragma once
 class Functions;
 #include "types.hh"
@@ -732,3 +735,5 @@ private:
         }
     }
 };
+
+#endif // LUMINAR_BUILTIN_FN_HH

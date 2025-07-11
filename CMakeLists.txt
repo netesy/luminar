@@ -32,6 +32,8 @@ add_executable(luminar src/main.cpp
     src/parser/packrat.hh src/parser/packrat.cpp
     src/parser/pratt.hh src/parser/pratt.cpp
     src/parser/algorithm.hh
+    src/visitors/bytecode_generator.hh 
+    src/visitors/code_formatter.hh 
     src/memory.hh src/memory.cpp
     test/tst_parser.cpp
     test/tst_scanner.cpp

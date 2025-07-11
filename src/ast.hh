@@ -137,6 +137,14 @@ public:
     ASTNode(SourceLocation loc)
         : location(loc) {}
 
+    // Make ASTNode move-constructible and move-assignable
+    ASTNode(ASTNode&&) = default;
+    ASTNode& operator=(ASTNode&&) = default;
+
+    // Disable copying
+    ASTNode(const ASTNode&) = delete;
+    ASTNode& operator=(const ASTNode&) = delete;
+
     // Access or create metadata lazily
     NodeMetadata &getOrCreateMetadata() {
         if (!metadata) {
@@ -187,12 +195,28 @@ public:
     Type type;
     Expression(SourceLocation loc, Type type)
         : ASTNode(loc), type(type) {}
+
+    // Enable move semantics
+    Expression(Expression&&) = default;
+    Expression& operator=(Expression&&) = default;
+
+    // Disable copying
+    Expression(const Expression&) = delete;
+    Expression& operator=(const Expression&) = delete;
 };
 
 class Statement : public ASTNode {
 public:
     Statement(SourceLocation loc)
         : ASTNode(loc) {}
+
+    // Enable move semantics
+    Statement(Statement&&) = default;
+    Statement& operator=(Statement&&) = default;
+
+    // Disable copying
+    Statement(const Statement&) = delete;
+    Statement& operator=(const Statement&) = delete;
 };
 
 class NumberNode : public Expression {
@@ -200,13 +224,17 @@ public:
     Value value; // From ../values.hh
 
     NumberNode(SourceLocation loc, Type type, Value val)
-        : Expression(loc, type), value(val) {}
-    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+        : Expression(loc, type), value(std::move(val)) {}
 
-    // Override inferType
-    // TypePtr inferType(TypeSystem &typeSystem) override {
-    //     return type; // The type is already known
-    // }
+    // Enable move semantics
+    NumberNode(NumberNode&&) = default;
+    NumberNode& operator=(NumberNode&&) = default;
+
+    // Disable copying
+    NumberNode(const NumberNode&) = delete;
+    NumberNode& operator=(const NumberNode&) = delete;
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
 class BlockNode : public Statement {
@@ -216,8 +244,17 @@ private:
 public:
     std::vector<std::unique_ptr<Statement>> &getStatements() { return statements; }
     const std::vector<std::unique_ptr<Statement>> &getStatements() const { return statements; }
+
     BlockNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> statements)
         : Statement(loc), statements(std::move(statements)) {}
+
+    // Enable move semantics
+    BlockNode(BlockNode&&) = default;
+    BlockNode& operator=(BlockNode&&) = default;
+
+    // Disable copying
+    BlockNode(const BlockNode&) = delete;
+    BlockNode& operator=(const BlockNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -227,7 +264,34 @@ public:
     Value value; // From ../values.hh
 
     StringLiteralNode(SourceLocation loc, Type type, Value val)
-        : Expression(loc, type), value(val) {}
+        : Expression(loc, type), value(std::move(val)) {}
+
+    // Enable move semantics
+    StringLiteralNode(StringLiteralNode&&) = default;
+    StringLiteralNode& operator=(StringLiteralNode&&) = default;
+
+    // Disable copying
+    StringLiteralNode(const StringLiteralNode&) = delete;
+    StringLiteralNode& operator=(const StringLiteralNode&) = delete;
+
+    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class BooleanNode : public Expression {
+public:
+    Value value;
+
+    BooleanNode(SourceLocation loc, Type type, Value val)
+        : Expression(loc, type), value(std::move(val)) {}
+
+    // Enable move semantics
+    BooleanNode(BooleanNode&&) = default;
+    BooleanNode& operator=(BooleanNode&&) = default;
+
+    // Disable copying
+    BooleanNode(const BooleanNode&) = delete;
+    BooleanNode& operator=(const BooleanNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -237,9 +301,17 @@ public:
     std::unique_ptr<Expression> left;
     std::unique_ptr<Expression> right;
 
-    BinaryNode(SourceLocation loc, Type type, const std::string &op,
+    // Enable move semantics
+    BinaryNode(BinaryNode&&) = default;
+    BinaryNode& operator=(BinaryNode&&) = default;
+
+    // Disable copying
+    BinaryNode(const BinaryNode&) = delete;
+    BinaryNode& operator=(const BinaryNode&) = delete;
+
+    BinaryNode(SourceLocation loc, Type type, std::string op,
                std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
-        : Expression(loc, type), operatorType(op), left(std::move(lhs)), right(std::move(rhs)) {}
+        : Expression(loc, type), operatorType(std::move(op)), left(std::move(lhs)), right(std::move(rhs)) {}
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 
     // Override inferType
@@ -279,6 +351,15 @@ public:
                     std::optional<std::unique_ptr<Statement>> elseBranch)
         : Statement(loc), condition(std::move(cond)), thenBranch(std::move(thenBranch)),
         elifBranches(std::move(elifBranches)), elseBranch(std::move(elseBranch)) {}
+
+    // Enable move semantics
+    ConditionalNode(ConditionalNode&&) = default;
+    ConditionalNode& operator=(ConditionalNode&&) = default;
+
+    // Disable copying
+    ConditionalNode(const ConditionalNode&) = delete;
+    ConditionalNode& operator=(const ConditionalNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -289,6 +370,15 @@ public:
 
     WhileNode(SourceLocation loc, std::unique_ptr<Expression> cond, std::unique_ptr<Statement> body)
         : Statement(loc), condition(std::move(cond)), body(std::move(body)) {}
+
+    // Enable move semantics
+    WhileNode(WhileNode&&) = default;
+    WhileNode& operator=(WhileNode&&) = default;
+
+    // Disable copying
+    WhileNode(const WhileNode&) = delete;
+    WhileNode& operator=(const WhileNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -303,6 +393,15 @@ public:
             std::unique_ptr<ASTNode> incr, std::unique_ptr<Statement> body)
         : Statement(loc), initializer(std::move(init)), condition(std::move(cond)),
         increment(std::move(incr)), body(std::move(body)) {}
+
+    // Enable move semantics
+    ForNode(ForNode&&) = default;
+    ForNode& operator=(ForNode&&) = default;
+
+    // Disable copying
+    ForNode(const ForNode&) = delete;
+    ForNode& operator=(const ForNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -364,6 +463,15 @@ public:
 
     ListNode(SourceLocation loc, Type type, std::vector<std::unique_ptr<Expression>> elements)
         : Expression(loc, type), elements(std::move(elements)) {}
+
+    // Enable move semantics
+    ListNode(ListNode&&) = default;
+    ListNode& operator=(ListNode&&) = default;
+
+    // Disable copying
+    ListNode(const ListNode&) = delete;
+    ListNode& operator=(const ListNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -373,6 +481,15 @@ public:
 
     DictNode(SourceLocation loc, Type type, std::map<std::string, std::unique_ptr<Expression>> entries)
         : Expression(loc, type), entries(std::move(entries)) {}
+
+    // Enable move semantics
+    DictNode(DictNode&&) = default;
+    DictNode& operator=(DictNode&&) = default;
+
+    // Disable copying
+    DictNode(const DictNode&) = delete;
+    DictNode& operator=(const DictNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -383,6 +500,14 @@ public:
 
     ConcurrentNode(std::unique_ptr<Expression> expr, std::unique_ptr<Statement> body)
         : Statement(SourceLocation(0, 0)), expression(std::move(expr)), body(std::move(body)) {}
+
+    // Enable move semantics
+    ConcurrentNode(ConcurrentNode&&) = default;
+    ConcurrentNode& operator=(ConcurrentNode&&) = default;
+
+    // Disable copying
+    ConcurrentNode(const ConcurrentNode&) = delete;
+    ConcurrentNode& operator=(const ConcurrentNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -395,6 +520,14 @@ public:
     ParallelNode(std::unique_ptr<Expression> expr, std::unique_ptr<Statement> body)
         : Statement(SourceLocation(0, 0)), expression(std::move(expr)), body(std::move(body)) {}
 
+    // Enable move semantics
+    ParallelNode(ParallelNode&&) = default;
+    ParallelNode& operator=(ParallelNode&&) = default;
+
+    // Disable copying
+    ParallelNode(const ParallelNode&) = delete;
+    ParallelNode& operator=(const ParallelNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -406,6 +539,7 @@ private:
 
 public:
     // Enhanced constructor with more robust initialization
+    //the errors came from tyecheck in variable node.
     VariableNode(SourceLocation loc, Type type, const std::string& name,
                  bool isMutable = true,
                  std::optional<std::unique_ptr<Expression>> initialValue = std::nullopt)
@@ -414,10 +548,10 @@ public:
         initialValue(std::move(initialValue)),
         isMutable_(isMutable) {
         // Additional validation can be added here
-        if (initialValue && type.tag == TypeTag::Any) {
-            // Try to infer type from initializer if not explicitly specified
-            type = (*initialValue)->type;
-        }
+        // if (initialValue && type.tag == TypeTag::Any) {
+        //     // Try to infer type from initializer if not explicitly specified
+        //     type = (*initialValue)->type;
+        // }
     }
 
     const std::string& getName() const { return name; }
@@ -455,13 +589,20 @@ public:
 
 class AssignmentNode : public Expression {
 public:
-    Token op;
     std::unique_ptr<ASTNode> left;
     std::unique_ptr<ASTNode> right;
 
-    AssignmentNode(Token token, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right)
-        : Expression(SourceLocation(token.line, token.column, token.filename), Type(TypeTag::Any)),
-        op(token), left(std::move(left)), right(std::move(right)) {}
+    AssignmentNode(SourceLocation loc, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right)
+        : Expression(loc, Type(TypeTag::Any)),
+         left(std::move(left)), right(std::move(right)) {}
+
+    // Enable move semantics
+    AssignmentNode(AssignmentNode&&) = default;
+    AssignmentNode& operator=(AssignmentNode&&) = default;
+
+    // Disable copying
+    AssignmentNode(const AssignmentNode&) = delete;
+    AssignmentNode& operator=(const AssignmentNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -483,6 +624,14 @@ public:
 
     ReturnNode(std::unique_ptr<ASTNode> value)
         : Statement(SourceLocation(0, 0)), value(std::move(value)) {}
+
+    // Enable move semantics
+    ReturnNode(ReturnNode&&) = default;
+    ReturnNode& operator=(ReturnNode&&) = default;
+
+    // Disable copying
+    ReturnNode(const ReturnNode&) = delete;
+    ReturnNode& operator=(const ReturnNode&) = delete;
 
     void accept(ASTVisitor &visitor) override {
         visitor.visit(*this);
@@ -668,6 +817,14 @@ public:
         : Expression(loc, type), op(operation), target(std::move(target)),
         value(std::move(value)) {}
 
+    // Enable move semantics
+    AtomicNode(AtomicNode&&) = default;
+    AtomicNode& operator=(AtomicNode&&) = default;
+
+    // Disable copying
+    AtomicNode(const AtomicNode&) = delete;
+    AtomicNode& operator=(const AtomicNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -690,6 +847,12 @@ public:
         : Statement(loc), op(operation), channel(std::move(channelExpr)),
         data(std::move(channelData)) {}
 
+    ChannelNode(ChannelNode&&) = default;
+    ChannelNode& operator=(ChannelNode&&) = default;
+
+    ChannelNode(const ChannelNode&) = delete;
+    ChannelNode& operator=(const ChannelNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -701,6 +864,14 @@ public:
     LambdaNode(SourceLocation loc, Type type, std::vector<Parameter> params, std::unique_ptr<Statement> body)
         : Expression(loc, type), parameters(std::move(params)), body(std::move(body)) {}
 
+    // Enable move semantics
+    LambdaNode(LambdaNode&&) = default;
+    LambdaNode& operator=(LambdaNode&&) = default;
+
+    // Disable copying
+    LambdaNode(const LambdaNode&) = delete;
+    LambdaNode& operator=(const LambdaNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -710,7 +881,15 @@ public:
     std::optional<std::string> alias;
 
     ImportNode(SourceLocation loc, const std::string &moduleName, std::optional<std::string> alias = std::nullopt)
-        : Statement(loc), moduleName(moduleName), alias(alias) {}
+        : Statement(loc), moduleName(moduleName), alias(std::move(alias)) {}
+
+    // Enable move semantics
+    ImportNode(ImportNode&&) = default;
+    ImportNode& operator=(ImportNode&&) = default;
+
+    // Disable copying
+    ImportNode(const ImportNode&) = delete;
+    ImportNode& operator=(const ImportNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -724,6 +903,14 @@ public:
     InterfaceNode(SourceLocation loc, const std::string &name, std::vector<std::unique_ptr<Statement>> methods)
         : Statement(loc), name(name), methods(std::move(methods)) {}
 
+    // Enable move semantics
+    InterfaceNode(InterfaceNode&&) = default;
+    InterfaceNode& operator=(InterfaceNode&&) = default;
+
+    // Disable copying
+    InterfaceNode(const InterfaceNode&) = delete;
+    InterfaceNode& operator=(const InterfaceNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -736,6 +923,14 @@ public:
     MixinNode(SourceLocation loc, const std::string &name, std::vector<std::unique_ptr<Statement>> methods)
         : Statement(loc), name(name), methods(std::move(methods)) {}
 
+    // Enable move semantics
+    MixinNode(MixinNode&&) = default;
+    MixinNode& operator=(MixinNode&&) = default;
+
+    // Disable copying
+    MixinNode(const MixinNode&) = delete;
+    MixinNode& operator=(const MixinNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -747,6 +942,14 @@ public:
     UnsafeNode(SourceLocation loc, std::vector<std::unique_ptr<Statement>> body)
         : Statement(loc), body(std::move(body)) {}
 
+    // Enable move semantics
+    UnsafeNode(UnsafeNode&&) = default;
+    UnsafeNode& operator=(UnsafeNode&&) = default;
+
+    // Disable copying
+    UnsafeNode(const UnsafeNode&) = delete;
+    UnsafeNode& operator=(const UnsafeNode&) = delete;
+
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -757,28 +960,35 @@ public:
     InterpolatedStringNode(SourceLocation loc, std::vector<std::unique_ptr<ASTNode>> parts)
         : Expression(loc, Type{TypeTag::String}), parts(std::move(parts)) {}
 
-    void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
-};
+    // Enable move semantics
+    InterpolatedStringNode(InterpolatedStringNode&&) = default;
+    InterpolatedStringNode& operator=(InterpolatedStringNode&&) = default;
 
-class BooleanNode : public Expression {
-public:
-    bool value;
-
-    BooleanNode(Token token, bool value)
-        : Expression(SourceLocation(token.line, token.column, token.filename), Type(TypeTag::Bool)),
-        value(value) {}
+    // Disable copying
+    InterpolatedStringNode(const InterpolatedStringNode&) = delete;
+    InterpolatedStringNode& operator=(const InterpolatedStringNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
+
+
 
 class UnaryNode : public Expression {
 public:
-    std::string operatorType;  // Changed from Token op to string for consistency
-    std::unique_ptr<ASTNode> operand;  // Changed from 'right' to 'operand' for clarity
+    std::string operatorType;
+    std::unique_ptr<ASTNode> operand;
 
     UnaryNode(Token token, std::unique_ptr<ASTNode> operand)
         : Expression(SourceLocation(token.line, token.column, token.filename), Type(TypeTag::Any)),
-        operatorType(token.lexeme), operand(std::move(operand)) {}  // Extract operator string from token
+        operatorType(token.lexeme), operand(std::move(operand)) {}
+
+    // Enable move semantics
+    UnaryNode(UnaryNode&&) = default;
+    UnaryNode& operator=(UnaryNode&&) = default;
+
+    // Disable copying
+    UnaryNode(const UnaryNode&) = delete;
+    UnaryNode& operator=(const UnaryNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -795,18 +1005,27 @@ public:
 
     CallNode(SourceLocation loc, const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
         : Expression(loc, Type(TypeTag::Any)), name(name) {
-        // More robust conversion of ASTNode to Expression
+        arguments.reserve(args.size());
         for (auto& arg : args) {
             if (auto* expr = dynamic_cast<Expression*>(arg.get())) {
-                arguments.push_back(std::unique_ptr<Expression>(expr));
-                arg.release(); // Transfer ownership
+                arguments.push_back(std::unique_ptr<Expression>(static_cast<Expression*>(arg.release())));
             } else {
-                // Handle case where argument is not an expression
-                // You might want to add more robust error handling here
+                // Clean up remaining arguments before throwing
+                for (auto& a : args) {
+                    if (a) a.reset();
+                }
                 throw std::runtime_error("Non-expression argument in function call");
             }
         }
     }
+
+    // Enable move semantics
+    CallNode(CallNode&&) = default;
+    CallNode& operator=(CallNode&&) = default;
+
+    // Disable copying
+    CallNode(const CallNode&) = delete;
+    CallNode& operator=(const CallNode&) = delete;
 
     void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -818,6 +1037,14 @@ public:
     GroupingNode(std::unique_ptr<ASTNode> expr)
         : Expression(SourceLocation(0, 0), Type(TypeTag::Any)), expression(std::move(expr)) {}
 
+    // Enable move semantics
+    GroupingNode(GroupingNode&&) = default;
+    GroupingNode& operator=(GroupingNode&&) = default;
+
+    // Disable copying
+    GroupingNode(const GroupingNode&) = delete;
+    GroupingNode& operator=(const GroupingNode&) = delete;
+
     void accept(ASTVisitor &visitor) override {
         visitor.visit(*this);
     }
@@ -827,6 +1054,14 @@ class NilNode : public Expression {
 public:
     NilNode(SourceLocation loc)
         : Expression(loc, Type{TypeTag::Nil}) {}
+
+    // Enable move semantics
+    NilNode(NilNode&&) = default;
+    NilNode& operator=(NilNode&&) = default;
+
+    // Disable copying
+    NilNode(const NilNode&) = delete;
+    NilNode& operator=(const NilNode&) = delete;
 
     void accept(ASTVisitor &visitor) override {
         visitor.visit(*this);
