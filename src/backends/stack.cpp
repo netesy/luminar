@@ -29,6 +29,12 @@ StackBackend::~StackBackend()
 
 void StackBackend::run(const std::vector<Instruction> &program)
 {
+    std::cout << "--- Running Bytecode ---" << std::endl;
+    for (const auto& instruction : program) {
+        instruction.debug();
+    }
+    std::cout << "------------------------" << std::endl;
+
     this->program = program;
     auto start_time = std::chrono::high_resolution_clock::now();
     try {
@@ -36,8 +42,11 @@ void StackBackend::run(const std::vector<Instruction> &program)
 
         //program[pc].debug();
         auto start_time = std::chrono::high_resolution_clock::now();
+        int i = 0;
         while (pc < this->program.size()) {
+            if (i++ > 10) break;
             const Instruction &instruction = this->program[pc];
+            std::cout << "Executing: " << instruction.opcodeToString(instruction.opcode) << " at pc " << pc << std::endl;
 
             if (instruction.opcode == HALT) {
                 std::cout << "Program halted normally." << std::endl;
@@ -73,6 +82,7 @@ void StackBackend::run(const std::vector<Instruction> &program)
 
 void StackBackend::execute(const Instruction &instruction)
 {
+    std::cout << "  execute: " << instruction.opcodeToString(instruction.opcode) << std::endl;
     switch (instruction.opcode) {
     case NEGATE:
     case NOT:
@@ -297,6 +307,7 @@ void StackBackend::performUnaryOperation(const Instruction &instruction)
 
 void StackBackend::performBinaryOperation(const Instruction &instruction)
 {
+    std::cout << "performBinaryOperation: " << instruction.opcodeToString(instruction.opcode) << std::endl;
     if (stack.size() < 2) {
         std::cerr << "Error: Invalid value stack for binary operation" << std::endl;
         return;
@@ -490,12 +501,8 @@ void StackBackend::performComparisonOperation(const Instruction &instruction)
 
 void StackBackend::handleLoadConst(const ValuePtr &constantValue)
 {
-    //push(constantValue);
-    auto linearValue = memoryManager.makeLinear<Value>(currentRegion(), *constantValue);
-    auto sharedValue = std::make_shared<Value>(*linearValue);
-
-    // Push the linear value onto the stack
-    push(sharedValue);
+    std::cout << "    handleLoadConst: " << *constantValue << std::endl;
+    push(constantValue);
 }
 
 void StackBackend::handleInterpolateString()
@@ -890,9 +897,10 @@ MemoryManager<>::Region &StackBackend::currentRegion()
 
 void StackBackend::push(const ValuePtr &valuePtr)
 {
-    auto refValue = memoryManager.makeRef<Value>(currentRegion(), *valuePtr);
+    std::cout << "    push: " << *valuePtr << std::endl;
+    //auto refValue = memoryManager.makeRef<Value>(currentRegion(), *valuePtr);
 
-    stack.push(refValue); // Push the converted value onto the stack
+    //stack.push(refValue); // Push the converted value onto the stack
 }
 
 ValuePtr StackBackend::pop()

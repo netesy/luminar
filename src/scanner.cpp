@@ -246,15 +246,17 @@ char Scanner::advance()
 
 void Scanner::addToken(TokenType type)
 {
-    addToken(type, tokenTypeToString(type, ""));
+    std::string lexeme = source.substr(start, current - start);
+    tokens.push_back({type, lexeme, filename, filepath, int(current), line});
+    currentToken = tokens.back(); // Update currentToken
 }
 
 void Scanner::addToken(TokenType type, const std::string &text)
 {
-    std::string lexeme = source.substr(start, current - start);
     if (text != "") {
         tokens.push_back({type, text, filename, filepath, int(current), line});
     } else {
+        std::string lexeme = source.substr(start, current - start);
         tokens.push_back({type, lexeme, filename, filepath, int(current), line});
     }
     currentToken = tokens.back(); // Update currentToken

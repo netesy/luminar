@@ -60,7 +60,7 @@ void REPL::run(std::string input, const std::string &filename = "", const std::s
     // debug(scanner, *parser);
     std::vector<Instruction> bytecode = parser->getBytecode();
     auto backend = std::make_unique<StackBackend>(bytecode, functions); // passing by value
-    VM vm(*parser, std::move(backend));
+    VM vm(bytecode, std::move(backend));
 
     try {
         vm.run();

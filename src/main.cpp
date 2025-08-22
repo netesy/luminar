@@ -1,11 +1,11 @@
-
-#pragma once
 #include "repl.hh"
 #include "tutorial.hh"
+#include "parser/pratt.hh"
 #include <iostream>
 #include <string>
 #include <vector>
 #include <functional>
+#include <filesystem>
 
 struct CLIConfig
 {
@@ -270,6 +270,14 @@ std::vector<CLIManager::Command> CLIManager::commands = {
 
 int main(int argc, char *argv[])
 {
+    if (argc > 1) {
+        std::string first_arg = argv[1];
+        if (first_arg.size() > 3 && first_arg.substr(first_arg.size() - 3) == ".lm") {
+            REPL::start(first_arg);
+            return 0;
+        }
+    }
+
     CLIConfig config;
     CLIManager::parseCommandLine(argc, argv, config);
     return 0;

@@ -5,63 +5,31 @@ project(luminar LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(luminar src/main.cpp
-    src/debugger.cpp src/debugger.hh
+include_directories(src)
 
-    src/repl.cpp src/repl.hh
-    src/scanner.cpp src/scanner.hh
-    src/ast.hh src/ast.cpp
-    src/vm.hh src/vm.cpp
-    src/main.cpp
-    src/opcodes.hh
-    src/types.hh
-    src/helper.hh
-    src/variable.hh
-    src/precedence.hh
-    src/instructions.hh
-    src/backends/jit.hh src/backends/jit.cpp
-    src/backends/codegen.hh src/backends/codegen.cpp
-    src/backends/register.hh src/backends/register.cpp
-    src/backends/stack.hh src/backends/stack.cpp
-    src/backends/import.hh
-    src/backends/backend.hh
-    src/token.hh
-    src/backends/yasm.hh src/backends/yasm.cpp
-    src/scope.hh
-    src/function.hh src/builtin_function.hh
-    src/parser/packrat.hh src/parser/packrat.cpp
-    src/parser/pratt.hh src/parser/pratt.cpp
-    src/parser/algorithm.hh
-    src/memory.hh src/memory.cpp
-    test/tst_parser.cpp
-    test/tst_scanner.cpp
-    sample/sample.lm
-    src/optimizer.hh
-    src/value.hh
-    src/classes.hh
-    src/tutorial.hh
-    src/memory_analyzer.hh
+file(GLOB_RECURSE LUMINAR_SOURCES "src/*.cpp")
+file(GLOB_RECURSE TEST_SOURCES "test/*.cpp")
 
-)
+add_library(libluminar STATIC ${LUMINAR_SOURCES})
 
-find_library(GCCJIT_LIBRARY NAMES libgccjit.so libgccjit.dll)
-
-# # Use execute_process to get the correct include path dynamically
-# execute_process(
-#     COMMAND gcc -print-file-name=include
-#     OUTPUT_VARIABLE GCC_INCLUDE_DIR
-#     OUTPUT_STRIP_TRAILING_WHITESPACE
-# )
-
-# include_directories(${GCC_INCLUDE_DIR}/jit)
-
-# target_link_libraries(luminar ${GCCJIT_LIBRARY})
+add_executable(luminar src/main.cpp)
+target_link_libraries(luminar libluminar -L/usr/lib/gcc/x86_64-linux-gnu/13/ -lgccjit)
 
 include(GNUInstallDirs)
 install(TARGETS luminar
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+enable_testing()
+
+find_package(GTest REQUIRED)
+
+add_executable(runUnitTests ${TEST_SOURCES})
+target_link_libraries(runUnitTests GTest::gtest GTest::gtest_main libluminar)
+
+add_test(NAME runUnitTests COMMAND runUnitTests)
+
 
 # Install the documentation files
 install(FILES

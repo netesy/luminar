@@ -12,6 +12,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <condition_variable>
 
 class StackBackend : public Backend
 {

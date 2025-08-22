@@ -12,11 +12,12 @@ PrattParser::PrattParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSyste
     , typeSystem(typeSystem)
 {
     tokens = scanner.scanTokens();
-    parse();
 }
 
-Bytecode PrattParser::parse()
+std::vector<std::unique_ptr<ASTNode>> PrattParser::parse()
 {
+    std::cout << "--- Parsing ---" << std::endl;
+    std::vector<std::unique_ptr<ASTNode>> ast;
     auto start_time = std::chrono::high_resolution_clock::now();
     current = 0;
     while (!isAtEnd()) {
@@ -32,32 +33,12 @@ Bytecode PrattParser::parse()
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
     std::cout << "Parsing completed in " << duration.count() << " microseconds." << std::endl;
-    return bytecode;
-}
-
-std::string PrattParser::toString() const
-{
-    std::string result;
-    for (const auto &instruction : bytecode) {
-        result += "Instruction: " + instruction.opcodeToString(instruction.opcode)
-        + " | Line: " + std::to_string(instruction.lineNumber) + "\n";
-        std::string valueStr;
-        std::visit(
-            [&valueStr](const auto &val) {
-                std::stringstream ss;
-                ss << val;
-                valueStr = ss.str();
-            },
-            instruction.value->data);
-
-        result += " | Value: " + valueStr;
-        result += "\n";
-    }
-    return result;
+    return ast;
 }
 
 // Core of the Pratt parser: parse a prefix expression then repeatedly parse infix expressions
 std::unique_ptr<ASTNode> PrattParser::parseExpression(Precedence precedence) {
+    std::cout << "parseExpression: " << peek().lexeme << " (precedence: " << precedence << ")" << std::endl;
     // Get parsing function for the current token's type
     PrefixParseFn prefixFn = getPrefixParseFn(peek().type);
     if (!prefixFn) {
@@ -71,6 +52,7 @@ std::unique_ptr<ASTNode> PrattParser::parseExpression(Precedence precedence) {
 
     // While the next token has higher precedence, parse infix expressions
     while (precedence < getTokenPrecedence(peek().type) && !isAtEnd()) {
+        std::cout << "  (found infix operator " << peek().lexeme << " with precedence " << getTokenPrecedence(peek().type) << ")" << std::endl;
         InfixParseFn infixFn = getInfixParseFn(peek().type);
         if (!infixFn) {
             break;
@@ -85,6 +67,7 @@ std::unique_ptr<ASTNode> PrattParser::parseExpression(Precedence precedence) {
 
 // Methods to retrieve parsing functions
 PrefixParseFn PrattParser::getPrefixParseFn(TokenType type) {
+    std::cout << "getPrefixParseFn: " << static_cast<int>(type) << std::endl;
     switch (type) {
     case TokenType::NUMBER:
     case TokenType::STRING:
@@ -110,6 +93,7 @@ PrefixParseFn PrattParser::getPrefixParseFn(TokenType type) {
 }
 
 InfixParseFn PrattParser::getInfixParseFn(TokenType type) {
+    std::cout << "getInfixParseFn: " << static_cast<int>(type) << std::endl;
     switch (type) {
     case TokenType::PLUS:
     case TokenType::MINUS:
@@ -280,25 +264,22 @@ Precedence PrattParser::getTokenPrecedence(TokenType type) {
     }
 }
 
-// Bytecode emission
-Instruction PrattParser::emit(Opcode opcode, uint32_t lineNumber) {
-    Instruction instruction(opcode, lineNumber);
-    instruction.debug();
-    bytecode.push_back(instruction);
-    return instruction;
-}
-
-Instruction PrattParser::emit(Opcode opcode, uint32_t lineNumber, Value &&value) {
-    ValuePtr valuePtr = std::make_shared<Value>(std::move(value));
-    Instruction instruction(opcode, lineNumber, valuePtr);
-    instruction.debug();
-    bytecode.push_back(instruction);
-    return instruction;
-}
 
 // Prefix parse functions
 std::unique_ptr<ASTNode> PrattParser::parseLiteral(Token token) {
-    return parsePrimary();
+    if (token.type == TokenType::NUMBER) {
+        TypePtr typePtr = std::make_shared<Type>(inferType(token));
+        Value value = setValue(typePtr, token.lexeme);
+        auto node = std::make_unique<NumberNode>(SourceLocation(token.line, token.column), Type{inferType(token)}, Value{typePtr, std::stod(token.lexeme)});
+        currentNode = node.get(); // Set currentNode
+        return node;
+    } else if (token.type == TokenType::STRING) {
+        auto node = std::make_unique<StringLiteralNode>(SourceLocation(token.line, token.column), Type{TypeTag::String}, Value{std::make_shared<Type>(TypeTag::String), token.lexeme});
+        currentNode = node.get(); // Set currentNode
+        return node;
+    }
+    error("Expected literal.");
+    return nullptr;
 }
 
 std::unique_ptr<ASTNode> PrattParser::parseBoolean(Token token) {
@@ -316,13 +297,21 @@ std::unique_ptr<ASTNode> PrattParser::parseBinaryOp(std::unique_ptr<ASTNode> lef
     // Parse the right side with a higher precedence
     auto right = parseExpression(static_cast<Precedence>(precedence + 1));
 
+    auto* leftExpr = dynamic_cast<Expression*>(left.release());
+    auto* rightExpr = dynamic_cast<Expression*>(right.release());
+
+    if (!leftExpr || !rightExpr) {
+        error("Operands of binary operator must be expressions");
+        return createEmptyNode();
+    }
+
     auto node = std::make_unique<BinaryNode>(
         SourceLocation(token.line, token.column),
         Type{TypeTag::Any},
         token.lexeme,
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(left.release())),
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(right.release()))
-        );
+        std::unique_ptr<Expression>(leftExpr),
+        std::unique_ptr<Expression>(rightExpr)
+    );
     currentNode = node.get();
     return node;
 }
@@ -331,13 +320,22 @@ std::unique_ptr<ASTNode> PrattParser::parseBinaryOp(std::unique_ptr<ASTNode> lef
 std::unique_ptr<ASTNode> PrattParser::parseAndOp(std::unique_ptr<ASTNode> left, Token token) {
     // AND has right associativity, so we use the same precedence
     auto right = parseExpression(PREC_AND);
+
+    auto* leftExpr = dynamic_cast<Expression*>(left.release());
+    auto* rightExpr = dynamic_cast<Expression*>(right.release());
+
+    if (!leftExpr || !rightExpr) {
+        error("Operands of and operator must be expressions");
+        return createEmptyNode();
+    }
+
     auto node = std::make_unique<BinaryNode>(
         SourceLocation(token.line, token.column),
         Type{TypeTag::Bool},
         token.lexeme,
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(left.release())),
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(right.release()))
-        );
+        std::unique_ptr<Expression>(leftExpr),
+        std::unique_ptr<Expression>(rightExpr)
+    );
     currentNode = node.get();
     return node;
 }
@@ -345,13 +343,22 @@ std::unique_ptr<ASTNode> PrattParser::parseAndOp(std::unique_ptr<ASTNode> left, 
 std::unique_ptr<ASTNode> PrattParser::parseOrOp(std::unique_ptr<ASTNode> left, Token token) {
     // OR has right associativity, so we use the same precedence
     auto right = parseExpression(PREC_OR);
+
+    auto* leftExpr = dynamic_cast<Expression*>(left.release());
+    auto* rightExpr = dynamic_cast<Expression*>(right.release());
+
+    if (!leftExpr || !rightExpr) {
+        error("Operands of or operator must be expressions");
+        return createEmptyNode();
+    }
+
     auto node = std::make_unique<BinaryNode>(
         SourceLocation(token.line, token.column),
         Type{TypeTag::Bool},
         token.lexeme,
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(left.release())),
-        std::unique_ptr<Expression>(dynamic_cast<Expression*>(right.release()))
-        );
+        std::unique_ptr<Expression>(leftExpr),
+        std::unique_ptr<Expression>(rightExpr)
+    );
     currentNode = node.get();
     return node;
 }
@@ -444,6 +451,7 @@ std::unique_ptr<ASTNode> PrattParser::parseCall(std::unique_ptr<ASTNode> callee,
 
 // Statement parsing methods
 std::unique_ptr<ASTNode> PrattParser::parseDeclaration() {
+    std::cout << "parseDeclaration: " << peek().lexeme << std::endl;
     if (match(TokenType::VAR)) {
         return parseDecVariable(previous());
     } else if (match(TokenType::FN)) {
@@ -456,6 +464,7 @@ std::unique_ptr<ASTNode> PrattParser::parseDeclaration() {
 }
 
 std::unique_ptr<ASTNode> PrattParser::parseStatement() {
+    std::cout << "parseStatement: " << peek().lexeme << std::endl;
     if (match(TokenType::PRINT)) {
         return parsePrintStatement(previous());
     } else if (match(TokenType::LEFT_BRACE)) {
@@ -474,6 +483,7 @@ std::unique_ptr<ASTNode> PrattParser::parseStatement() {
 }
 
 std::unique_ptr<ASTNode> PrattParser::parseExpressionStatement() {
+    std::cout << "parseExpressionStatement: " << peek().lexeme << std::endl;
     auto expr = parseExpression(PREC_NONE);
     consume(TokenType::SEMICOLON, "Expected ';' after expression");
     return expr;
@@ -539,33 +549,73 @@ std::unique_ptr<ASTNode> PrattParser::parseDecVariable(Token token) {
     return node;
 }
 
-// std::unique_ptr<ASTNode> PrattParser::parsePrintStatement(Token token) {
-//     auto expr = parseExpression(PREC_NONE);
-//     consume(TokenType::SEMICOLON, "Expected ';' after print statement");
-//    auto node  = std::make_unique<PrintNode>(token, std::move(expr));
-// }
+std::unique_ptr<ASTNode> PrattParser::parsePrintStatement(Token token) {
+    auto expr = parseExpression(PREC_NONE);
+    consume(TokenType::SEMICOLON, "Expected ';' after print statement");
+
+    auto* exprNode = dynamic_cast<Expression*>(expr.release());
+    if (!exprNode) {
+        error("Print statement requires an expression");
+        return createEmptyNode();
+    }
+
+    auto node = std::make_unique<PrintNode>(SourceLocation(token.line, token.column), std::unique_ptr<Expression>(exprNode));
+    currentNode = node.get();
+    return node;
+}
 
 std::unique_ptr<ASTNode> PrattParser::parseIfStatement(Token token) {
     auto condition = parseExpression(PREC_NONE);
-    auto thenBranch = parseBlock(advance());//std::dynamic_cast<Statement*>(parseBlock(advance()).release())
+    auto thenBranch = parseBlock(advance());
+
+    auto* condExpr = dynamic_cast<Expression*>(condition.release());
+    if (!condExpr) {
+        error("If condition must be an expression");
+        return createEmptyNode();
+    }
+
+    auto* thenStmt = dynamic_cast<Statement*>(thenBranch.release());
+    if (!thenStmt) {
+        error("If branch must be a statement");
+        return createEmptyNode();
+    }
 
     std::vector<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Statement>>> elifBranches;
-    std::optional<std::unique_ptr<ASTNode>> elseBranch = std::nullopt;
+    std::optional<std::unique_ptr<Statement>> elseBranch = std::nullopt;
 
     while (match(TokenType::ELIF)) {
         auto elifCondition = parseExpression(PREC_NONE);
         auto elifBranch = parseBlock(advance());
-        elifBranches.emplace_back(std::move(elifCondition), std::move(elifBranch));
+
+        auto* elifCondExpr = dynamic_cast<Expression*>(elifCondition.release());
+        if (!elifCondExpr) {
+            error("Elif condition must be an expression");
+            return createEmptyNode();
+        }
+
+        auto* elifBranchStmt = dynamic_cast<Statement*>(elifBranch.release());
+        if (!elifBranchStmt) {
+            error("Elif branch must be a statement");
+            return createEmptyNode();
+        }
+
+        elifBranches.emplace_back(std::unique_ptr<Expression>(elifCondExpr), std::unique_ptr<Statement>(elifBranchStmt));
     }
 
     if (match(TokenType::ELSE)) {
-        elseBranch = parseBlock(advance());
+        auto elseB = parseBlock(advance());
+        auto* elseStmt = dynamic_cast<Statement*>(elseB.release());
+        if (!elseStmt) {
+            error("Else branch must be a statement");
+            return createEmptyNode();
+        }
+        elseBranch = std::unique_ptr<Statement>(elseStmt);
     }
 
     auto node = std::make_unique<ConditionalNode>(
         SourceLocation(token.line, token.column),
-        std::move(condition),
-        std::move(thenBranch),
+        std::unique_ptr<Expression>(condExpr),
+        std::unique_ptr<Statement>(thenStmt),
         std::move(elifBranches),
         std::move(elseBranch)
         );
@@ -752,16 +802,15 @@ std::unique_ptr<ASTNode> PrattParser::parseClassDeclaration(Token token) {
     // Class body
     consume(TokenType::LEFT_BRACE, "Expected '{' before class body");
 
-    std::vector<std::unique_ptr<FunctionNode>> methods;
-    std::vector<std::unique_ptr<VariableNode>> fields;
+    std::vector<std::unique_ptr<Statement>> members;
 
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
         if (match(TokenType::FN)) {
-            methods.push_back(std::unique_ptr<FunctionNode>(
-                dynamic_cast<FunctionNode*>(parseFnDeclaration(previous()).release())));
+            members.push_back(std::unique_ptr<Statement>(
+                dynamic_cast<Statement*>(parseFnDeclaration(previous()).release())));
         } else if (match(TokenType::VAR)) {
-            fields.push_back(std::unique_ptr<VariableNode>(
-                dynamic_cast<VariableNode*>(parseDecVariable(previous()).release())));
+            members.push_back(std::unique_ptr<Statement>(
+                dynamic_cast<Statement*>(parseDecVariable(previous()).release())));
         } else {
             error("Expected method or field declaration in class body");
             advance();
@@ -771,8 +820,7 @@ std::unique_ptr<ASTNode> PrattParser::parseClassDeclaration(Token token) {
     consume(TokenType::RIGHT_BRACE, "Expected '}' after class body");
 
    auto node  = std::make_unique<ClassNode>(SourceLocation(token.line, token.column), className, parentClass,
-                                       std::move(methods),
-                                       std::move(fields));
+                                       std::move(members));
     currentNode = node.get(); // Set currentNode
     return node;
 }
@@ -841,60 +889,61 @@ std::unique_ptr<ASTNode> PrattParser::parseExpression() {
     return node;
 }
 
-// Parse logical expressions
-std::unique_ptr<ASTNode> PrattParser::parseLogical() {
-    auto left = parseComparison();
-
-    while (match(TokenType::AND) || match(TokenType::OR)) {
-        Token op = previous();
-        auto right = parseComparison();
-        left = std::make_unique<BinaryNode>(SourceLocation(op.line, op.column), std::move(left), op, std::move(right));
-    }
-
-    return left;
-}
-
-// Parse comparison expressions
-std::unique_ptr<ASTNode> PrattParser::parseComparison() {
-    auto left = parsePrimary();
-
-    while (match(TokenType::GREATER) || match(TokenType::GREATER_EQUAL) ||
-           match(TokenType::LESS) || match(TokenType::LESS_EQUAL) ||
-           match(TokenType::BANG_EQUAL) || match(TokenType::EQUAL_EQUAL)) {
-        Token op = previous();
-        auto right = parsePrimary();
-        left = std::make_unique<BinaryNode>(std::move(left), op, std::move(right));
-    }
-
-    return left;
-}
-
 // Parse string literals
 std::unique_ptr<ASTNode> PrattParser::parseString() {
     // Get the string value without the quotes
     std::string value = previous().lexeme;
     //emit(Opcode::PUSH, previous().line, Value{std::make_shared<Type>(TypeTag::String), value});
-   auto node  = std::make_unique<StringLiteralNode>(value);
+   return std::make_unique<StringLiteralNode>(SourceLocation(previous().line, previous().column), Type{TypeTag::String}, Value{std::make_shared<Type>(TypeTag::String), value});
 }
 
 // Parse if expressions
 std::unique_ptr<ASTNode> PrattParser::parseIf() {
     auto condition = parseExpression();
-
     consume(TokenType::LEFT_BRACE, "Expect '{' after if condition.");
     auto thenBranch = parseBlock();
 
-    std::unique_ptr<ASTNode> elseBranch = nullptr;
+    auto* condExpr = dynamic_cast<Expression*>(condition.release());
+    if (!condExpr) {
+        error("If condition must be an expression");
+        return createEmptyNode();
+    }
+
+    auto* thenStmt = dynamic_cast<Statement*>(thenBranch.release());
+    if (!thenStmt) {
+        error("If branch must be a statement");
+        return createEmptyNode();
+    }
+
+    std::vector<std::pair<std::unique_ptr<Expression>, std::unique_ptr<Statement>>> elifBranches;
+    std::optional<std::unique_ptr<Statement>> elseBranch = std::nullopt;
+
     if (match(TokenType::ELSE)) {
         if (match(TokenType::IF)) {
-            elseBranch = parseIf();
+            auto elseIf = parseIf();
+            // This is tricky, we need to flatten the else-if ladder
+            // For now, let's just make it a nested if
+            auto* elseIfStmt = dynamic_cast<Statement*>(elseIf.release());
+            elseBranch = std::unique_ptr<Statement>(elseIfStmt);
         } else {
             consume(TokenType::LEFT_BRACE, "Expect '{' after else.");
-            elseBranch = parseBlock();
+            auto elseB = parseBlock();
+            auto* elseStmt = dynamic_cast<Statement*>(elseB.release());
+            if (!elseStmt) {
+                error("Else branch must be a statement");
+                return createEmptyNode();
+            }
+            elseBranch = std::unique_ptr<Statement>(elseStmt);
         }
     }
 
-   auto node  = std::make_unique<ConditionalNode>(SourceLocation(peek().line, peek().column), std::move(condition), std::move(thenBranch), std::move(elseBranch));
+   auto node  = std::make_unique<ConditionalNode>(
+        SourceLocation(peek().line, peek().column),
+        std::unique_ptr<Expression>(condExpr),
+        std::unique_ptr<Statement>(thenStmt),
+        std::move(elifBranches),
+        std::move(elseBranch)
+        );
     currentNode = node.get(); // Set currentNode
     return node;
 }
@@ -903,10 +952,17 @@ std::unique_ptr<ASTNode> PrattParser::parseIf() {
 std::unique_ptr<ASTNode> PrattParser::parseBlock() {
     enterScope();
 
-    std::vector<std::unique_ptr<ASTNode>> statements;
+    std::vector<std::unique_ptr<Statement>> statements;
 
     while (!check(TokenType::RIGHT_BRACE) && !isAtEnd()) {
-        statements.push_back(parseDeclaration());
+        auto stmt = parseDeclaration();
+        if (stmt) {
+            if (Statement* s = dynamic_cast<Statement*>(stmt.get())) {
+                statements.push_back(std::unique_ptr<Statement>(dynamic_cast<Statement*>(stmt.release())));
+            } else {
+                error("Only statements are allowed in a block");
+            }
+        }
     }
 
     consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
@@ -930,7 +986,7 @@ std::unique_ptr<ASTNode> PrattParser::parseReturnStatement() {
     consume(TokenType::SEMICOLON, "Expect ';' after return value.");
    // emit(Opcode::RETURN, keyword.line);
 
-   auto node  = std::make_unique<ReturnNode>(std::move(value));
+   return std::make_unique<ReturnNode>(std::move(value));
 }
 
 // Parse concurrent statements
@@ -941,9 +997,15 @@ std::unique_ptr<ASTNode> PrattParser::parseConcurrentStatement() {
 
     auto body = parseStatement();
 
-    //emit(Opcode::CONCURRENT, previous().line);
+    auto* expr = dynamic_cast<Expression*>(expression.release());
+    auto* bodyStmt = dynamic_cast<Statement*>(body.release());
 
-   auto node  = std::make_unique<ConcurrentNode>(std::move(expression), std::move(body));
+    if (!expr || !bodyStmt) {
+        error("Invalid concurrent statement");
+        return createEmptyNode();
+    }
+
+   auto node  = std::make_unique<ConcurrentNode>(std::unique_ptr<Expression>(expr), std::unique_ptr<Statement>(bodyStmt));
     currentNode = node.get(); // Set currentNode
     return node;
 }
@@ -956,9 +1018,15 @@ std::unique_ptr<ASTNode> PrattParser::parseParallelStatement() {
 
     auto body = parseStatement();
 
-    //emit(Opcode::PARALLEL, previous().line);
+    auto* expr = dynamic_cast<Expression*>(expression.release());
+    auto* bodyStmt = dynamic_cast<Statement*>(body.release());
 
-   auto node  = std::make_unique<ParallelNode>(std::move(expression), std::move(body));
+    if (!expr || !bodyStmt) {
+        error("Invalid parallel statement");
+        return createEmptyNode();
+    }
+
+   return std::make_unique<ParallelNode>(std::unique_ptr<Expression>(expr), std::unique_ptr<Statement>(bodyStmt));
 }
 
 // Parse import statements
@@ -983,7 +1051,13 @@ std::unique_ptr<ASTNode> PrattParser::parseModules() {
     consume(TokenType::LEFT_BRACE, "Expect '{' after module name.");
     auto body = parseBlock();
 
-   auto node  = std::make_unique<ModuleNode>(moduleName, std::move(body));
+    auto* bodyStmt = dynamic_cast<Statement*>(body.release());
+    if (!bodyStmt) {
+        error("Module body must be a statement");
+        return createEmptyNode();
+    }
+
+   auto node  = std::make_unique<ModuleNode>(moduleName, std::unique_ptr<Statement>(bodyStmt));
     currentNode = node.get(); // Set currentNode
     return node;
 }
@@ -1038,15 +1112,6 @@ bool PrattParser::isExpression(TokenType type) {
     }
 }
 
-// Load a variable from the environment
-void PrattParser::parseLoadVariable() {
-    Token name = previous();
-    int32_t memoryLocation = getVariableMemoryLocation(name);
-
-    emit(Opcode::LOAD_VARIABLE, name.line,
-         Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
-}
-
 // Parse function calls
 std::unique_ptr<ASTNode> PrattParser::parseFnCall() {
     Token funcName = previous();
@@ -1091,21 +1156,6 @@ TypeTag PrattParser::stringToType(const std::string &typeStr) {
     }
 
     return TypeTag::UserDefined;
-}
-
-
-// Declare a variable
-void PrattParser::declareVariable(const Token &name,
-                                  const TypePtr &type,
-                                  std::optional<ValuePtr> defaultValue) {
-    try {
-        int32_t memoryLocation = variable.addVariable(name.lexeme, type, false, defaultValue);
-        emit(Opcode::DECLARE_VARIABLE,
-             name.line,
-             Value{std::make_shared<Type>(TypeTag::Int), memoryLocation});
-    } catch (const std::runtime_error &e) {
-        error(e.what());
-    }
 }
 
 // Get memory location for a variable

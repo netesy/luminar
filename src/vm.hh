@@ -7,13 +7,10 @@
 
 class VM {
 public:
-    explicit VM(Algorithm &parser, std::unique_ptr<Backend> backend)
-        : parser(parser)
+    explicit VM(Bytecode bytecode, std::unique_ptr<Backend> backend)
+        : program(std::move(bytecode))
         , backend(std::move(backend))
-    {
-        //std::cout << "======= Parser Debug =======\n"<< parser.toString() << "\n======= End Parser Debug =======\n\n";
-        program = parser.getBytecode();
-    }
+    {}
 
     void run() {
         backend->run(program);
@@ -24,7 +21,6 @@ public:
     }
 
 private:
-    Algorithm &parser;
     std::vector<Instruction> program;
     std::unique_ptr<Backend> backend;
 };

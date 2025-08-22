@@ -12,6 +12,9 @@
 #include <vector>
 
 // Define a struct to represent bytecode instructions
+struct Instruction;
+using Bytecode = std::vector<Instruction>;
+
 struct Instruction
 {
     Opcode opcode;
@@ -26,7 +29,7 @@ struct Instruction
     Instruction() = default;
     
     // Constructor for instructions with string value
-    Instruction(Opcode op, uint32_t line, ValuePtr &val)
+    Instruction(Opcode op, uint32_t line, const ValuePtr &val)
         : opcode(op)
         , lineNumber(line)
         , value(val)

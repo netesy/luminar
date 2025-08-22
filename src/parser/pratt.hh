@@ -16,8 +16,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "../ast.hh"
-
-using Bytecode = std::vector<Instruction>;
+#include "../instructions.hh"
 
 // Forward declarations
 class PrattParser;
@@ -29,8 +28,7 @@ typedef std::unique_ptr<ASTNode> (PrattParser::*InfixParseFn)(std::unique_ptr<AS
 class PrattParser {
 public:
     PrattParser(Scanner &scanner, std::shared_ptr<TypeSystem> typeSystem);
-    Bytecode parse();
-    std::string toString() const;
+    std::vector<std::unique_ptr<ASTNode>> parse();
 
 private:
     // Core parsing methods
@@ -76,10 +74,6 @@ private:
     void error(const std::string &message);
     void synchronize();
     bool isExpression(TokenType type); // Added from commented code
-
-    // Bytecode emission methods
-    Instruction emit(Opcode opcode, uint32_t lineNumber);
-    Instruction emit(Opcode opcode, uint32_t lineNumber, Value &&value);
 
     // Variable management - Added from commented code
     void declareVariable(const Token &name,
@@ -255,8 +249,6 @@ private:
     std::shared_ptr<TypeSystem> typeSystem;
     std::vector<Token> tokens;
     size_t current = 0;
-    Bytecode bytecode;
-    std::vector<std::unique_ptr<ASTNode>> ast;
     bool hadError = false;
     bool isNewExpression = true;
 

@@ -1,5 +1,4 @@
 #pragma once
-#include "builtin_function.hh" /* Make sure to include this */
 #include "instructions.hh"
 #include "scope.hh"
 #include "types.hh"
@@ -153,16 +152,7 @@ struct FunctionInfo
 class Functions
 {
 public:
-    Functions(std::shared_ptr<TypeSystem> typeSystem)
-        : typeSystem_(typeSystem)
-        , scopeManager_()
-        , currentScopeId_(0)
-        , variable(typeSystem) // Track the current scope ID
-    {                        // Register builtin functions automatically during construction
-                             //  BuiltinFunctions::registerBuiltins(*this, typeSystem_);
-        BuiltinFunctions<Functions>::registerWith(*this, typeSystem_);
-        //BuiltinFunctions::ref
-    }
+    Functions(std::shared_ptr<TypeSystem> typeSystem);
 
     // Modified function management methods
     void addFunction(const std::string &name,

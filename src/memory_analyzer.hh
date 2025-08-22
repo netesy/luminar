@@ -17,6 +17,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 
 class MemoryAnalyzer {
 private:

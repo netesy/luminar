@@ -1,0 +1,194 @@
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 9 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:20:13 2025
+
+1[32m > [0m[1mprint(1 [31m+[0m 2);[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:20:13 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Operands of binary operator must be expressions
+Time: Thu Aug 21 18:20:13 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Check your code for errors.
+Sample Solution: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 9 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:22:02 2025
+
+1[32m > [0m[1mprint(1 [31m+[0m 2);[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:22:02 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Operands of binary operator must be expressions
+Time: Thu Aug 21 18:22:02 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Check your code for errors.
+Sample Solution: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 9 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:26:13 2025
+
+1[32m > [0m[1mprint(1 [31m+[0m 2);[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:26:13 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Operands of binary operator must be expressions
+Time: Thu Aug 21 18:26:13 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Check your code for errors.
+Sample Solution: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 9 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:37:48 2025
+
+1[32m > [0m[1mprint(1 [31m+[0m 2);[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:37:48 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Operands of binary operator must be expressions
+Time: Thu Aug 21 18:37:48 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Check your code for errors.
+Sample Solution: Check your code for errors.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 9 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:39:43 2025
+
+1[32m > [0m[1mprint(1 [31m+[0m 2);[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Expected expression.
+Time: Thu Aug 21 18:39:43 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Ensure the correct syntax is followed. Expected expression.
+Sample Solution: Ensure the correct syntax is followed. Expected expression.
+ ----------------END----------------
+
+
+ ----------------DEBUG----------------
+Error in file: test.lm
+Path: /app/test.lm
+Line 1, Column 12 (Syntax Error): Operands of binary operator must be expressions
+Time: Thu Aug 21 18:39:43 2025
+
+1[32m > [0m[1mprint(1 + 2[31m)[0m;[0m
+
+Suggestion: Check your code for errors.
+Sample Solution: Check your code for errors.
+ ----------------END----------------
